@@ -1,0 +1,2286 @@
+{
+  "Kth Element of Two Sorted Arrays": {
+    "solution": {
+      "title": "Kth Element of Two Sorted Arrays",
+      "problemStatement": "Given two sorted arrays arr1 and arr2 of size m and n respectively and an element k. The task is to find the element that would be at the k-th position of the combined sorted array.",
+      "examples": [
+        {
+          "input": "arr1 = [2, 3, 6, 7, 9], arr2 = [1, 4, 8, 10], k = 5",
+          "output": "6",
+          "explanation": "The final sorted array would be [1, 2, 3, 4, 6, 7, 8, 9, 10]. The 5th element of this array is 6."
+        }
+      ],
+      "constraints": [
+        "1 <= len(arr1), len(arr2) <= 10^6",
+        "0 <= arr1[i], arr2[i] <= 10^6",
+        "1 <= k <= len(arr1) + len(arr2)"
+      ],
+      "edgeCases": [
+        "k is 1 or k is equal to len(arr1) + len(arr2).",
+        "One array is completely smaller than the other.",
+        "One array is empty."
+      ],
+      "followUps": [
+        "Can you solve it in O(log(min(m, n))) time complexity?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Merge both sorted arrays up to the k-th element using two pointers.",
+          "algorithm": "1. Initialize two pointers i and j to 0.\n2. Count from 0 to k-1.\n3. In each iteration, compare the elements at i and j. Increment the pointer pointing to the smaller element.\n4. The last compared element is the k-th element.",
+          "code": "def kthElement(arr1, arr2, k):\n    # Initialize pointer for the first array\n    i = 0\n    # Initialize pointer for the second array\n    j = 0\n    # Counter to track how many elements have been merged\n    count = 0\n    # Variable to store the current k-th element\n    current = 0\n    # Loop until we have merged k elements\n    while i < len(arr1) or j < len(arr2):\n        # Pick the element from arr1 if it is smaller or arr2 is fully traversed\n        if i < len(arr1) and (j >= len(arr2) or arr1[i] <= arr2[j]):\n            current = arr1[i]\n            i += 1\n        else:\n            current = arr2[j]\n            j += 1\n        # Increment the count of merged elements\n        count += 1\n        # If we have reached the k-th element, return it\n        if count == k:\n            return current\n    # Return -1 if k is out of bounds\n    return -1",
+          "complexity": {
+            "time": "O(K)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use binary search on partitions of the two arrays. By partitioning arr1 at cut1 and arr2 at cut2 (where cut1 + cut2 = k), we check if the partition is valid. If it is, the maximum of left elements is the k-th element.",
+          "algorithm": "1. Ensure arr1 is the smaller array to minimize the binary search range.\n2. Set the binary search range: low = max(0, k - n2) and high = min(n1, k).\n3. Find cut1 = (low + high) // 2 and cut2 = k - cut1.\n4. Determine l1, r1, l2, r2 around the partition boundaries.\n5. If l1 <= r2 and l2 <= r1, return max(l1, l2).\n6. If l1 > r2, move partition left (high = cut1 - 1), else move right (low = cut1 + 1).",
+          "code": "def kthElement(arr1, arr2, k):\n    # Get size of the first array\n    n1 = len(arr1)\n    # Get size of the second array\n    n2 = len(arr2)\n    # Make sure first array is smaller to optimize search\n    if n1 > n2:\n        return kthElement(arr2, arr1, k)\n    # Set binary search range boundaries\n    low = max(0, k - n2)\n    high = min(n1, k)\n    # Run binary search\n    while low <= high:\n        # Cut index in first array\n        cut1 = (low + high) // 2\n        # Cut index in second array\n        cut2 = k - cut1\n        # Value of element left of cut1\n        l1 = arr1[cut1 - 1] if cut1 > 0 else float('-inf')\n        # Value of element right of cut1\n        r1 = arr1[cut1] if cut1 < n1 else float('inf')\n        # Value of element left of cut2\n        l2 = arr2[cut2 - 1] if cut2 > 0 else float('-inf')\n        # Value of element right of cut2\n        r2 = arr2[cut2] if cut2 < n2 else float('inf')\n        # Check if partition is valid\n        if l1 <= r2 and l2 <= r1:\n            return max(l1, l2)\n        elif l1 > r2:\n            # Move partition left in first array\n            high = cut1 - 1\n        else:\n            # Move partition right in first array\n            low = cut1 + 1\n    # Return -1 if not found\n    return -1",
+          "complexity": {
+            "time": "O(log(min(m, n)))",
+            "space": "O(1)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Calculate size n1 of first array [2, 3, 6]",
+        "vars": {
+          "n1": 3
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Calculate size n2 of second array [1, 4, 8, 10]",
+        "vars": {
+          "n1": 3,
+          "n2": 4
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Check if first array is larger than second array (3 > 4 is False)",
+        "vars": {
+          "n1": 3,
+          "n2": 4
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Initialize low as max(0, 4 - 4) = 0",
+        "vars": {
+          "low": 0
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Initialize high as min(3, 4) = 3",
+        "vars": {
+          "low": 0,
+          "high": 3
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Check binary search condition low <= high (0 <= 3 is True)",
+        "vars": {
+          "low": 0,
+          "high": 3
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Calculate cut1 partition position (0 + 3) // 2 = 1",
+        "vars": {
+          "cut1": 1
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Calculate cut2 partition position (4 - 1) = 3",
+        "vars": {
+          "cut1": 1,
+          "cut2": 3
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Get left element from arr1: l1 = arr1[0] = 2",
+        "vars": {
+          "l1": 2
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Get right element from arr1: r1 = arr1[1] = 3",
+        "vars": {
+          "l1": 2,
+          "r1": 3
+        }
+      },
+      {
+        "line": 23,
+        "desc": "Get left element from arr2: l2 = arr2[2] = 8",
+        "vars": {
+          "l1": 2,
+          "r1": 3,
+          "l2": 8
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Get right element from arr2: r2 = arr2[3] = 10",
+        "vars": {
+          "l1": 2,
+          "r1": 3,
+          "l2": 8,
+          "r2": 10
+        }
+      },
+      {
+        "line": 27,
+        "desc": "Compare boundaries (l1 <= r2 and l2 <= r1 -> 2 <= 10 and 8 <= 3 is False)",
+        "vars": {
+          "l1": 2,
+          "r1": 3,
+          "l2": 8,
+          "r2": 10
+        }
+      },
+      {
+        "line": 29,
+        "desc": "Check if l1 > r2 (2 > 10 is False)",
+        "vars": {
+          "l1": 2,
+          "r2": 10
+        }
+      },
+      {
+        "line": 33,
+        "desc": "Increment low to cut1 + 1 since we need more elements from arr1",
+        "vars": {
+          "low": 2
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Check binary search condition low <= high (2 <= 3 is True)",
+        "vars": {
+          "low": 2,
+          "high": 3
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Calculate cut1 partition position (2 + 3) // 2 = 2",
+        "vars": {
+          "cut1": 2
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Calculate cut2 partition position (4 - 2) = 2",
+        "vars": {
+          "cut1": 2,
+          "cut2": 2
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Get left element from arr1: l1 = arr1[1] = 3",
+        "vars": {
+          "l1": 3
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Get right element from arr1: r1 = arr1[2] = 6",
+        "vars": {
+          "l1": 3,
+          "r1": 6
+        }
+      },
+      {
+        "line": 23,
+        "desc": "Get left element from arr2: l2 = arr2[1] = 4",
+        "vars": {
+          "l1": 3,
+          "r1": 6,
+          "l2": 4
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Get right element from arr2: r2 = arr2[2] = 8",
+        "vars": {
+          "l1": 3,
+          "r1": 6,
+          "l2": 4,
+          "r2": 8
+        }
+      },
+      {
+        "line": 27,
+        "desc": "Compare boundaries (l1 <= r2 and l2 <= r1 -> 3 <= 8 and 4 <= 6 is True)",
+        "vars": {
+          "l1": 3,
+          "r1": 6,
+          "l2": 4,
+          "r2": 8
+        }
+      },
+      {
+        "line": 28,
+        "desc": "Partition is correct. Return max(l1, l2) = max(3, 4) = 4",
+        "vars": {
+          "return": 4
+        }
+      }
+    ]
+  },
+  "Implement Stack Using Array": {
+    "solution": {
+      "title": "Implement Stack Using Array",
+      "problemStatement": "Implement a stack data structure using a standard array. The stack should support push, pop, top, isEmpty, and size operations.",
+      "examples": [
+        {
+          "input": "push(5), push(10), pop(), top(), isEmpty()",
+          "output": "pop() -> 10, top() -> 5, isEmpty() -> false"
+        }
+      ],
+      "constraints": [
+        "Maximum capacity is 1000",
+        "Values of x are in range [-10^5, 10^5]"
+      ],
+      "edgeCases": [
+        "Pop from empty stack",
+        "Top/Peek from empty stack",
+        "Stack overflow if capacity is reached"
+      ],
+      "followUps": [
+        "How would you implement a dynamic resizing array to avoid overflow?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Use Python's built-in list append and pop operations directly.",
+          "algorithm": "1. Initialize an empty list stack.\n2. Push appends to the list.\n3. Pop removes and returns the last element of the list, returning -1 if empty.\n4. Top peeks at stack[-1], returning -1 if empty.",
+          "code": "class MyStack:\n    def __init__(self):\n        # Standard list to store stack elements\n        self.stack = []\n\n    def push(self, x: int) -> None:\n        # Append element to stack list\n        self.stack.append(x)\n\n    def pop(self) -> int:\n        # Check if stack is empty, return -1\n        if not self.stack:\n            return -1\n        # Pop from end of list\n        return self.stack.pop()\n\n    def top(self) -> int:\n        # Check if stack is empty, return -1\n        if not self.stack:\n            return -1\n        # Peek last element of list\n        return self.stack[-1]\n\n    def isEmpty(self) -> bool:\n        # Check if stack is empty\n        return len(self.stack) == 0\n\n    def size(self) -> int:\n        # Return stack size\n        return len(self.stack)",
+          "complexity": {
+            "time": "O(1)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a fixed size array of size 1000 with a top pointer to represent the current top of the stack.",
+          "algorithm": "1. Initialize a fixed-size array of size 1000 and a top_idx pointer to -1.\n2. In push, increment top_idx and assign the value.\n3. In pop, retrieve the value at top_idx, decrement top_idx, and return the value.\n4. In top, return the value at top_idx if top_idx >= 0.",
+          "code": "class MyStack:\n    def __init__(self):\n        # Fixed capacity array to store stack elements\n        self.arr = [-1] * 1000\n        # Pointer to the index of the top element\n        self.top_idx = -1\n\n    def push(self, x: int) -> None:\n        # Increment top index pointer\n        self.top_idx += 1\n        # Place the element at top index\n        self.arr[self.top_idx] = x\n\n    def pop(self) -> int:\n        # Check if stack is empty\n        if self.top_idx == -1:\n            return -1\n        # Retrieve top element\n        val = self.arr[self.top_idx]\n        # Decrement top index pointer\n        self.top_idx -= 1\n        # Return the popped element\n        return val\n\n    def top(self) -> int:\n        # Check if stack is empty\n        if self.top_idx == -1:\n            return -1\n        # Return top element\n        return self.arr[self.top_idx]\n\n    def isEmpty(self) -> bool:\n        # Check if top index is -1\n        return self.top_idx == -1\n\n    def size(self) -> int:\n        # Size is index + 1\n        return self.top_idx + 1",
+          "complexity": {
+            "time": "O(1)",
+            "space": "O(C) where C is capacity"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize self.arr with capacity 1000",
+        "vars": {
+          "arr_size": 1000
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Initialize self.top_idx to -1",
+        "vars": {
+          "top_idx": -1
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Call push(5). Increment self.top_idx to 0",
+        "vars": {
+          "top_idx": 0,
+          "x": 5
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Assign self.arr[0] = 5",
+        "vars": {
+          "arr[0]": 5,
+          "top_idx": 0
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Call pop(). Check if self.top_idx is -1 (False)",
+        "vars": {
+          "top_idx": 0
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Retrieve top value val = self.arr[0] = 5",
+        "vars": {
+          "val": 5
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Decrement self.top_idx to -1",
+        "vars": {
+          "top_idx": -1
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Return popped value 5",
+        "vars": {
+          "return": 5
+        }
+      }
+    ]
+  },
+  "Implement Queue Using Array": {
+    "solution": {
+      "title": "Implement Queue Using Array",
+      "problemStatement": "Implement a queue data structure using a circular array. The queue should support enqueue, dequeue, front, isEmpty, and size operations.",
+      "examples": [
+        {
+          "input": "enqueue(5), enqueue(10), dequeue(), front(), isEmpty()",
+          "output": "dequeue() -> 5, front() -> 10, isEmpty() -> false"
+        }
+      ],
+      "constraints": [
+        "Maximum capacity is 1000",
+        "Values of x are in range [-10^5, 10^5]"
+      ],
+      "edgeCases": [
+        "Dequeue from empty queue",
+        "Front from empty queue",
+        "Queue overflow"
+      ],
+      "followUps": [
+        "Can you implement the queue using a dynamically resizing array?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Use a simple Python list and pop(0) to dequeue elements.",
+          "algorithm": "1. Initialize an empty list queue.\n2. Enqueue appends to the end of the list.\n3. Dequeue removes elements from index 0 using pop(0).\n4. This causes O(N) shifts on dequeue.",
+          "code": "class MyQueue:\n    def __init__(self):\n        # Standard list to store queue elements\n        self.queue = []\n\n    def enqueue(self, x: int) -> None:\n        # Append to end of queue list\n        self.queue.append(x)\n\n    def dequeue(self) -> int:\n        # Check if queue is empty, return -1\n        if not self.queue:\n            return -1\n        # Pop from front of list (O(N) operation)\n        return self.queue.pop(0)\n\n    def front(self) -> int:\n        # Check if queue is empty, return -1\n        if not self.queue:\n            return -1\n        # Return front element\n        return self.queue[0]\n\n    def isEmpty(self) -> bool:\n        # Check if empty\n        return len(self.queue) == 0\n\n    def size(self) -> int:\n        # Return queue size\n        return len(self.queue)",
+          "complexity": {
+            "time": "O(1) enqueue, O(N) dequeue",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a circular array with front and rear pointers to achieve O(1) time complexity for all queue operations.",
+          "algorithm": "1. Maintain front_idx, rear_idx, and count variables.\n2. In enqueue, write to rear_idx, increment rear_idx circularly, and increment count.\n3. In dequeue, read from front_idx, increment front_idx circularly, and decrement count.",
+          "code": "class MyQueue:\n    def __init__(self):\n        # Fixed capacity of 1000\n        self.capacity = 1000\n        # Fixed capacity circular array\n        self.arr = [-1] * self.capacity\n        # Pointer to front element\n        self.front_idx = 0\n        # Pointer to rear element\n        self.rear_idx = 0\n        # Current number of elements in queue\n        self.count = 0\n\n    def enqueue(self, x: int) -> bool:\n        # Check if queue is full\n        if self.count == self.capacity:\n            return False\n        # Insert element at circular rear position\n        self.arr[self.rear_idx] = x\n        # Advance rear pointer in circular fashion\n        self.rear_idx = (self.rear_idx + 1) % self.capacity\n        # Increment the element count\n        self.count += 1\n        return True\n\n    def dequeue(self) -> int:\n        # Check if queue is empty\n        if self.count == 0:\n            return -1\n        # Retrieve front element value\n        val = self.arr[self.front_idx]\n        # Move front pointer in circular fashion\n        self.front_idx = (self.front_idx + 1) % self.capacity\n        # Decrement element count\n        self.count -= 1\n        # Return dequeued value\n        return val",
+          "complexity": {
+            "time": "O(1) for all operations",
+            "space": "O(C) where C is capacity"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Set circular queue capacity to 1000",
+        "vars": {
+          "capacity": 1000
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Initialize capacity array with -1s",
+        "vars": {
+          "arr_len": 1000
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Initialize front_idx to 0",
+        "vars": {
+          "front_idx": 0
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Initialize rear_idx to 0",
+        "vars": {
+          "front_idx": 0,
+          "rear_idx": 0
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Initialize count to 0",
+        "vars": {
+          "front_idx": 0,
+          "rear_idx": 0,
+          "count": 0
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Call enqueue(5). Check if count == capacity (0 == 1000 is False)",
+        "vars": {
+          "count": 0,
+          "capacity": 1000,
+          "x": 5
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Set self.arr[0] = 5",
+        "vars": {
+          "arr[0]": 5
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Advance rear_idx to (0 + 1) % 1000 = 1",
+        "vars": {
+          "rear_idx": 1
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Increment count to 1",
+        "vars": {
+          "count": 1
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Call dequeue(). Check if count is 0 (1 == 0 is False)",
+        "vars": {
+          "count": 1
+        }
+      },
+      {
+        "line": 27,
+        "desc": "Get val from self.arr[front_idx] (self.arr[0] = 5)",
+        "vars": {
+          "val": 5
+        }
+      },
+      {
+        "line": 29,
+        "desc": "Advance front_idx to (0 + 1) % 1000 = 1",
+        "vars": {
+          "front_idx": 1
+        }
+      },
+      {
+        "line": 31,
+        "desc": "Decrement count to 0",
+        "vars": {
+          "count": 0
+        }
+      },
+      {
+        "line": 33,
+        "desc": "Return dequeued value 5",
+        "vars": {
+          "return": 5
+        }
+      }
+    ]
+  },
+  "Implement Stack Using Queue": {
+    "solution": {
+      "title": "Implement Stack Using Queue",
+      "problemStatement": "Implement a LIFO stack using only a single FIFO queue.",
+      "examples": [
+        {
+          "input": "push(5), push(10), top(), pop(), empty()",
+          "output": "top() -> 10, pop() -> 10, empty() -> false"
+        }
+      ],
+      "constraints": [
+        "Operations are push, pop, top, empty",
+        "At most 100 calls will be made to push, pop, top, empty"
+      ],
+      "edgeCases": [
+        "Pop from empty stack",
+        "Top from empty stack"
+      ],
+      "followUps": [
+        "Can you implement this using only two queues?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Use two queues to make push operation LIFO.",
+          "algorithm": "1. Maintain q1 and q2.\n2. In push, insert element into q2, then copy all elements from q1 to q2. Swap q1 and q2.\n3. Pop and top operations are O(1) from q1.",
+          "code": "from collections import deque\n\nclass MyStack:\n    def __init__(self):\n        # Primary queue\n        self.q1 = deque()\n        # Helper queue\n        self.q2 = deque()\n\n    def push(self, x: int) -> None:\n        # Push element to q2\n        self.q2.append(x)\n        # Move all elements from q1 to q2\n        while self.q1:\n            self.q2.append(self.q1.popleft())\n        # Swap names of q1 and q2\n        self.q1, self.q2 = self.q2, self.q1\n\n    def pop(self) -> int:\n        # Pop from q1\n        if not self.q1:\n            return -1\n        return self.q1.popleft()\n\n    def top(self) -> int:\n        # Peek from q1\n        if not self.q1:\n            return -1\n        return self.q1[0]",
+          "complexity": {
+            "time": "O(N) push, O(1) pop",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a single queue. For push, add the element to the queue, then pop and re-add all preceding elements so the newest element ends up at the front.",
+          "algorithm": "1. Append x to the single queue q.\n2. For len(q) - 1 times, pop the front element and append it back to the end.",
+          "code": "from collections import deque\n\nclass MyStack:\n    def __init__(self):\n        # Use collections.deque as the underlying queue\n        self.q = deque()\n\n    def push(self, x: int) -> None:\n        # Add element to the queue\n        self.q.append(x)\n        # Rotate all previous elements to the back of the queue\n        for _ in range(len(self.q) - 1):\n            self.q.append(self.q.popleft())\n\n    def pop(self) -> int:\n        # Remove and return the front element of the queue\n        if not self.q:\n            return -1\n        return self.q.popleft()\n\n    def top(self) -> int:\n        # Peek and return the front element of the queue\n        if not self.q:\n            return -1\n        return self.q[0]\n\n    def empty(self) -> bool:\n        # Return true if queue length is 0\n        return len(self.q) == 0",
+          "complexity": {
+            "time": "O(N) push, O(1) pop",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 4,
+        "desc": "Initialize empty deque self.q",
+        "vars": {
+          "q_len": 0
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Call push(5). Append 5 to self.q",
+        "vars": {
+          "self.q": "[5]"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Loop for len(q) - 1 times (0 times) -> Loop skipped",
+        "vars": {
+          "self.q": "[5]"
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Call push(10). Append 10 to self.q",
+        "vars": {
+          "self.q": "[5, 10]"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Loop for len(q) - 1 times (1 time). Pop 5 and append to back.",
+        "vars": {
+          "self.q": "[10, 5]"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Call pop(). Check if queue is empty (False)",
+        "vars": {
+          "self.q": "[10, 5]"
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Pop and return the front of self.q (10)",
+        "vars": {
+          "return": 10,
+          "self.q": "[5]"
+        }
+      }
+    ]
+  },
+  "Implement Queue Using Stack": {
+    "solution": {
+      "title": "Implement Queue Using Stack",
+      "problemStatement": "Implement a FIFO queue using two stacks.",
+      "examples": [
+        {
+          "input": "push(5), push(10), peek(), pop(), empty()",
+          "output": "peek() -> 5, pop() -> 5, empty() -> false"
+        }
+      ],
+      "constraints": [
+        "Operations are push, pop, peek, empty",
+        "At most 100 calls will be made to all operations"
+      ],
+      "edgeCases": [
+        "Pop from empty queue",
+        "Peek from empty queue"
+      ],
+      "followUps": [
+        "Can you optimize the operations to get amortized O(1) time complexity?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Use two stacks where we move elements back and forth during every push to maintain queue order.",
+          "algorithm": "1. Push elements to s1.\n2. In push, pop all elements from s1 to s2, push new element to s1, and move all elements back to s1.",
+          "code": "class MyQueue:\n    def __init__(self):\n        # Main stack\n        self.s1 = []\n        # Helper stack\n        self.s2 = []\n\n    def push(self, x: int) -> None:\n        # Move all elements from s1 to s2\n        while self.s1:\n            self.s2.append(self.s1.pop())\n        # Push new element to s1\n        self.s1.append(x)\n        # Move elements back to s1\n        while self.s2:\n            self.s1.append(self.s2.pop())\n\n    def pop(self) -> int:\n        # Pop top element\n        if not self.s1:\n            return -1\n        return self.s1.pop()\n\n    def peek(self) -> int:\n        # Return top element\n        if not self.s1:\n            return -1\n        return self.s1[-1]",
+          "complexity": {
+            "time": "O(N) push, O(1) pop",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use two stacks: input_stack and output_stack. For push, push to input_stack. For pop/peek, if output_stack is empty, pop everything from input_stack to output_stack. This achieves amortized O(1) complexity.",
+          "algorithm": "1. In push, append x to input_stack.\n2. In pop, if output_stack is empty, pop elements from input_stack and push to output_stack. Then pop from output_stack.",
+          "code": "class MyQueue:\n    def __init__(self):\n        # Stack to handle incoming elements\n        self.input_stack = []\n        # Stack to handle outgoing elements\n        self.output_stack = []\n\n    def push(self, x: int) -> None:\n        # Push element to the input stack\n        self.input_stack.append(x)\n\n    def pop(self) -> int:\n        # Ensure the output stack is not empty\n        if not self.output_stack:\n            # Transfer elements from input to output in reverse order\n            while self.input_stack:\n                self.output_stack.append(self.input_stack.pop())\n        # Return and remove the top of output stack\n        if not self.output_stack:\n            return -1\n        return self.output_stack.pop()\n\n    def peek(self) -> int:\n        # Ensure the output stack has the current elements\n        if not self.output_stack:\n            # Transfer elements from input to output\n            while self.input_stack:\n                self.output_stack.append(self.input_stack.pop())\n        # Return the top of output stack without removing\n        if not self.output_stack:\n            return -1\n        return self.output_stack[-1]\n\n    def empty(self) -> bool:\n        # Queue is empty if both stacks are empty\n        return not self.input_stack and not self.output_stack",
+          "complexity": {
+            "time": "Amortized O(1) for all operations",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize input_stack as empty list",
+        "vars": {
+          "input_stack": "[]"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Initialize output_stack as empty list",
+        "vars": {
+          "output_stack": "[]"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Call push(5). Append 5 to input_stack",
+        "vars": {
+          "input_stack": "[5]"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Call push(10). Append 10 to input_stack",
+        "vars": {
+          "input_stack": "[5, 10]"
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Call pop(). Check if output_stack is empty (True)",
+        "vars": {
+          "output_stack": "[]"
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Transfer elements from input_stack to output_stack. output_stack becomes [10, 5]",
+        "vars": {
+          "input_stack": "[]",
+          "output_stack": "[10, 5]"
+        }
+      },
+      {
+        "line": 16,
+        "desc": "Check if output_stack is empty (False)",
+        "vars": {
+          "output_stack": "[10, 5]"
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Pop and return the top of output_stack (5)",
+        "vars": {
+          "return": 5,
+          "output_stack": "[10]"
+        }
+      }
+    ]
+  },
+  "Next Greater Element": {
+    "solution": {
+      "title": "Next Greater Element",
+      "problemStatement": "Given an array, find the next greater element for each element. The next greater element of an element x is the first greater element to its right. If it does not exist, return -1.",
+      "examples": [
+        {
+          "input": "arr = [4, 5, 2, 25]",
+          "output": "[5, 25, 25, -1]",
+          "explanation": "Next greater for 4 is 5, for 5 is 25, for 2 is 25, and for 25 is -1."
+        }
+      ],
+      "constraints": [
+        "1 <= len(arr) <= 10^5",
+        "-10^9 <= arr[i] <= 10^9"
+      ],
+      "edgeCases": [
+        "Array of size 1",
+        "Strictly increasing array",
+        "Strictly decreasing array"
+      ],
+      "followUps": [
+        "What if the array is circular? (Next Greater Element II)"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "For every element, scan all elements to its right to find the first greater element.",
+          "algorithm": "1. Initialize res array with -1s.\n2. Use a nested loop. Outer loop i from 0 to N-1, inner loop j from i+1 to N-1.\n3. If arr[j] > arr[i], set res[i] = arr[j] and break.",
+          "code": "def nextGreaterElements(arr):\n    n = len(arr)\n    res = [-1] * n\n    # Compare each element with elements on its right\n    for i in range(n):\n        for j in range(i + 1, n):\n            if arr[j] > arr[i]:\n                res[i] = arr[j]\n                break\n    return res",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(1) auxiliary"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a monotonic stack. Traverse the array from right to left. Pop elements from the stack that are smaller than or equal to the current element. The top of the stack is the next greater element.",
+          "algorithm": "1. Initialize res array of size N with -1 and an empty stack.\n2. Iterate i from N-1 down to 0.\n3. While stack is not empty and stack[-1] <= arr[i], pop from stack.\n4. If stack is not empty, set res[i] = stack[-1].\n5. Push arr[i] onto stack.",
+          "code": "def nextGreaterElements(arr):\n    n = len(arr)\n    res = [-1] * n\n    stack = []\n    # Traverse the array from right to left\n    for i in range(n - 1, -1, -1):\n        # Pop elements from stack that are smaller or equal to current element\n        while stack and stack[-1] <= arr[i]:\n            stack.pop()\n        # If stack is not empty, the top of stack is the next greater element\n        if stack:\n            res[i] = stack[-1]\n        # Push current element to the stack\n        stack.append(arr[i])\n    # Return the resulting array\n    return res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 2,
+        "desc": "Calculate size of array arr = [4, 5, 2, 25]",
+        "vars": {
+          "n": 4
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Initialize res array with -1s",
+        "vars": {
+          "res": "[-1, -1, -1, -1]"
+        }
+      },
+      {
+        "line": 4,
+        "desc": "Initialize empty stack",
+        "vars": {
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 3 (element 25). Stack is empty, do not pop.",
+        "vars": {
+          "i": 3,
+          "arr[i]": 25,
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Check stack (empty). res[3] remains -1.",
+        "vars": {
+          "res": "[-1, -1, -1, -1]"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Push 25 to stack",
+        "vars": {
+          "stack": "[25]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 2 (element 2). Stack top is 25 (25 <= 2 is False). Do not pop.",
+        "vars": {
+          "i": 2,
+          "arr[i]": 2,
+          "stack": "[25]"
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Check stack. Set res[2] = stack[-1] = 25",
+        "vars": {
+          "res": "[-1, -1, 25, -1]"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Push 2 to stack",
+        "vars": {
+          "stack": "[25, 2]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 1 (element 5). Stack top is 2 (2 <= 5 is True). Pop 2.",
+        "vars": {
+          "i": 1,
+          "arr[i]": 5,
+          "stack": "[25]"
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Check stack. Set res[1] = stack[-1] = 25",
+        "vars": {
+          "res": "[-1, 25, 25, -1]"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Push 5 to stack",
+        "vars": {
+          "stack": "[25, 5]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 0 (element 4). Stack top is 5 (5 <= 4 is False). Do not pop.",
+        "vars": {
+          "i": 0,
+          "arr[i]": 4,
+          "stack": "[25, 5]"
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Check stack. Set res[0] = stack[-1] = 5",
+        "vars": {
+          "res": "[5, 25, 25, -1]"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Push 4 to stack",
+        "vars": {
+          "stack": "[25, 5, 4]"
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Return res array",
+        "vars": {
+          "return": "[5, 25, 25, -1]"
+        }
+      }
+    ]
+  },
+  "Sort a Stack": {
+    "solution": {
+      "title": "Sort a Stack",
+      "problemStatement": "Given a stack, sort it in ascending order using recursion. No loop constructs (for or while) are allowed in the sorting or insertion routines.",
+      "examples": [
+        {
+          "input": "stack = [3, 2, 1, 5, 4]",
+          "output": "[1, 2, 3, 4, 5]"
+        }
+      ],
+      "constraints": [
+        "1 <= size <= 1000",
+        "-10^4 <= value <= 10^4"
+      ],
+      "edgeCases": [
+        "Empty stack",
+        "Stack already sorted",
+        "Stack sorted in reverse order"
+      ],
+      "followUps": [
+        "Can you solve this without using recursive call stacks? (Using loop with helper stack)"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Extract all elements into a temporary list, sort the list, and push them back.",
+          "algorithm": "1. Pop all elements from stack and append to a list arr.\n2. Sort the list arr.\n3. Push sorted elements back to stack.",
+          "code": "def sortStack(stack):\n    # Helper list to sort the stack elements\n    arr = []\n    while stack:\n        arr.append(stack.pop())\n    # Sort the array\n    arr.sort()\n    # Push sorted elements back to stack\n    for x in arr:\n        stack.append(x)",
+          "complexity": {
+            "time": "O(N log N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use recursion. Pop the top element, recursively sort the remaining stack, and insert the popped element back into the sorted stack in correct position.",
+          "algorithm": "1. Define sortStack(stack). If empty, return.\n2. Pop temp = stack.pop(), call sortStack(stack), then sortedInsert(stack, temp).\n3. Define sortedInsert(stack, element). If empty or element > top, push element. Otherwise, pop top, recursively insert, and push top back.",
+          "code": "def sortStack(stack):\n    # Base case: if stack is empty, it is already sorted\n    if not stack:\n        return\n    # Pop the top element\n    temp = stack.pop()\n    # Sort the remaining stack recursively\n    sortStack(stack)\n    # Insert the popped element back in sorted order\n    sortedInsert(stack, temp)\n\ndef sortedInsert(stack, element):\n    # Base case: if stack is empty or element is greater than top element\n    if not stack or element > stack[-1]:\n        stack.append(element)\n        return\n    # Pop the top element if it is greater than the element to insert\n    temp = stack.pop()\n    # Recursively insert the element in the remaining stack\n    sortedInsert(stack, element)\n    # Push the popped element back to the stack\n    stack.append(temp)",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Check base case in sortStack for stack = [2, 1] (False)",
+        "vars": {
+          "stack": "[2, 1]"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Pop temp = 1, stack becomes [2]",
+        "vars": {
+          "temp": 1,
+          "stack": "[2]"
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Recursively call sortStack with stack = [2]",
+        "vars": {
+          "stack": "[2]"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Check base case in sortStack for stack = [2] (False)",
+        "vars": {
+          "stack": "[2]"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Pop temp = 2, stack becomes []",
+        "vars": {
+          "temp": 2,
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Recursively call sortStack with stack = []",
+        "vars": {
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Check base case in sortStack for stack = [] (True)",
+        "vars": {
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 4,
+        "desc": "Return from sortStack for stack = []",
+        "vars": {
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Call sortedInsert(stack=[], element=2)",
+        "vars": {
+          "stack": "[]",
+          "element": 2
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Check base case in sortedInsert (stack is empty -> True). Append element 2.",
+        "vars": {
+          "stack": "[2]"
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Return from sortedInsert(stack=[2])",
+        "vars": {
+          "stack": "[2]"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Back in outer call: Call sortedInsert(stack=[2], element=1)",
+        "vars": {
+          "stack": "[2]",
+          "element": 1
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Check base case in sortedInsert (stack empty or 1 > 2 is False)",
+        "vars": {
+          "stack": "[2]",
+          "element": 1
+        }
+      },
+      {
+        "line": 16,
+        "desc": "Pop temp = 2, stack becomes []",
+        "vars": {
+          "temp": 2,
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Call sortedInsert(stack=[], element=1)",
+        "vars": {
+          "stack": "[]",
+          "element": 1
+        }
+      },
+      {
+        "line": 12,
+        "desc": "sortedInsert base case is True for empty stack. Append 1. stack = [1].",
+        "vars": {
+          "stack": "[1]"
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Return from sortedInsert(stack=[1])",
+        "vars": {
+          "stack": "[1]"
+        }
+      },
+      {
+        "line": 20,
+        "desc": "Push popped temp = 2 back. stack becomes [1, 2].",
+        "vars": {
+          "stack": "[1, 2]"
+        }
+      }
+    ]
+  },
+  "Maximum of Minimum for Every Window Size": {
+    "solution": {
+      "title": "Maximum of Minimum for Every Window Size",
+      "problemStatement": "Given an integer array of size n, find the maximum of the minimum's of every window size in the array. Note that window size varies from 1 to n.",
+      "examples": [
+        {
+          "input": "arr = [10, 20, 30, 50, 10, 70, 30]",
+          "output": "[70, 30, 20, 10, 10, 10, 10]",
+          "explanation": "Max of min for size 1 is 70, size 2 is 30, size 3 is 20, sizes 4-7 is 10."
+        }
+      ],
+      "constraints": [
+        "1 <= n <= 10^5",
+        "1 <= arr[i] <= 10^9"
+      ],
+      "edgeCases": [
+        "All elements are equal",
+        "Sorted array (ascending or descending)"
+      ],
+      "followUps": [
+        "Can you solve this in O(N) space complexity?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Iterate through all possible window sizes, find minimum in every window, and get maximum of those minimums.",
+          "algorithm": "1. Initialize res array of size N.\n2. For each window size k from 1 to N, slide window across array.\n3. Compute min of each window of size k, keep the maximum of these mins.",
+          "code": "def maxOfMin(arr):\n    n = len(arr)\n    res = [0] * n\n    # Iterate through all possible window sizes\n    for k in range(1, n + 1):\n        max_val = float('-inf')\n        # Find minimum in every window of size k\n        for i in range(n - k + 1):\n            min_val = min(arr[i:i+k])\n            max_val = max(max_val, min_val)\n        res[k - 1] = max_val\n    return res",
+          "complexity": {
+            "time": "O(N^3)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use monotonic stack to find next smaller and previous smaller elements. Each element arr[i] is the minimum in window size right[i] - left[i] - 1. Fill answer array using this length and propagate to smaller sizes.",
+          "algorithm": "1. Find index of next smaller and previous smaller element for all elements.\n2. Calculate the window size length where arr[i] is minimum: length = right[i] - left[i] - 1.\n3. ans[length] = max(ans[length], arr[i]).\n4. Traverse from N-1 down to 1: ans[i] = max(ans[i], ans[i+1]).",
+          "code": "def maxOfMin(arr):\n    n = len(arr)\n    # Arrays to store indices of previous and next smaller elements\n    left = [-1] * n\n    right = [n] * n\n    stack = []\n    # Find next smaller elements using a stack\n    for i in range(n):\n        while stack and arr[stack[-1]] >= arr[i]:\n            stack.pop()\n        if stack:\n            left[i] = stack[-1]\n        stack.append(i)\n    stack = []\n    # Find previous smaller elements using a stack\n    for i in range(n - 1, -1, -1):\n        while stack and arr[stack[-1]] >= arr[i]:\n            stack.pop()\n        if stack:\n            right[i] = stack[-1]\n        stack.append(i)\n    # Result array initialized to 0\n    ans = [0] * (n + 1)\n    # Fill answer array for lengths based on previous and next smaller bounds\n    for i in range(n):\n        length = right[i] - left[i] - 1\n        ans[length] = max(ans[length], arr[i])\n    # Propagate values to smaller window sizes\n    for i in range(n - 1, 0, -1):\n        ans[i] = max(ans[i], ans[i + 1])\n    # Return answer from window size 1 to n\n    return ans[1:]",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 2,
+        "desc": "Calculate size n of array arr = [10, 20, 10]",
+        "vars": {
+          "n": 3
+        }
+      },
+      {
+        "line": 4,
+        "desc": "Initialize left bounds array",
+        "vars": {
+          "left": "[-1, -1, -1]"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Initialize right bounds array",
+        "vars": {
+          "right": "[3, 3, 3]"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Start iteration i = 0 (val 10) to find left bounds. stack is empty. left[0] = -1.",
+        "vars": {
+          "left": "[-1, -1, -1]",
+          "stack": "[0]"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Iteration i = 1 (val 20). stack top has index 0 (val 10 < 20). left[1] = 0.",
+        "vars": {
+          "left": "[-1, 0, -1]",
+          "stack": "[0, 1]"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Iteration i = 2 (val 10). Pop 1 and 0. stack becomes empty. left[2] = -1.",
+        "vars": {
+          "left": "[-1, 0, -1]",
+          "stack": "[2]"
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Start backward iteration to find right bounds. i = 2 (val 10). right[2] = 3.",
+        "vars": {
+          "right": "[3, 3, 3]",
+          "stack": "[2]"
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Iteration i = 1 (val 20). right[1] = 2.",
+        "vars": {
+          "right": "[3, 2, 3]",
+          "stack": "[2, 1]"
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Iteration i = 0 (val 10). Pop 1 and 2. right[0] = 3.",
+        "vars": {
+          "right": "[3, 2, 3]",
+          "stack": "[0]"
+        }
+      },
+      {
+        "line": 23,
+        "desc": "Initialize ans array of size n + 1",
+        "vars": {
+          "ans": "[0, 0, 0, 0]"
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Loop i = 0: length = 3 - (-1) - 1 = 3. ans[3] = max(0, 10) = 10.",
+        "vars": {
+          "ans": "[0, 0, 0, 10]"
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Loop i = 1: length = 2 - 0 - 1 = 1. ans[1] = max(0, 20) = 20.",
+        "vars": {
+          "ans": "[0, 20, 0, 10]"
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Loop i = 2: length = 3 - (-1) - 1 = 3. ans[3] = max(10, 10) = 10.",
+        "vars": {
+          "ans": "[0, 20, 0, 10]"
+        }
+      },
+      {
+        "line": 29,
+        "desc": "Backward propagation i = 2: ans[2] = max(ans[2], ans[3]) = max(0, 10) = 10.",
+        "vars": {
+          "ans": "[0, 20, 10, 10]"
+        }
+      },
+      {
+        "line": 29,
+        "desc": "Backward propagation i = 1: ans[1] = max(ans[1], ans[2]) = max(20, 10) = 20.",
+        "vars": {
+          "ans": "[0, 20, 10, 10]"
+        }
+      },
+      {
+        "line": 32,
+        "desc": "Return ans[1:] which represents max of mins for sizes 1 to n.",
+        "vars": {
+          "return": "[20, 10, 10]"
+        }
+      }
+    ]
+  },
+  "LRU Cache": {
+    "solution": {
+      "title": "LRU Cache",
+      "problemStatement": "Design and implement a Least Recently Used (LRU) Cache supporting get and put operations in O(1) time complexity.",
+      "examples": [
+        {
+          "input": "LRUCache(2), put(1, 1), put(2, 2), get(1), put(3, 3), get(2)",
+          "output": "get(1) -> 1, get(2) -> -1"
+        }
+      ],
+      "constraints": [
+        "1 <= capacity <= 3000",
+        "0 <= key <= 10^4",
+        "0 <= value <= 10^5",
+        "At most 2 * 10^5 calls will be made to get and put"
+      ],
+      "edgeCases": [
+        "Get of non-existing key",
+        "Updating existing key value",
+        "Capacity is 1"
+      ],
+      "followUps": [
+        "Can you write a clean, thread-safe implementation of LRU Cache?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Use a standard dict and list of keys. Move keys to end on access. Evict first key when capacity exceeded. This is O(N) on access.",
+          "algorithm": "1. Store capacity, cache dict, and keys list.\n2. In get(key), if key exists, remove it from keys and append to end, returning value. Else, return -1.\n3. In put(key, value), update value and move key to end. If new key and full, remove key at index 0 from list and dictionary.",
+          "code": "class LRUCache:\n    def __init__(self, capacity: int):\n        # Storing capacity\n        self.capacity = capacity\n        # Storing key-value pairs\n        self.cache = {}\n        # Track the access order of keys\n        self.keys = []\n\n    def get(self, key: int) -> int:\n        # Check if key exists in cache\n        if key not in self.cache:\n            return -1\n        # Move key to the end of keys list to mark it as most recently used\n        self.keys.remove(key)\n        self.keys.append(key)\n        # Return key value\n        return self.cache[key]\n\n    def put(self, key: int, value: int) -> None:\n        # If key is already in cache, remove it from keys list to update position\n        if key in self.cache:\n            self.keys.remove(key)\n        elif len(self.cache) >= self.capacity:\n            # Evict least recently used key (first element of keys list)\n            lru = self.keys.pop(0)\n            del self.cache[lru]\n        # Insert key and update access order\n        self.cache[key] = value\n        self.keys.append(key)",
+          "complexity": {
+            "time": "O(N) get and put",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a Hash Map paired with a Doubly Linked List. The doubly linked list maintains the order of access, allowing O(1) removal and insertion, while the hash map allows O(1) lookup.",
+          "algorithm": "1. Initialize capacity, cache map, dummy head and tail nodes linked to each other.\n2. Implement _remove(node) to disconnect a node from DLL.\n3. Implement _add(node) to insert node right after head.\n4. In get(key), move node to head and return value.\n5. In put(key, value), add new node to head and map. If full, evict node before dummy tail.",
+          "code": "class Node:\n    def __init__(self, key=0, value=0):\n        self.key = key\n        self.value = value\n        self.prev = None\n        self.next = None\n\nclass LRUCache:\n    def __init__(self, capacity: int):\n        self.capacity = capacity\n        self.cache = {}\n        # Dummy head and tail nodes to avoid edge cases\n        self.head = Node()\n        self.tail = Node()\n        self.head.next = self.tail\n        self.tail.prev = self.head\n\n    def _remove(self, node: Node) -> None:\n        # Disconnect node from its neighbors\n        prev_node = node.prev\n        next_node = node.next\n        prev_node.next = next_node\n        next_node.prev = prev_node\n\n    def _add(self, node: Node) -> None:\n        # Insert node right after the dummy head (most recently used)\n        next_node = self.head.next\n        self.head.next = node\n        node.prev = self.head\n        node.next = next_node\n        next_node.prev = node\n\n    def get(self, key: int) -> int:\n        if key in self.cache:\n            node = self.cache[key]\n            # Move accessed node to head (most recently used)\n            self._remove(node)\n            self._add(node)\n            return node.value\n        return -1\n\n    def put(self, key: int, value: int) -> None:\n        if key in self.cache:\n            node = self.cache[key]\n            # Update value of existing node\n            node.value = value\n            # Move to head\n            self._remove(node)\n            self._add(node)\n        else:\n            if len(self.cache) >= self.capacity:\n                # Evict least recently used (node before dummy tail)\n                lru_node = self.tail.prev\n                self._remove(lru_node)\n                del self.cache[lru_node.key]\n            # Insert new node\n            new_node = Node(key, value)\n            self.cache[key] = new_node\n            self._add(new_node)",
+          "complexity": {
+            "time": "O(1)",
+            "space": "O(C)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 9,
+        "desc": "Initialize capacity = 1, create dummy head and tail nodes",
+        "vars": {
+          "capacity": 1,
+          "cache": "{}"
+        }
+      },
+      {
+        "line": 40,
+        "desc": "Call put(1, 10). Key 1 is not in cache.",
+        "vars": {
+          "key": 1,
+          "value": 10
+        }
+      },
+      {
+        "line": 48,
+        "desc": "Check capacity limits (0 >= 1 is False).",
+        "vars": {
+          "cache_size": 0
+        }
+      },
+      {
+        "line": 53,
+        "desc": "Create new node with key 1, value 10.",
+        "vars": {
+          "node.key": 1,
+          "node.value": 10
+        }
+      },
+      {
+        "line": 54,
+        "desc": "Add new node to cache dictionary.",
+        "vars": {
+          "cache": "{1: Node}"
+        }
+      },
+      {
+        "line": 55,
+        "desc": "Call _add(node) to insert it after dummy head.",
+        "vars": {
+          "head.next.key": 1
+        }
+      },
+      {
+        "line": 32,
+        "desc": "Call get(1). Key 1 is in cache.",
+        "vars": {
+          "key": 1
+        }
+      },
+      {
+        "line": 35,
+        "desc": "Call _remove(node) to disconnect it.",
+        "vars": {
+          "key": 1
+        }
+      },
+      {
+        "line": 36,
+        "desc": "Call _add(node) to insert it back at the front (head.next).",
+        "vars": {
+          "head.next.key": 1
+        }
+      },
+      {
+        "line": 37,
+        "desc": "Return node value (10).",
+        "vars": {
+          "return": 10
+        }
+      }
+    ]
+  },
+  "Largest Rectangle in Histogram": {
+    "solution": {
+      "title": "Largest Rectangle in Histogram",
+      "problemStatement": "Given an array of integers heights representing the histogram's bar height where the width of each bar is 1, find the area of the largest rectangle in the histogram.",
+      "examples": [
+        {
+          "input": "heights = [2, 1, 5, 6, 2, 3]",
+          "output": "10",
+          "explanation": "The largest rectangle has heights [5, 6] forming area of 10."
+        }
+      ],
+      "constraints": [
+        "1 <= len(heights) <= 10^5",
+        "0 <= heights[i] <= 10^4"
+      ],
+      "edgeCases": [
+        "Array of size 1",
+        "Strictly increasing heights",
+        "Strictly decreasing heights"
+      ],
+      "followUps": [
+        "Can you solve this problem in one pass without utilizing next smaller arrays?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Examine every pair of bar boundaries, find the minimum height between them, and calculate the maximum area.",
+          "algorithm": "1. Initialize max_area = 0.\n2. Iterate left boundary i from 0 to N-1.\n3. Iterate right boundary j from i to N-1.\n4. Find the min height between i and j. Update max_area = max(max_area, min_height * (j - i + 1)).",
+          "code": "def largestRectangleArea(heights):\n    max_area = 0\n    n = len(heights)\n    # Check every pair of bar boundaries\n    for i in range(n):\n        min_h = heights[i]\n        for j in range(i, n):\n            min_h = min(min_h, heights[j])\n            max_area = max(max_area, min_h * (j - i + 1))\n    return max_area",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a monotonic stack. Maintain indices of increasing heights. When a smaller height is found, pop from the stack and compute the area with the popped element as the minimum height.",
+          "algorithm": "1. Add a dummy 0 height at the end of the heights array.\n2. Loop through indices. While heights[i] is smaller than the height of the top of stack, pop from the stack.\n3. The width is i if the stack is empty, otherwise i - stack[-1] - 1.\n4. Update max_area.",
+          "code": "def largestRectangleArea(heights):\n    stack = []\n    max_area = 0\n    n = len(heights)\n    # Iterate through all bars including a dummy 0 height at the end\n    for i in range(n + 1):\n        current_height = heights[i] if i < n else 0\n        # Pop elements from stack while current height is smaller than top of stack\n        while stack and heights[stack[-1]] > current_height:\n            h = heights[stack.pop()]\n            w = i if not stack else i - stack[-1] - 1\n            max_area = max(max_area, h * w)\n        stack.append(i)\n    return max_area",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 2,
+        "desc": "Initialize empty stack",
+        "vars": {
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Initialize max_area to 0",
+        "vars": {
+          "max_area": 0
+        }
+      },
+      {
+        "line": 4,
+        "desc": "Get size of heights [2, 1, 2]",
+        "vars": {
+          "n": 3
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 0: current_height = heights[0] = 2. stack is empty. Skip while.",
+        "vars": {
+          "i": 0,
+          "current_height": 2
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Push index 0 to stack",
+        "vars": {
+          "stack": "[0]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 1: current_height = heights[1] = 1. stack top is 0 (val 2 > 1 is True).",
+        "vars": {
+          "i": 1,
+          "current_height": 1
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Pop index 0 from stack. height h = heights[0] = 2.",
+        "vars": {
+          "h": 2,
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Calculate width: stack is empty -> w = i = 1.",
+        "vars": {
+          "w": 1,
+          "h": 2
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Update max_area = max(0, 2 * 1) = 2.",
+        "vars": {
+          "max_area": 2
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Push index 1 to stack",
+        "vars": {
+          "stack": "[1]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 2: current_height = heights[2] = 2. stack top is 1 (val 1 > 2 is False). Skip while.",
+        "vars": {
+          "i": 2,
+          "current_height": 2
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Push index 2 to stack",
+        "vars": {
+          "stack": "[1, 2]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 3 (dummy): current_height = 0. stack top is 2 (val 2 > 0 is True).",
+        "vars": {
+          "i": 3,
+          "current_height": 0
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Pop index 2 from stack. height h = heights[2] = 2.",
+        "vars": {
+          "h": 2,
+          "stack": "[1]"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Calculate width: stack is not empty -> w = 3 - 1 - 1 = 1.",
+        "vars": {
+          "w": 1,
+          "h": 2
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Update max_area = max(2, 2 * 1) = 2.",
+        "vars": {
+          "max_area": 2
+        }
+      },
+      {
+        "line": 6,
+        "desc": "stack top is 1 (val 1 > 0 is True).",
+        "vars": {
+          "stack": "[1]"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Pop index 1 from stack. height h = heights[1] = 1.",
+        "vars": {
+          "h": 1,
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Calculate width: stack is empty -> w = i = 3.",
+        "vars": {
+          "w": 3,
+          "h": 1
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Update max_area = max(2, 1 * 3) = 3.",
+        "vars": {
+          "max_area": 3
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Push index 3 to stack",
+        "vars": {
+          "stack": "[3]"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Return max_area = 3",
+        "vars": {
+          "return": 3
+        }
+      }
+    ]
+  },
+  "Sliding Window Maximum": {
+    "solution": {
+      "title": "Sliding Window Maximum",
+      "problemStatement": "Given an array of integers nums, there is a sliding window of size k which is moving from the very left of the array to the very right. Return the max sliding window.",
+      "examples": [
+        {
+          "input": "nums = [1, 3, -1, -3, 5, 3, 6, 7], k = 3",
+          "output": "[3, 3, 5, 5, 6, 7]"
+        }
+      ],
+      "constraints": [
+        "1 <= len(nums) <= 10^5",
+        "-10^4 <= nums[i] <= 10^4",
+        "1 <= k <= len(nums)"
+      ],
+      "edgeCases": [
+        "k = 1",
+        "k = len(nums)",
+        "Strictly decreasing array"
+      ],
+      "followUps": [
+        "Can you solve it in O(N) using double-ended queue?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Examine every window of size k, find the maximum element, and add to results list.",
+          "algorithm": "1. Loop through index i from 0 to N-k.\n2. Find max of subsegment nums[i : i+k].\n3. Append maximum value to output.",
+          "code": "def maxSlidingWindow(nums, k):\n    res = []\n    # Iterate through all window starting positions\n    for i in range(len(nums) - k + 1):\n        # Get maximum of current window\n        res.append(max(nums[i:i+k]))\n    return res",
+          "complexity": {
+            "time": "O(N * k)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a monotonic double-ended queue (deque). The deque stores indices of elements in decreasing order of values. Pop indices that are out of bounds or point to elements smaller than the current element.",
+          "algorithm": "1. Initialize deque and res array.\n2. Iterate through indices. Pop from left of deque if dq[0] < i - k + 1.\n3. While deque is not empty and nums[dq[-1]] < nums[i], pop from right.\n4. Append current index.\n5. If window size is reached (i >= k - 1), append nums[dq[0]] to res.",
+          "code": "from collections import deque\n\ndef maxSlidingWindow(nums, k):\n    # Monotonic deque to store indices of elements in descending order\n    dq = deque()\n    res = []\n    for i in range(len(nums)):\n        # Remove indices that are out of the current window bounds\n        if dq and dq[0] < i - k + 1:\n            dq.popleft()\n        # Remove indices of elements smaller than the current element\n        while dq and nums[dq[-1]] < nums[i]:\n            dq.pop()\n        # Add current index to deque\n        dq.append(i)\n        # Append max of current window to results\n        if i >= k - 1:\n            res.append(nums[dq[0]])\n    return res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(k)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 4,
+        "desc": "Initialize empty deque dq",
+        "vars": {
+          "dq": "deque([])"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Initialize empty results array",
+        "vars": {
+          "res": "[]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 0 (val 1). dq is empty. Skip pops.",
+        "vars": {
+          "i": 0,
+          "nums[i]": 1
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Append index 0 to dq.",
+        "vars": {
+          "dq": "deque([0])"
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Check i >= k - 1 (0 >= 1 is False). Skip append.",
+        "vars": {
+          "res": "[]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 1 (val 3). Check bounds. dq[0] = 0 is not < 0. Skip popleft.",
+        "vars": {
+          "i": 1,
+          "nums[i]": 3
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Check elements: nums[0] = 1 < 3. Pop 0 from dq.",
+        "vars": {
+          "dq": "deque([])"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Append index 1 to dq.",
+        "vars": {
+          "dq": "deque([1])"
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Check i >= k - 1 (1 >= 1 is True). Append nums[dq[0]] = nums[1] = 3.",
+        "vars": {
+          "res": "[3]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Loop i = 2 (val 2). Check bounds. dq[0] = 1 is not < 1. Skip popleft.",
+        "vars": {
+          "i": 2,
+          "nums[i]": 2
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Check elements: nums[1] = 3 < 2 is False. Keep 1 in dq.",
+        "vars": {
+          "dq": "deque([1])"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Append index 2 to dq.",
+        "vars": {
+          "dq": "deque([1, 2])"
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Check i >= k - 1 (2 >= 1 is True). Append nums[dq[0]] = nums[1] = 3.",
+        "vars": {
+          "res": "[3, 3]"
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Return results array",
+        "vars": {
+          "return": "[3, 3]"
+        }
+      }
+    ]
+  },
+  "Rotten Oranges": {
+    "solution": {
+      "title": "Rotten Oranges",
+      "problemStatement": "You are given an m x n grid representing fresh (1), rotten (2), and empty (0) cells. Every minute, any fresh orange that is 4-directionally adjacent to a rotten orange becomes rotten. Return the minimum minutes for all fresh oranges to rot.",
+      "examples": [
+        {
+          "input": "grid = [[2,1,1],[1,1,0],[0,1,1]]",
+          "output": "4",
+          "explanation": "At minute 4, all fresh oranges become rotten."
+        }
+      ],
+      "constraints": [
+        "m == grid.length",
+        "n == grid[i].length",
+        "1 <= m, n <= 10",
+        "grid[i][j] is 0, 1, or 2"
+      ],
+      "edgeCases": [
+        "No fresh oranges initially (returns 0)",
+        "Unreachable fresh orange (returns -1)",
+        "Empty grid"
+      ],
+      "followUps": [
+        "How would you solve this if grid sizes were extremely large (e.g. 10^5 x 10^5) but sparse?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Scan the grid repeatedly. In each scan, identify all fresh oranges adjacent to a rotten orange, rot them in the next step, and repeat.",
+          "algorithm": "1. Set minutes = 0.\n2. In a loop, find all fresh oranges next to a rotten orange. Mark them to rot.\n3. If no fresh oranges rot in a scan, break.\n4. If fresh oranges still remain, return -1. Otherwise, return minutes.",
+          "code": "def orangesRotting(grid):\n    rows, cols = len(grid), len(grid[0])\n    minutes = 0\n    # Repeat until no more oranges can rot\n    while True:\n        to_rot = []\n        fresh_count = 0\n        for r in range(rows):\n            for c in range(cols):\n                if grid[r][c] == 1:\n                    fresh_count += 1\n                    # Check neighbors for rotten orange\n                    for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:\n                        nr, nc = r + dr, c + dc\n                        if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 2:\n                            to_rot.append((r, c))\n                            break\n        if not to_rot:\n            return minutes if fresh_count == 0 else -1\n        # Rot the oranges\n        for r, c in to_rot:\n            grid[r][c] = 2\n        minutes += 1",
+          "complexity": {
+            "time": "O((R * C)^2)",
+            "space": "O(R * C)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use Breadth-First Search (BFS) starting with all initially rotten oranges in the queue. BFS naturally propagates level-by-level, mimicking the minute-by-minute rot process.",
+          "algorithm": "1. Initialize a queue with all rotten oranges (r, c, time) and count total fresh oranges.\n2. Process queue. For each popped cell, check neighbors. If neighbor is fresh (1), rot it, decrement fresh count, and add to queue with time + 1.\n3. Return time if fresh count is 0, else -1.",
+          "code": "from collections import deque\n\ndef orangesRotting(grid):\n    # Get dimensions of the grid\n    rows = len(grid)\n    cols = len(grid[0])\n    # Queue to store rotten oranges' coordinates and time\n    queue = deque()\n    fresh_count = 0\n    # Find all initial rotten oranges and count fresh ones\n    for r in range(rows):\n        for c in range(cols):\n            if grid[r][c] == 2:\n                queue.append((r, c, 0))\n            elif grid[r][c] == 1:\n                fresh_count += 1\n    minutes = 0\n    # Perform BFS to spread rot\n    while queue:\n        r, c, time = queue.popleft()\n        minutes = max(minutes, time)\n        # Check all 4-directional neighbors\n        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:\n            nr, nc = r + dr, c + dc\n            # Check bounds and if orange is fresh\n            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 1:\n                # Rot the fresh orange\n                grid[nr][nc] = 2\n                # Decrement fresh orange count\n                fresh_count -= 1\n                # Append new rotten orange with incremented time\n                queue.append((nr, nc, time + 1))\n    # If there are still fresh oranges left, return -1\n    return minutes if fresh_count == 0 else -1",
+          "complexity": {
+            "time": "O(R * C)",
+            "space": "O(R * C)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 4,
+        "desc": "Calculate rows of the grid = [[2, 1], [0, 1]]",
+        "vars": {
+          "rows": 2
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Calculate cols of the grid",
+        "vars": {
+          "rows": 2,
+          "cols": 2
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Initialize empty queue",
+        "vars": {
+          "queue": "deque([])"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Initialize fresh_count = 0",
+        "vars": {
+          "fresh_count": 0
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Scan grid and populate initial rotten oranges in queue: queue = [(0, 0, 0)], fresh_count = 2",
+        "vars": {
+          "queue": "deque([(0, 0, 0)])",
+          "fresh_count": 2
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Initialize minutes = 0",
+        "vars": {
+          "minutes": 0
+        }
+      },
+      {
+        "line": 17,
+        "desc": "BFS Loop starts. queue is not empty.",
+        "vars": {
+          "queue_len": 1
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Pop front of queue. r=0, c=0, time=0.",
+        "vars": {
+          "r": 0,
+          "c": 0,
+          "time": 0
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Update minutes = max(0, 0) = 0.",
+        "vars": {
+          "minutes": 0
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Check neighbors of (0, 0). Neighbor (0, 1) is fresh (grid[0][1] = 1).",
+        "vars": {
+          "nr": 0,
+          "nc": 1
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Rot fresh orange: grid[0][1] = 2.",
+        "vars": {
+          "grid[0][1]": 2
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Decrement fresh_count to 1.",
+        "vars": {
+          "fresh_count": 1
+        }
+      },
+      {
+        "line": 28,
+        "desc": "Append (0, 1, 1) to queue.",
+        "vars": {
+          "queue": "deque([(0, 1, 1)])"
+        }
+      },
+      {
+        "line": 17,
+        "desc": "BFS Loop. queue is not empty.",
+        "vars": {
+          "queue_len": 1
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Pop front of queue. r=0, c=1, time=1.",
+        "vars": {
+          "r": 0,
+          "c": 1,
+          "time": 1
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Update minutes = max(0, 1) = 1.",
+        "vars": {
+          "minutes": 1
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Check neighbors of (0, 1). Neighbor (1, 1) is fresh (grid[1][1] = 1).",
+        "vars": {
+          "nr": 1,
+          "nc": 1
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Rot fresh orange: grid[1][1] = 2.",
+        "vars": {
+          "grid[1][1]": 2
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Decrement fresh_count to 0.",
+        "vars": {
+          "fresh_count": 0
+        }
+      },
+      {
+        "line": 28,
+        "desc": "Append (1, 1, 2) to queue.",
+        "vars": {
+          "queue": "deque([(1, 1, 2)])"
+        }
+      },
+      {
+        "line": 17,
+        "desc": "BFS Loop. queue is not empty.",
+        "vars": {
+          "queue_len": 1
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Pop front of queue. r=1, c=1, time=2.",
+        "vars": {
+          "r": 1,
+          "c": 1,
+          "time": 2
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Update minutes = max(1, 2) = 2.",
+        "vars": {
+          "minutes": 2
+        }
+      },
+      {
+        "line": 17,
+        "desc": "BFS Loop. queue is empty. Terminate loop.",
+        "vars": {
+          "queue_len": 0
+        }
+      },
+      {
+        "line": 30,
+        "desc": "fresh_count is 0. Return minutes = 2.",
+        "vars": {
+          "return": 2
+        }
+      }
+    ]
+  },
+  "Min Stack": {
+    "solution": {
+      "title": "Min Stack",
+      "problemStatement": "Design a stack that supports push, pop, top, and retrieving the minimum element in constant time.",
+      "examples": [
+        {
+          "input": "MinStack(), push(-2), push(0), push(-3), getMin(), pop(), top(), getMin()",
+          "output": "getMin() -> -3, pop(), top() -> 0, getMin() -> -2"
+        }
+      ],
+      "constraints": [
+        "-2^31 <= val <= 2^31 - 1",
+        "At most 3 * 10^4 calls to push, pop, top, and getMin"
+      ],
+      "edgeCases": [
+        "Retrieving min on single-element stack",
+        "Popping minimum element and checking updated min"
+      ],
+      "followUps": [
+        "Can you implement Min Stack in O(1) space complexity? (Using mathematical formulation val - min)"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Use a standard list to represent the stack, and traverse the list to find the minimum element in O(N) time.",
+          "algorithm": "1. Use stack list.\n2. getMin returns min(self.stack), which scans the stack in O(N).",
+          "code": "class MinStack:\n    def __init__(self):\n        # Standard list to store stack elements\n        self.stack = []\n\n    def push(self, val: int) -> None:\n        # Append element\n        self.stack.append(val)\n\n    def pop(self) -> None:\n        # Pop top element\n        self.stack.pop()\n\n    def top(self) -> int:\n        # Return top element value\n        return self.stack[-1]\n\n    def getMin(self) -> int:\n        # Search minimum in O(N)\n        return min(self.stack)",
+          "complexity": {
+            "time": "O(1) push/pop, O(N) getMin",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Store each element as a tuple containing (val, current_min). This stores the running minimum up to that element, allowing O(1) access to the minimum at any stack size.",
+          "algorithm": "1. Initialize an empty stack.\n2. In push, compute current_min = min(val, stack[-1][1]) if stack is not empty, else val.\n3. Append (val, current_min) to stack.",
+          "code": "class MinStack:\n    def __init__(self):\n        # List of tuples: (value, current_min)\n        self.stack = []\n\n    def push(self, val: int) -> None:\n        # Determine the new minimum\n        current_min = val\n        if self.stack:\n            current_min = min(val, self.stack[-1][1])\n        # Append value and minimum tuple\n        self.stack.append((val, current_min))\n\n    def pop(self) -> None:\n        # Remove top element\n        self.stack.pop()\n\n    def top(self) -> int:\n        # Return top element value\n        return self.stack[-1][0]\n\n    def getMin(self) -> int:\n        # Return current minimum\n        return self.stack[-1][1]",
+          "complexity": {
+            "time": "O(1)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize empty stack",
+        "vars": {
+          "stack_len": 0
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Call push(-2). current_min = -2.",
+        "vars": {
+          "val": -2,
+          "current_min": -2
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Check if stack is empty (True). Skip min calculation.",
+        "vars": {
+          "stack_len": 0
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Append (-2, -2) to stack.",
+        "vars": {
+          "stack": "[(-2, -2)]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Call push(0). current_min = 0.",
+        "vars": {
+          "val": 0,
+          "current_min": 0
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Check stack (not empty). current_min = min(0, -2) = -2.",
+        "vars": {
+          "current_min": -2
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Append (0, -2) to stack.",
+        "vars": {
+          "stack": "[(-2, -2), (0, -2)]"
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Call getMin(). Return stack[-1][1] = -2.",
+        "vars": {
+          "return": -2
+        }
+      }
+    ]
+  },
+  "Stock Span Problem": {
+    "solution": {
+      "title": "Stock Span Problem",
+      "problemStatement": "Find the span of stock's price for all n days. The span is the maximum number of consecutive days before current day with prices less than or equal to current day's price.",
+      "examples": [
+        {
+          "input": "prices = [100, 80, 60, 70, 60, 75, 85]",
+          "output": "[1, 1, 1, 2, 1, 4, 6]"
+        }
+      ],
+      "constraints": [
+        "1 <= len(prices) <= 10^5",
+        "1 <= price <= 10^5"
+      ],
+      "edgeCases": [
+        "Prices are strictly increasing",
+        "Prices are strictly decreasing"
+      ],
+      "followUps": [
+        "Can you solve this online style? (Computing span on the fly as prices arrive)"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "For each day, scan backwards to count consecutive days with smaller or equal price.",
+          "algorithm": "1. Initialize span list with 1s.\n2. For each day i, use a loop to decrement j from i-1 down to 0.\n3. While price[j] <= price[i], increment span[i] and decrement j. Otherwise, break.",
+          "code": "def calculateSpan(prices):\n    n = len(prices)\n    span = [1] * n\n    # Calculate span of stock price for each day\n    for i in range(1, n):\n        # Traverse left to find consecutive days with price <= prices[i]\n        j = i - 1\n        while j >= 0 and prices[j] <= prices[i]:\n            span[i] += 1\n            j -= 1\n    return span",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a monotonic stack storing pairs of (price, span). Pop days with smaller/equal prices and add their spans to the current span.",
+          "algorithm": "1. Maintain stack storing (price, span).\n2. For next price, initialize span = 1.\n3. While stack is not empty and stack[-1][0] <= price, span += stack.pop()[1].\n4. Push (price, span) to stack and return span.",
+          "code": "class StockSpanner:\n    def __init__(self):\n        # Stack of (price, span)\n        self.stack = []\n\n    def next(self, price: int) -> int:\n        # Initialize span for current day\n        span = 1\n        # Pop elements while stack is not empty and top price <= current price\n        while self.stack and self.stack[-1][0] <= price:\n            span += self.stack.pop()[1]\n        # Push current price and accumulated span to stack\n        self.stack.append((price, span))\n        # Return the computed span\n        return span",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize empty stack",
+        "vars": {
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Call next(100). Initialize span = 1.",
+        "vars": {
+          "price": 100,
+          "span": 1
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Check stack (empty). Skip loop.",
+        "vars": {
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Push (100, 1) to stack.",
+        "vars": {
+          "stack": "[(100, 1)]"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Return span = 1.",
+        "vars": {
+          "return": 1
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Call next(80). Initialize span = 1.",
+        "vars": {
+          "price": 80,
+          "span": 1
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Check stack top (100 <= 80 is False). Skip loop.",
+        "vars": {
+          "stack": "[(100, 1)]"
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Push (80, 1) to stack.",
+        "vars": {
+          "stack": "[(100, 1), (80, 1)]"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Return span = 1.",
+        "vars": {
+          "return": 1
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Call next(120). Initialize span = 1.",
+        "vars": {
+          "price": 120,
+          "span": 1
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Check stack top (80 <= 120 is True). Loop runs.",
+        "vars": {
+          "stack": "[(100, 1), (80, 1)]"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Pop (80, 1). span = 1 + 1 = 2.",
+        "vars": {
+          "span": 2,
+          "stack": "[(100, 1)]"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Check stack top (100 <= 120 is True). Loop runs.",
+        "vars": {
+          "stack": "[(100, 1)]"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Pop (100, 1). span = 2 + 1 = 3.",
+        "vars": {
+          "span": 3,
+          "stack": "[]"
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Push (120, 3) to stack.",
+        "vars": {
+          "stack": "[(120, 3)]"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Return span = 3.",
+        "vars": {
+          "return": 3
+        }
+      }
+    ]
+  },
+  "Reverse Words in a String": {
+    "solution": {
+      "title": "Reverse Words in a String",
+      "problemStatement": "Given an input string s, reverse the order of the words. Return a string of the words in reverse order concatenated by a single space. Do not include any extra spaces.",
+      "examples": [
+        {
+          "input": "s = \"the sky is blue\"",
+          "output": "\"blue is sky the\""
+        },
+        {
+          "input": "s = \"  hello world  \"",
+          "output": "\"world hello\"",
+          "explanation": "Multiple spaces are reduced to a single space, and leading/trailing spaces are removed."
+        }
+      ],
+      "constraints": [
+        "1 <= len(s) <= 10^4",
+        "s contains English letters, digits, and spaces."
+      ],
+      "edgeCases": [
+        "Single word",
+        "Leading and trailing spaces",
+        "Multiple consecutive spaces between words"
+      ],
+      "followUps": [
+        "If the string is mutable, can you solve it in-place in O(1) extra space?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Examine string character-by-character to extract words manually, append to a list, reverse the list, and construct the result string.",
+          "algorithm": "1. Iterate through s to find words separated by spaces.\n2. Push each non-empty word to a list.\n3. Iterate backwards through the list to join words with a single space.",
+          "code": "def reverseWords(s: str) -> str:\n    # Step-by-step split and reverse manual implementation\n    words = []\n    temp = \"\"\n    # Extract words manually\n    for char in s:\n        if char != \" \":\n            temp += char\n        else:\n            if temp:\n                words.append(temp)\n                temp = \"\"\n    if temp:\n        words.append(temp)\n    # Reverse the words list\n    words.reverse()\n    # Join manually\n    res = \"\"\n    for i in range(len(words)):\n        res += words[i]\n        if i != len(words) - 1:\n            res += \" \"\n    return res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use Python's built-in string methods. split() automatically handles multiple spaces and leading/trailing spaces, and join() handles concatenation efficiently.",
+          "algorithm": "1. Call s.split() to get list of words.\n2. Reverse the list of words using slicing [::-1].\n3. Join the words using ' '.join().",
+          "code": "def reverseWords(s: str) -> str:\n    # Split the string by whitespace to get words\n    words = s.split()\n    # Reverse the list of words\n    reversed_words = words[::-1]\n    # Join words with a single space\n    return \" \".join(reversed_words)",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 2,
+        "desc": "Call s.split() on '  hello world  ' to extract non-empty words.",
+        "vars": {
+          "words": "['hello', 'world']"
+        }
+      },
+      {
+        "line": 4,
+        "desc": "Reverse the words list using slice notation.",
+        "vars": {
+          "reversed_words": "['world', 'hello']"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Join words with a single space and return.",
+        "vars": {
+          "return": "'world hello'"
+        }
+      }
+    ]
+  }
+}

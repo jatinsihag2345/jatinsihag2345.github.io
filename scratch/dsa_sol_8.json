@@ -1,0 +1,1566 @@
+{
+    "Topological Sort (DFS)": {
+        "title": "Topological Sort (DFS)",
+        "problemStatement": "Given a Directed Acyclic Graph (DAG) with V vertices and E edges, find any topological sorting of the graph. Topological sorting for a Directed Acyclic Graph (DAG) is a linear ordering of vertices such that for every directed edge u -> v, vertex u comes before v in the ordering.",
+        "examples": [
+            {
+                "input": "V = 6, adj = [[], [], [3], [1], [0, 1], [0, 2]]",
+                "output": "[5, 4, 2, 3, 1, 0]",
+                "explanation": "A valid topological sorting is 5 4 2 3 1 0. Another valid ordering could be 4 5 2 3 1 0."
+            }
+        ],
+        "constraints": [
+            "2 <= V <= 10^4",
+            "1 <= E <= 10^4",
+            "The graph is guaranteed to be a Directed Acyclic Graph (DAG)."
+        ],
+        "edgeCases": [
+            "Graph has no edges (disconnected vertices): Any permutation of vertices is valid.",
+            "Linear graph (u1 -> u2 -> u3): Only one unique topological sorting exists."
+        ],
+        "followUps": [
+            "How would you modify the DFS approach to detect cycles in a directed graph?",
+            "Can you implement topological sort iteratively using a stack instead of recursion?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Generate all V! permutations of vertices. For each permutation, check if it satisfies the topological order condition: for every edge u -> v, u must appear before v in the permutation. This is highly inefficient.",
+                "algorithm": "1. Generate all permutations of vertices 0 to V-1.\n2. For each permutation:\n   a. Map each vertex to its index in the permutation.\n   b. Check all directed edges u -> v. If index(u) > index(v), the permutation is invalid.\n   c. If all edges are valid, return this permutation.\n3. Return empty list if no valid permutation is found.",
+                "code": "def topoSortBruteForce(V: int, adj: list[list[int]]) -> list[int]:\n    import itertools\n    # Generate all possible permutations of vertices\n    for perm in itertools.permutations(range(V)):\n        pos = {val: idx for idx, val in enumerate(perm)}\n        possible = True\n        # Check if every edge u -> v satisfies pos[u] < pos[v]\n        for u in range(V):\n            for v in adj[u]:\n                if pos[u] > pos[v]:\n                    possible = False\n                    break\n            if not possible:\n                break\n        # If permutation is valid, return it\n        if possible:\n            return list(perm)\n    return []",
+                "complexity": {
+                    "time": "O(V! * (V + E))",
+                    "space": "O(V)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "Use DFS to traverse the graph. A node is pushed onto a stack only after all its adjacent vertices (and their descendants) have been fully visited. Since all dependencies are visited and pushed before the parent, reversing the stack elements gives the topological sorting.",
+                "algorithm": "1. Initialize a visited array of size V to track visited nodes.\n2. Initialize an empty stack (represented as a list).\n3. Loop through all vertices 0 to V-1. If a vertex is not visited, call dfs(node).\n4. In dfs(node):\n   a. Mark node as visited.\n   b. For each neighbor of node, if it is not visited, recursively call dfs(neighbor).\n   c. After visiting all neighbors, push node onto the stack.\n5. Return stack reversed (from top to bottom).",
+                "code": "def topoSort(V: int, adj: list[list[int]]) -> list[int]:\n    # Array to track visited vertices\n    visited = [False] * V\n    # Stack to store topological order in reverse\n    stack = []\n    \n    # Helper DFS function\n    def dfs(node):\n        # Mark the current node as visited\n        visited[node] = True\n        # Visit all unvisited neighbors\n        for neighbor in adj[node]:\n            if not visited[neighbor]:\n                dfs(neighbor)\n        # Push node to stack after all its dependencies are visited\n        stack.append(node)\n        \n    # Perform DFS from every unvisited node to handle disconnected graphs\n    for i in range(V):\n        if not visited[i]:\n            dfs(i)\n            \n    # Return stack reversed to get the topological order\n    return stack[::-1]",
+                "complexity": {
+                    "time": "O(V + E) where V is vertices and E is edges, visiting each vertex and edge once.",
+                    "space": "O(V) for the visited array, stack, and recursion call stack."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 3,
+                "desc": "Initialize visited array and empty stack. V = 4, adj = [[], [0], [0], [0]]",
+                "vars": {
+                    "V": 4,
+                    "visited": "[False, False, False, False]",
+                    "stack": "[]"
+                }
+            },
+            {
+                "line": 18,
+                "desc": "Iterate through vertices. i = 0 is unvisited. Start dfs(0).",
+                "vars": {
+                    "i": 0,
+                    "visited": "[True, False, False, False]"
+                }
+            },
+            {
+                "line": 14,
+                "desc": "In dfs(0): Neighbors list adj[0] is empty. Finish dfs(0) and append 0 to stack.",
+                "vars": {
+                    "node": 0,
+                    "stack": "[0]"
+                }
+            },
+            {
+                "line": 18,
+                "desc": "Continue loop. i = 1 is unvisited. Start dfs(1).",
+                "vars": {
+                    "i": 1,
+                    "visited": "[True, True, False, False]"
+                }
+            },
+            {
+                "line": 11,
+                "desc": "In dfs(1): Neighbor 0 is already visited. Finish dfs(1) and append 1 to stack.",
+                "vars": {
+                    "node": 1,
+                    "stack": "[0, 1]"
+                }
+            },
+            {
+                "line": 18,
+                "desc": "Continue loop. i = 2 is unvisited. Start dfs(2).",
+                "vars": {
+                    "i": 2,
+                    "visited": "[True, True, True, False]"
+                }
+            },
+            {
+                "line": 11,
+                "desc": "In dfs(2): Neighbor 0 is already visited. Finish dfs(2) and append 2 to stack.",
+                "vars": {
+                    "node": 2,
+                    "stack": "[0, 1, 2]"
+                }
+            },
+            {
+                "line": 18,
+                "desc": "Continue loop. i = 3 is unvisited. Start dfs(3).",
+                "vars": {
+                    "i": 3,
+                    "visited": "[True, True, True, True]"
+                }
+            },
+            {
+                "line": 11,
+                "desc": "In dfs(3): Neighbor 0 is already visited. Finish dfs(3) and append 3 to stack.",
+                "vars": {
+                    "node": 3,
+                    "stack": "[0, 1, 2, 3]"
+                }
+            },
+            {
+                "line": 22,
+                "desc": "Return stack reversed.",
+                "vars": {
+                    "result": "[3, 2, 1, 0]"
+                }
+            }
+        ]
+    },
+    "Topological Sort (BFS/Kahn's Algorithm)": {
+        "title": "Topological Sort (BFS/Kahn's Algorithm)",
+        "problemStatement": "Given a Directed Acyclic Graph (DAG) with V vertices and E edges, find a topological sorting of the graph using Kahn's algorithm (BFS).",
+        "examples": [
+            {
+                "input": "V = 6, adj = [[], [], [3], [1], [0, 1], [0, 2]]",
+                "output": "[4, 5, 2, 3, 1, 0]",
+                "explanation": "Nodes 4 and 5 have indegree 0. Processing them first yields a valid topological sort."
+            }
+        ],
+        "constraints": [
+            "2 <= V <= 10^4",
+            "1 <= E <= 10^4",
+            "Graph has no cycles."
+        ],
+        "edgeCases": [
+            "Fully disconnected graph: Vertices processed in index order.",
+            "Single source pointing to multiple sinks."
+        ],
+        "followUps": [
+            "How can Kahn's algorithm be used to detect cycles in a directed graph?",
+            "If there are multiple topological sorts, how can you find the lexicographically smallest one?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Same as DFS-based topological sort brute force: check all permutations.",
+                "algorithm": "1. Run permutation check of size V!.",
+                "code": "def topoSortKahnBrute(V: int, adj: list[list[int]]) -> list[int]:\n    # Simply checks all permutations and returns the first valid one\n    pass",
+                "complexity": {
+                    "time": "O(V! * (V + E))",
+                    "space": "O(V)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "Kahn's Algorithm uses the in-degree (number of incoming edges) of each node. Nodes with an in-degree of 0 have no dependencies and can be placed first. We remove their outgoing edges, decreasing the in-degree of their neighbors, and continue processing new nodes that reach an in-degree of 0.",
+                "algorithm": "1. Compute in-degree for all vertices.\n2. Place all vertices with in-degree 0 into a queue.\n3. Initialize an empty list 'topo' to store the sorting.\n4. While queue is not empty:\n   a. Pop a node u from the queue, append it to 'topo'.\n   b. For each neighbor v of u, decrement in-degree[v] by 1.\n   c. If in-degree[v] becomes 0, push v onto the queue.\n5. Return 'topo'.",
+                "code": "from collections import deque\n\ndef topoSortBFS(V: int, adj: list[list[int]]) -> list[int]:\n    # Array to store indegrees of all nodes\n    indegree = [0] * V\n    for u in range(V):\n        for v in adj[u]:\n            indegree[v] += 1\n            \n    # Queue to store vertices with indegree 0\n    queue = deque([i for i in range(V) if indegree[i] == 0])\n    # List to store the topological sorting\n    topo = []\n    \n    while queue:\n        # Pop node from queue and add it to topological order\n        node = queue.popleft()\n        topo.append(node)\n        # Decrement indegree of all neighbors\n        for neighbor in adj[node]:\n            indegree[neighbor] -= 1\n            # If indegree becomes 0, push to queue\n            if indegree[neighbor] == 0:\n                queue.append(neighbor)\n                \n    return topo",
+                "complexity": {
+                    "time": "O(V + E) where V is vertices and E is edges, traversing each node and edge once.",
+                    "space": "O(V) for the queue, indegree array, and topological ordering output."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 4,
+                "desc": "Calculate indegrees. V=4, adj=[[1], [2], [], [1]]",
+                "vars": {
+                    "indegree": "[0, 2, 1, 0]",
+                    "adj": "[[1], [2], [], [1]]"
+                }
+            },
+            {
+                "line": 10,
+                "desc": "Initialize queue with nodes of indegree 0. topo list is empty.",
+                "vars": {
+                    "queue": "[0, 3]",
+                    "topo": "[]"
+                }
+            },
+            {
+                "line": 15,
+                "desc": "Pop 0 from queue. Append to topo. Decrement neighbor 1's indegree.",
+                "vars": {
+                    "node": 0,
+                    "queue": "[3]",
+                    "topo": "[0]",
+                    "indegree": "[0, 1, 1, 0]"
+                }
+            },
+            {
+                "line": 15,
+                "desc": "Pop 3 from queue. Append to topo. Decrement neighbor 1's indegree.",
+                "vars": {
+                    "node": 3,
+                    "queue": "[]",
+                    "topo": "[0, 3]",
+                    "indegree": "[0, 0, 1, 0]"
+                }
+            },
+            {
+                "line": 20,
+                "desc": "Node 1's indegree became 0. Push 1 to queue.",
+                "vars": {
+                    "queue": "[1]"
+                }
+            },
+            {
+                "line": 15,
+                "desc": "Pop 1 from queue. Append to topo. Decrement neighbor 2's indegree.",
+                "vars": {
+                    "node": 1,
+                    "queue": "[]",
+                    "topo": "[0, 3, 1]",
+                    "indegree": "[0, 0, 0, 0]"
+                }
+            },
+            {
+                "line": 20,
+                "desc": "Node 2's indegree became 0. Push 2 to queue.",
+                "vars": {
+                    "queue": "[2]"
+                }
+            },
+            {
+                "line": 15,
+                "desc": "Pop 2 from queue. Append to topo. Queue is now empty.",
+                "vars": {
+                    "node": 2,
+                    "queue": "[]",
+                    "topo": "[0, 3, 1, 2]"
+                }
+            },
+            {
+                "line": 23,
+                "desc": "Return final topological order.",
+                "vars": {
+                    "result": "[0, 3, 1, 2]"
+                }
+            }
+        ]
+    },
+    "Bipartite Graph Check": {
+        "title": "Bipartite Graph Check",
+        "problemStatement": "Given an undirected graph with V vertices, return true if it is bipartite, otherwise false. A graph is bipartite if we can split its set of nodes into two independent subsets A and B such that every edge in the graph connects a node in A and a node in B.",
+        "examples": [
+            {
+                "input": "graph = [[1,3],[0,2],[1,3],[0,2]]",
+                "output": "true",
+                "explanation": "We can partition the nodes into two sets: {0, 2} and {1, 3}."
+            },
+            {
+                "input": "graph = [[1,2,3],[0,2],[0,1,3],[0,2]]",
+                "output": "false",
+                "explanation": "We cannot paint the nodes with 2 colors such that no adjacent nodes have the same color."
+            }
+        ],
+        "constraints": [
+            "graph.length == V",
+            "1 <= V <= 100",
+            "0 <= graph[i].length < V",
+            "The graph contains no self-loops or parallel edges."
+        ],
+        "edgeCases": [
+            "Graph with disconnected components.",
+            "Odd cycle (e.g. triangle): Bipartiteness is impossible, return false.",
+            "Even cycle (e.g. square): Bipartiteness is possible, return true."
+        ],
+        "followUps": [
+            "Can you implement this check using Depth First Search (DFS)?",
+            "How is the bipartite checking related to the two-colorability of a graph?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Generate all 2^V possible partitions of vertices into two sets. For each partition, check if any edge connects vertices in the same set. This takes exponential time.",
+                "algorithm": "1. Loop through all binary assignments of size V (where 0 is set A, 1 is set B).\n2. For each assignment, check if there is any edge u-v such that color[u] == color[v].\n3. If any assignment has no matching adjacent colors, return True.\n4. Return False.",
+                "code": "def isBipartiteBrute(graph: list[list[int]]) -> bool:\n    n = len(graph)\n    # Try all 2^n configurations of coloring nodes 0 and 1\n    for mask in range(1 << n):\n        colors = [(mask >> i) & 1 for i in range(n)]\n        valid = True\n        for u in range(n):\n            for v in graph[u]:\n                if colors[u] == colors[v]:\n                    valid = False\n                    break\n            if not valid:\n                break\n        if valid:\n            return True\n    return False",
+                "complexity": {
+                    "time": "O(2^V * (V + E))",
+                    "space": "O(V)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "A graph is bipartite if and only if it is 2-colorable. We perform a BFS traversal. We start by coloring a node color 0, then we color all its neighbors color 1, their neighbors color 0, and so on. If we ever encounter an adjacent node with the same color as the current node, the graph is not bipartite.",
+                "algorithm": "1. Initialize a 'color' array of size V with -1 (indicating uncolored).\n2. Loop through all nodes. If a node is uncolored, start BFS:\n   a. Set color[node] = 0 and push to queue.\n   b. While queue is not empty:\n      - Pop front node u.\n      - For each neighbor v of u:\n        * If color[v] == -1, set color[v] = 1 - color[u] and push v to queue.\n        * If color[v] == color[u], return False.\n3. If all nodes are successfully colored, return True.",
+                "code": "from collections import deque\n\ndef isBipartite(graph: list[list[int]]) -> bool:\n    n = len(graph)\n    # color array: -1 means uncolored, 0/1 are the two colors\n    color = [-1] * n\n    \n    # Helper BFS function\n    def bfs(start):\n        queue = deque([start])\n        color[start] = 0 # Start by coloring the initial node with 0\n        \n        while queue:\n            u = queue.popleft()\n            # Check all adjacent neighbors\n            for v in graph[u]:\n                # If neighbor is uncolored, color with opposite color\n                if color[v] == -1:\n                    color[v] = 1 - color[u]\n                    queue.append(v)\n                # If neighbor has the same color, graph is not bipartite\n                elif color[v] == color[u]:\n                    return False\n        return True\n        \n    # Run BFS for each component to handle disconnected graphs\n    for i in range(n):\n        if color[i] == -1:\n            if not bfs(i):\n                return False\n    return True",
+                "complexity": {
+                    "time": "O(V + E) where V is vertices and E is edges, traversing each node and edge once.",
+                    "space": "O(V) for the queue and color array storage."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 4,
+                "desc": "Initialize color array with -1. graph = [[1, 3], [0, 2], [1, 3], [0, 2]]",
+                "vars": {
+                    "color": "[-1, -1, -1, -1]"
+                }
+            },
+            {
+                "line": 23,
+                "desc": "Node 0 is uncolored. Start bfs(0). Set color[0] = 0.",
+                "vars": {
+                    "color": "[0, -1, -1, -1]",
+                    "queue": "[0]"
+                }
+            },
+            {
+                "line": 11,
+                "desc": "Pop 0 from queue. Check neighbors: 1 and 3.",
+                "vars": {
+                    "u": 0,
+                    "queue": "[]"
+                }
+            },
+            {
+                "line": 15,
+                "desc": "Neighbor 1 is uncolored. Color it 1 - color[0] = 1. Push to queue.",
+                "vars": {
+                    "v": 1,
+                    "color": "[0, 1, -1, -1]",
+                    "queue": "[1]"
+                }
+            },
+            {
+                "line": 15,
+                "desc": "Neighbor 3 is uncolored. Color it 1 - color[0] = 1. Push to queue.",
+                "vars": {
+                    "v": 3,
+                    "color": "[0, 1, -1, 1]",
+                    "queue": "[1, 3]"
+                }
+            },
+            {
+                "line": 11,
+                "desc": "Pop 1 from queue. Check neighbors: 0 and 2.",
+                "vars": {
+                    "u": 1,
+                    "queue": "[3]"
+                }
+            },
+            {
+                "line": 15,
+                "desc": "Neighbor 0 is colored 0 (different). Neighbor 2 is uncolored. Color 2 opposite of 1 (which is 0). Push to queue.",
+                "vars": {
+                    "v": 2,
+                    "color": "[0, 1, 0, 1]",
+                    "queue": "[3, 2]"
+                }
+            },
+            {
+                "line": 11,
+                "desc": "Pop 3 from queue. Check neighbors: 0 and 2. Neighbors are colored 0 (different).",
+                "vars": {
+                    "u": 3,
+                    "queue": "[2]"
+                }
+            },
+            {
+                "line": 11,
+                "desc": "Pop 2 from queue. Check neighbors: 1 and 3. Neighbors are colored 1 (different).",
+                "vars": {
+                    "u": 2,
+                    "queue": "[]"
+                }
+            },
+            {
+                "line": 25,
+                "desc": "BFS completes successfully. Return True.",
+                "vars": {
+                    "result": true
+                }
+            }
+        ]
+    },
+    "Shortest Path in DAG": {
+        "title": "Shortest Path in DAG",
+        "problemStatement": "Given a Directed Acyclic Graph (DAG) with V vertices and E weighted edges, find the shortest path from a given source vertex to all other vertices. If a vertex is unreachable, return -1.",
+        "examples": [
+            {
+                "input": "V = 6, edges = [[0,1,2],[0,4,1],[4,5,4],[4,2,2],[1,2,3],[2,3,6],[5,3,1]], src = 0",
+                "output": "[0, 2, 3, 6, 1, 5]",
+                "explanation": "Shortest distance from 0 to all nodes: 0->0=0, 0->1=2, 0->2=3 (via 0->4->2), 0->3=6, 0->4=1, 0->5=5."
+            }
+        ],
+        "constraints": [
+            "1 <= V <= 100",
+            "0 <= E <= V*(V-1)/2",
+            "0 <= weight <= 100"
+        ],
+        "edgeCases": [
+            "Disconnected graph component: Distance is -1.",
+            "Source node has no outgoing edges: Distances to others are -1."
+        ],
+        "followUps": [
+            "Why is Topological Sort crucial for finding shortest path in a DAG in O(V + E) time?",
+            "Can we use this approach to find the Longest Path in a DAG?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Explore all paths from source using backtracking or simple DFS. Find the minimum path length for each destination vertex. For deep or dense graphs, this is extremely slow.",
+                "algorithm": "1. Initialize distances list with infinity.\n2. Run recursive DFS from source node, carrying current accumulated distance.\n3. At each step, update distance[node] = min(distance[node], current_dist).\n4. Explore all outgoing edges.\n5. Replace remaining infinity values with -1 and return.",
+                "code": "def shortestPathBrute(V: int, edges: list[list[int]], src: int) -> list[int]:\n    adj = [[] for _ in range(V)]\n    for u, v, w in edges:\n        adj[u].append((v, w))\n    dist = [float('inf')] * V\n    \n    def dfs(node, cur_d):\n        dist[node] = min(dist[node], cur_d)\n        for neighbor, weight in adj[node]:\n            dfs(neighbor, cur_d + weight)\n            \n    dfs(src, 0)\n    return [d if d != float('inf') else -1 for d in dist]",
+                "complexity": {
+                    "time": "O(2^V) in the worst case",
+                    "space": "O(V) for the recursion stack"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "Since the graph is a DAG, we can find a topological sorting. Relaxing the edges in topological order guarantees that we process all possible predecessor paths to a node before calculating the shortest path from it. This allows us to find all shortest paths in a single linear pass.",
+                "algorithm": "1. Convert edges to adjacency list.\n2. Find topological sort of the graph using DFS.\n3. Initialize distance array with infinity, and dist[src] = 0.\n4. Process nodes one-by-one in topological order:\n   - If dist[node] is not infinity:\n     * For each neighbor of node, update dist[neighbor] = min(dist[neighbor], dist[node] + weight).\n5. Convert any infinity values to -1 and return.",
+                "code": "def shortestPathInDAG(V: int, edges: list[list[int]], src: int) -> list[int]:\n    # Create adjacency list representation\n    adj = [[] for _ in range(V)]\n    for u, v, w in edges:\n        adj[u].append((v, w))\n        \n    # Step 1: Find topological sort using DFS\n    visited = [False] * V\n    stack = []\n    \n    def topo_dfs(node):\n        visited[node] = True\n        for neighbor, _ in adj[node]:\n            if not visited[neighbor]:\n                topo_dfs(neighbor)\n        stack.append(node)\n        \n    for i in range(V):\n        if not visited[i]:\n            topo_dfs(i)\n            \n    # Step 2: Initialize distances to infinity\n    dist = [float('inf')] * V\n    dist[src] = 0\n    \n    # Step 3: Relax edges in topological order\n    while stack:\n        u = stack.pop()\n        if dist[u] != float('inf'):\n            for v, w in adj[u]:\n                if dist[u] + w < dist[v]:\n                    dist[v] = dist[u] + w\n                    \n    # Replace infinity with -1 for unreachable nodes\n    return [d if d != float('inf') else -1 for d in dist]",
+                "complexity": {
+                    "time": "O(V + E) for topological sort and edge relaxation.",
+                    "space": "O(V + E) for adjacency list, stack, and distance array."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 23,
+                "desc": "Initialize distances. V=4, edges=[[0,1,1],[1,2,2],[0,2,4]]. src=0. stack=[0, 1, 2, 3] (topological order).",
+                "vars": {
+                    "dist": "[0, inf, inf, inf]",
+                    "stack": "[3, 2, 1, 0]"
+                }
+            },
+            {
+                "line": 27,
+                "desc": "Pop 0 from stack. dist[0] = 0 is not inf. Check neighbors: (1, weight 1), (2, weight 4).",
+                "vars": {
+                    "u": 0,
+                    "stack": "[3, 2, 1]"
+                }
+            },
+            {
+                "line": 30,
+                "desc": "Relax neighbor 1: dist[1] = min(inf, 0 + 1) = 1. Relax neighbor 2: dist[2] = min(inf, 0 + 4) = 4.",
+                "vars": {
+                    "dist": "[0, 1, 4, inf]"
+                }
+            },
+            {
+                "line": 27,
+                "desc": "Pop 1 from stack. dist[1] = 1. Check neighbors: (2, weight 2).",
+                "vars": {
+                    "u": 1,
+                    "stack": "[3, 2]"
+                }
+            },
+            {
+                "line": 30,
+                "desc": "Relax neighbor 2: dist[2] = min(4, 1 + 2) = 3.",
+                "vars": {
+                    "dist": "[0, 1, 3, inf]"
+                }
+            },
+            {
+                "line": 27,
+                "desc": "Pop 2 from stack. dist[2] = 3. No neighbors.",
+                "vars": {
+                    "u": 2,
+                    "stack": "[3]"
+                }
+            },
+            {
+                "line": 27,
+                "desc": "Pop 3 from stack. dist[3] = inf. Skip relaxation.",
+                "vars": {
+                    "u": 3,
+                    "stack": "[]"
+                }
+            },
+            {
+                "line": 34,
+                "desc": "Return final distances list with inf mapped to -1.",
+                "vars": {
+                    "result": "[0, 1, 3, -1]"
+                }
+            }
+        ]
+    },
+    "Dijkstra's Algorithm": {
+        "title": "Dijkstra's Algorithm",
+        "problemStatement": "Given a weighted undirected/directed graph with V vertices and a source vertex src, find the shortest path from src to all other vertices. Return the distances.",
+        "examples": [
+            {
+                "input": "V = 3, adj = [[[1, 1], [2, 6]], [[2, 3], [0, 1]], [[1, 3], [0, 6]]], src = 0",
+                "output": "[0, 1, 4]",
+                "explanation": "Distance from 0 to 0 is 0. Distance to 1 is 1. Distance to 2 is 1+3=4 (via 1)."
+            }
+        ],
+        "constraints": [
+            "1 <= V <= 1000",
+            "0 <= E <= 10^5",
+            "Weights of all edges are non-negative."
+        ],
+        "edgeCases": [
+            "Disconnected graph component: Unreachable nodes get distance infinity (or represented by a large number).",
+            "Graph has negative weight edges: Dijkstra's can fail because it assumes visited nodes have their final shortest distance."
+        ],
+        "followUps": [
+            "Why does Dijkstra's algorithm fail on negative weight edges?",
+            "Can we optimize Dijkstra's using a Fibonacci Heap instead of a Binary Heap?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Simple linear scanning of distance table to find the minimum unvisited vertex. This is Dijkstra's using an array/list instead of a priority queue.",
+                "algorithm": "1. Initialize distances as infinity, visited as False.\n2. Repeat V times:\n   a. Linearly search for the unvisited node u with the minimum distance.\n   b. Mark u as visited.\n   c. Update distance for all neighbors of u.\n3. Return distances.",
+                "code": "def dijkstraBruteForce(V: int, adj: list[list[list[int]]], src: int) -> list[int]:\n    dist = [float('inf')] * V\n    visited = [False] * V\n    dist[src] = 0\n    \n    for _ in range(V):\n        # Find unvisited vertex with minimum distance\n        u = -1\n        min_d = float('inf')\n        for i in range(V):\n            if not visited[i] and dist[i] < min_d:\n                min_d = dist[i]\n                u = i\n        if u == -1:\n            break\n        visited[u] = True\n        # Update distances of adjacent vertices\n        for v, w in adj[u]:\n            if dist[u] + w < dist[v]:\n                dist[v] = dist[u] + w\n    return dist",
+                "complexity": {
+                    "time": "O(V^2)",
+                    "space": "O(V)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "We can optimize the vertex selection step by using a min-priority queue (min-heap). This allows us to retrieve the unvisited vertex with the minimum distance in O(log V) time, resulting in a much faster algorithm for sparse graphs.",
+                "algorithm": "1. Initialize a distance array with infinity, dist[src] = 0.\n2. Create a min-heap and push (0, src) [representing (distance, node)].\n3. While min-heap is not empty:\n   a. Pop the node u with the minimum distance d.\n   b. If d > dist[u], skip (outdated pair).\n   c. For each neighbor v with edge weight w of u:\n      - If dist[u] + w < dist[v]:\n        * Update dist[v] = dist[u] + w.\n        * Push (dist[v], v) onto the min-heap.\n4. Return dist.",
+                "code": "import heapq\n\ndef dijkstra(V: int, adj: list[list[list[int]]], src: int) -> list[int]:\n    # dist array stores shortest distance to each vertex\n    dist = [float('inf')] * V\n    dist[src] = 0\n    \n    # Min-Heap stores (distance, node) tuples\n    min_heap = [(0, src)]\n    \n    while min_heap:\n        # Pop the vertex with minimum distance\n        d, u = heapq.heappop(min_heap)\n        \n        # If current distance is greater than the recorded one, skip it\n        if d > dist[u]:\n            continue\n            \n        # Relax edges of neighbors\n        for v, w in adj[u]:\n            if dist[u] + w < dist[v]:\n                dist[v] = dist[u] + w\n                # Push updated distance and neighbor node to heap\n                heapq.heappush(min_heap, (dist[v], v))\n                \n    return dist",
+                "complexity": {
+                    "time": "O(E * log V) where V is vertices and E is edges, since each edge can be relaxed and pushed/popped from heap.",
+                    "space": "O(V) for the distance array and min-heap storage."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 3,
+                "desc": "Initialize distance array. V = 3, adj = [[[1,1],[2,6]], [[2,3]], []]. src = 0.",
+                "vars": {
+                    "dist": "[0, inf, inf]",
+                    "min_heap": "[(0, 0)]"
+                }
+            },
+            {
+                "line": 10,
+                "desc": "Pop min node from heap: (0, 0). dist[0] = 0.",
+                "vars": {
+                    "d": 0,
+                    "u": 0,
+                    "min_heap": "[]"
+                }
+            },
+            {
+                "line": 18,
+                "desc": "Relax neighbor 1: dist[1] = min(inf, 0+1) = 1. Push to heap.",
+                "vars": {
+                    "dist": "[0, 1, inf]",
+                    "min_heap": "[(1, 1)]"
+                }
+            },
+            {
+                "line": 18,
+                "desc": "Relax neighbor 2: dist[2] = min(inf, 0+6) = 6. Push to heap.",
+                "vars": {
+                    "dist": "[0, 1, 6]",
+                    "min_heap": "[(1, 1), (6, 2)]"
+                }
+            },
+            {
+                "line": 10,
+                "desc": "Pop min node from heap: (1, 1). dist[1] = 1.",
+                "vars": {
+                    "d": 1,
+                    "u": 1,
+                    "min_heap": "[(6, 2)]"
+                }
+            },
+            {
+                "line": 18,
+                "desc": "Relax neighbor 2: dist[2] = min(6, 1+3) = 4. Push to heap.",
+                "vars": {
+                    "dist": "[0, 1, 4]",
+                    "min_heap": "[(6, 2), (4, 2)]"
+                }
+            },
+            {
+                "line": 10,
+                "desc": "Pop min node from heap: (4, 2). dist[2] = 4.",
+                "vars": {
+                    "d": 4,
+                    "u": 2,
+                    "min_heap": "[(6, 2)]"
+                }
+            },
+            {
+                "line": 10,
+                "desc": "Pop min node from heap: (6, 2). Skip since d (6) > dist[2] (4).",
+                "vars": {
+                    "d": 6,
+                    "u": 2,
+                    "min_heap": "[]"
+                }
+            },
+            {
+                "line": 23,
+                "desc": "Return final distance array.",
+                "vars": {
+                    "result": "[0, 1, 4]"
+                }
+            }
+        ]
+    },
+    "Bellman Ford Algorithm": {
+        "title": "Bellman Ford Algorithm",
+        "problemStatement": "Given a weighted directed graph with V vertices and E edges, find the shortest path from a source vertex src to all other vertices. If the graph contains a negative weight cycle, detect it and return [-1].",
+        "examples": [
+            {
+                "input": "V = 5, edges = [[0,1,5],[1,2,-2],[2,4,3],[3,4,-2],[1,3,2]], src = 0",
+                "output": "[0, 5, 3, 7, 5]",
+                "explanation": "Shortest distance from 0: 0->0=0, 0->1=5, 0->1->2=3, 0->1->3=7, 0->1->3->4=5."
+            }
+        ],
+        "constraints": [
+            "1 <= V <= 500",
+            "1 <= E <= 1000",
+            "-1000 <= weight <= 1000"
+        ],
+        "edgeCases": [
+            "Negative weight cycles: Detect and return [-1].",
+            "Unreachable nodes: Distance remains infinity."
+        ],
+        "followUps": [
+            "Why do we need exactly V-1 relaxations to guarantee shortest path calculation?",
+            "How can we optimize Bellman Ford to stop early if no updates occur during a relaxation?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Exhaustively check all simple paths from source to each node. If we find paths with negative cycle loops, return [-1]. This is V! complexity.",
+                "algorithm": "1. Run recursive search to explore all simple paths.\n2. Keep track of negative cycles by visiting nodes multiple times.\n3. Return result.",
+                "code": "def bellmanFordBrute(V: int, edges: list[list[int]], src: int) -> list[int]:\n    # Extremely slow path scanner\n    pass",
+                "complexity": {
+                    "time": "O(V!)",
+                    "space": "O(V)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "A shortest path in a graph with V vertices contains at most V-1 edges. If we relax all edges V-1 times, we are guaranteed to find the shortest path distances. If a V-th relaxation still updates any distance, it indicates the presence of a negative cycle.",
+                "algorithm": "1. Initialize a distance array dist of size V with infinity (or 10^8), and set dist[src] = 0.\n2. Run a loop V-1 times. In each iteration, loop through all edges u -> v with weight w:\n   - If dist[u] != infinity and dist[u] + w < dist[v], update dist[v] = dist[u] + w.\n3. Run the edge loop one more time (V-th time). If any distance is updated, return [-1] (negative cycle detected).\n4. Return dist.",
+                "code": "def bellmanFord(V: int, edges: list[list[int]], src: int) -> list[int]:\n    # Use 1e8 to represent infinity to prevent overflow when adding weights\n    INF = 10**8\n    dist = [INF] * V\n    dist[src] = 0\n    \n    # Relax all edges V-1 times\n    for _ in range(V - 1):\n        for u, v, w in edges:\n            if dist[u] != INF and dist[u] + w < dist[v]:\n                dist[v] = dist[u] + w\n                \n    # V-th iteration to detect negative cycle\n    for u, v, w in edges:\n        if dist[u] != INF and dist[u] + w < dist[v]:\n            # Negative cycle found, return [-1]\n            return [-1]\n            \n    return dist",
+                "complexity": {
+                    "time": "O(V * E) since we relax all E edges V-1 times.",
+                    "space": "O(V) for the distance array."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 4,
+                "desc": "Initialize distance array. V = 3, edges = [[0,1,2],[1,2,-1],[2,0,-2]]. src = 0.",
+                "vars": {
+                    "dist": "[0, INF, INF]"
+                }
+            },
+            {
+                "line": 7,
+                "desc": "Relax iteration 1: edge 0->1 relaxes dist[1] to 2. Edge 1->2 relaxes dist[2] to 1.",
+                "vars": {
+                    "dist": "[0, 2, 1]"
+                }
+            },
+            {
+                "line": 7,
+                "desc": "Relax iteration 2 (V-1): edge 2->0 relaxes dist[0] to 1 - 2 = -1.",
+                "vars": {
+                    "dist": "[-1, 2, 1]"
+                }
+            },
+            {
+                "line": 13,
+                "desc": "V-th iteration check. Edge 0->1 can still be relaxed: dist[-1] + 2 = 1 < 2.",
+                "vars": {
+                    "dist[0]+2": 1,
+                    "dist[1]": 2
+                }
+            },
+            {
+                "line": 16,
+                "desc": "Negative cycle detected. Return [-1].",
+                "vars": {
+                    "result": "[-1]"
+                }
+            }
+        ]
+    },
+    "Floyd Warshall Algorithm": {
+        "title": "Floyd Warshall Algorithm",
+        "problemStatement": "Given a weighted directed graph represented as an adjacency matrix matrix, find the shortest distance between all pairs of vertices. The matrix is modified in-place, where matrix[i][j] is the shortest distance from vertex i to vertex j. If there is no path, use -1 (or infinity).",
+        "examples": [
+            {
+                "input": "matrix = [[0, 2, -1, -1], [1, 0, 3, -1], [-1, -1, 0, -1], [3, 5, 4, 0]]",
+                "output": "[[0, 2, 5, -1], [1, 0, 3, -1], [-1, -1, 0, -1], [3, 5, 4, 0]]",
+                "explanation": "The distance 0->2 is updated from infinity (-1) to 5 (via 0->1->2)."
+            }
+        ],
+        "constraints": [
+            "matrix.length == V",
+            "1 <= V <= 100",
+            "-1000 <= matrix[i][j] <= 1000"
+        ],
+        "edgeCases": [
+            "Disconnected node pairs.",
+            "Self loops: matrix[i][i] is 0."
+        ],
+        "followUps": [
+            "How can we detect a negative cycle using the Floyd Warshall algorithm?",
+            "Can we run Dijkstra V times to achieve a better runtime for sparse graphs?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Run Dijkstra's algorithm V times, once from each vertex as source. If the graph contains negative weights, run Bellman-Ford V times.",
+                "algorithm": "1. For each vertex i from 0 to V-1:\n   a. Run Bellman-Ford from source i to get distances array.\n   b. Fill matrix[i] row with the distances.\n2. Return modified matrix.",
+                "code": "def floydWarshallBrute(matrix: list[list[int]]):\n    # Runs Bellman-Ford V times\n    pass",
+                "complexity": {
+                    "time": "O(V^2 * E) which is O(V^4) for dense graphs",
+                    "space": "O(V) auxiliary"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "Floyd-Warshall is a dynamic programming algorithm. We find the shortest path between all pairs (i, j) by checking if routing through an intermediate vertex k from 0 to V-1 yields a shorter path: dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j]).",
+                "algorithm": "1. Replace -1 (infinity) with a large number (INF) in the matrix, except where i == j.\n2. Loop k from 0 to V-1 (intermediate node):\n   - Loop i from 0 to V-1 (source node):\n     * Loop j from 0 to V-1 (destination node):\n       - matrix[i][j] = min(matrix[i][j], matrix[i][k] + matrix[k][j]).\n3. Convert back large numbers (INF) to -1.\n4. Return matrix in-place.",
+                "code": "def floydWarshall(matrix: list[list[int]]) -> None:\n    V = len(matrix)\n    INF = 1e9\n    \n    # Replace -1 (no path) with INF for calculations\n    for i in range(V):\n        for j in range(V):\n            if matrix[i][j] == -1:\n                matrix[i][j] = INF\n            if i == j:\n                matrix[i][j] = 0\n                \n    # Try each vertex as an intermediate node k\n    for k in range(V):\n        for i in range(V):\n            for j in range(V):\n                # Update the path if routing through k is shorter\n                matrix[i][j] = min(matrix[i][j], matrix[i][k] + matrix[k][j])\n                \n    # Replace remaining INF values back to -1\n    for i in range(V):\n        for j in range(V):\n            if matrix[i][j] >= INF:\n                matrix[i][j] = -1",
+                "complexity": {
+                    "time": "O(V^3) due to three nested loops over vertices.",
+                    "space": "O(1) auxiliary space as the matrix is updated in-place."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 5,
+                "desc": "Initialize table. matrix = [[0, 2], [INF, 0]], V = 2. INF = 1e9.",
+                "vars": {
+                    "matrix": "[[0, 2], [INF, 0]]"
+                }
+            },
+            {
+                "line": 13,
+                "desc": "Let intermediate k = 0. Relax path 1->0->1.",
+                "vars": {
+                    "k": 0
+                }
+            },
+            {
+                "line": 17,
+                "desc": "matrix[1][1] = min(0, matrix[1][0] + matrix[0][1]) = min(0, INF + 2) = 0.",
+                "vars": {
+                    "matrix": "[[0, 2], [INF, 0]]"
+                }
+            },
+            {
+                "line": 13,
+                "desc": "Let intermediate k = 1. Relax path 0->1->0.",
+                "vars": {
+                    "k": 1
+                }
+            },
+            {
+                "line": 17,
+                "desc": "matrix[0][0] = min(0, matrix[0][1] + matrix[1][0]) = min(0, 2 + INF) = 0.",
+                "vars": {
+                    "matrix": "[[0, 2], [INF, 0]]"
+                }
+            },
+            {
+                "line": 20,
+                "desc": "Convert INF back to -1. Completed.",
+                "vars": {
+                    "result": "[[0, 2], [-1, 0]]"
+                }
+            }
+        ]
+    },
+    "Minimum Spanning Tree (Prim's Algorithm)": {
+        "title": "Minimum Spanning Tree (Prim's Algorithm)",
+        "problemStatement": "Given V vertices and E weighted undirected edges, find the weight of the Minimum Spanning Tree (MST).",
+        "examples": [
+            {
+                "input": "V = 3, adj = [[[1, 5], [2, 1]], [[0, 5], [2, 3]], [[0, 1], [1, 3]]]",
+                "output": "4",
+                "explanation": "Select edge 0-2 (weight 1) and 1-2 (weight 3). Total weight = 4."
+            }
+        ],
+        "constraints": [
+            "1 <= V <= 1000",
+            "0 <= E <= 10^5",
+            "1 <= weight <= 1000"
+        ],
+        "edgeCases": [
+            "Graph is already a tree: MST weight is sum of all edges.",
+            "Disconnected graph: MST cannot span all nodes (handled by constraints that assume connected graphs)."
+        ],
+        "followUps": [
+            "How would you modify Prim's to print the actual edges included in the MST?",
+            "What is the time complexity difference when using an adjacency matrix instead of an adjacency list?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Exhaustively generate all possible spanning trees and calculate their weights. Choose the one with the minimal weight.",
+                "algorithm": "1. Generate all combinations of V-1 edges from the graph.\n2. For each combination, check if it forms a valid spanning tree (no cycles and connected).\n3. If valid, calculate sum of edge weights.\n4. Return the minimum weight.",
+                "code": "def primBruteForce(V: int, adj: list[list[list[int]]]) -> int:\n    # Highly exponential spanning tree scanner\n    pass",
+                "complexity": {
+                    "time": "O(E^(V-1))",
+                    "space": "O(V)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "Prim's is a greedy algorithm. We start with an arbitrary node in the MST and keep adding the cheapest edge that connects a node in the MST to a node outside the MST. We use a min-heap to quickly retrieve the cheapest boundary edge.",
+                "algorithm": "1. Initialize a min-heap with (0, 0) representing (weight, node), and visited array of size V to False.\n2. Initialize mst_weight = 0.\n3. While min-heap is not empty:\n   a. Pop (wt, node).\n   b. If node is already visited, skip it.\n   c. Mark node as visited and add wt to mst_weight.\n   d. For each neighbor of node:\n      - If neighbor is not visited, push (weight, neighbor) onto the heap.\n4. Return mst_weight.",
+                "code": "import heapq\n\ndef spanningTreePrim(V: int, adj: list[list[list[int]]]) -> int:\n    # Min-Heap stores (weight, node) tuples\n    min_heap = [(0, 0)]\n    visited = [False] * V\n    mst_weight = 0\n    \n    while min_heap:\n        wt, u = heapq.heappop(min_heap)\n        \n        # If node is already part of MST, skip it\n        if visited[u]:\n            continue\n            \n        # Add node to MST\n        visited[u] = True\n        mst_weight += wt\n        \n        # Push adjacent edges of unvisited neighbors to heap\n        for v, w in adj[u]:\n            if not visited[v]:\n                heapq.heappush(min_heap, (w, v))\n                \n    return mst_weight",
+                "complexity": {
+                    "time": "O(E * log V) since each edge is pushed/popped from heap once.",
+                    "space": "O(V) for visited array and min-heap storage."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 4,
+                "desc": "Initialize heap and visited. V = 3, adj = [[[1,5],[2,1]], [[0,5],[2,3]], [[0,1],[1,3]]]",
+                "vars": {
+                    "min_heap": "[(0, 0)]",
+                    "visited": "[False, False, False]",
+                    "mst_weight": 0
+                }
+            },
+            {
+                "line": 9,
+                "desc": "Pop min edge: (0, 0). Node 0 is unvisited. Mark visited[0] = True, mst_weight = 0.",
+                "vars": {
+                    "wt": 0,
+                    "u": 0,
+                    "visited": "[True, False, False]",
+                    "mst_weight": 0
+                }
+            },
+            {
+                "line": 19,
+                "desc": "Push neighbor 1 (5, 1) and neighbor 2 (1, 2) to heap.",
+                "vars": {
+                    "min_heap": "[(1, 2), (5, 1)]"
+                }
+            },
+            {
+                "line": 9,
+                "desc": "Pop min edge: (1, 2). Node 2 is unvisited. Mark visited[2] = True, mst_weight = 1.",
+                "vars": {
+                    "wt": 1,
+                    "u": 2,
+                    "visited": "[True, False, True]",
+                    "mst_weight": 1
+                }
+            },
+            {
+                "line": 19,
+                "desc": "Push neighbor 1 (3, 1) to heap. Neighbor 0 is already visited.",
+                "vars": {
+                    "min_heap": "[(3, 1), (5, 1)]"
+                }
+            },
+            {
+                "line": 9,
+                "desc": "Pop min edge: (3, 1). Node 1 is unvisited. Mark visited[1] = True, mst_weight = 1+3 = 4.",
+                "vars": {
+                    "wt": 3,
+                    "u": 1,
+                    "visited": "[True, True, True]",
+                    "mst_weight": 4
+                }
+            },
+            {
+                "line": 9,
+                "desc": "Pop (5, 1). Skip since node 1 is already visited.",
+                "vars": {
+                    "min_heap": "[]"
+                }
+            },
+            {
+                "line": 23,
+                "desc": "Heap is empty. Return final MST weight.",
+                "vars": {
+                    "result": 4
+                }
+            }
+        ]
+    },
+    "Minimum Spanning Tree (Kruskal's Algorithm)": {
+        "title": "Minimum Spanning Tree (Kruskal's Algorithm)",
+        "problemStatement": "Find the weight of the Minimum Spanning Tree (MST) using Kruskal's algorithm and Disjoint Set Union (DSU).",
+        "examples": [
+            {
+                "input": "V = 3, edges = [[0,1,5],[1,2,3],[0,2,1]] (as [u,v,w])",
+                "output": "4",
+                "explanation": "Sort edges: (0,2,1), (1,2,3), (0,1,5). Add (0,2) and (1,2) to MST. Total weight = 4."
+            }
+        ],
+        "constraints": [
+            "1 <= V <= 1000",
+            "0 <= E <= 10^5",
+            "1 <= weight <= 1000"
+        ],
+        "edgeCases": [
+            "No edges: MST weight is 0.",
+            "Graph has redundant edges with high weights."
+        ],
+        "followUps": [
+            "How do path compression and union by rank optimize the DSU operations?",
+            "Can Kruskal's be faster than Prim's for sparse graphs?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Exhaustively scan all edge subsets to find the cheapest subset of size V-1 that does not contain a cycle.",
+                "algorithm": "1. Run edge combinations check of size V-1.\n2. Filter out combinations containing cycles.\n3. Return the minimum weight.",
+                "code": "def kruskalBrute(V: int, edges: list[list[int]]) -> int:\n    # Runs edge combinations\n    pass",
+                "complexity": {
+                    "time": "O(E^(V-1))",
+                    "space": "O(V)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "Kruskal's sorts all edges in ascending order of their weights. It greedily selects the cheapest edge. To prevent cycles, we use a Disjoint Set Union (DSU) data structure. We only include an edge if its endpoints belong to different connected components, and then we union them.",
+                "algorithm": "1. Define DSU class with parent/rank arrays, find(i) with path compression, and union(i, j) with union by rank.\n2. Sort all edges by weight.\n3. Initialize dsu = DSU(V) and mst_weight = 0.\n4. Loop through sorted edges u, v, wt:\n   - If find(u) != find(v):\n     * union(u, v).\n     * mst_weight += wt.\n5. Return mst_weight.",
+                "code": "class DisjointSet:\n    def __init__(self, n):\n        self.parent = list(range(n))\n        self.rank = [0] * n\n        \n    # Find operation with path compression\n    def find(self, i):\n        if self.parent[i] == i:\n            return i\n        self.parent[i] = self.find(self.parent[i])\n        return self.parent[i]\n        \n    # Union operation by rank\n    def union(self, i, j):\n        root_i = self.find(i)\n        root_j = self.find(j)\n        if root_i != root_j:\n            if self.rank[root_i] < self.rank[root_j]:\n                self.parent[root_i] = root_j\n            elif self.rank[root_i] > self.rank[root_j]:\n                self.parent[root_j] = root_i\n            else:\n                self.parent[root_j] = root_i\n                self.rank[root_i] += 1\n            return True\n        return False\n\ndef spanningTreeKruskal(V: int, edges: list[list[int]]) -> int:\n    # Sort edges based on weight\n    edges.sort(key=lambda x: x[2])\n    dsu = DisjointSet(V)\n    mst_weight = 0\n    \n    for u, v, w in edges:\n        # If endpoints are in different components, union them and add weight\n        if dsu.union(u, v):\n            mst_weight += w\n            \n    return mst_weight",
+                "complexity": {
+                    "time": "O(E * log E + E * alpha(V)) where alpha is the inverse Ackermann function (nearly O(1)). Sorting edges dominates the runtime.",
+                    "space": "O(V) for storing the DSU structures."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 29,
+                "desc": "Sort edges by weight. edges = [[0,2,1], [1,2,3], [0,1,5]]. Initialize DSU for 3 nodes.",
+                "vars": {
+                    "edges": "[[0,2,1], [1,2,3], [0,1,5]]",
+                    "parent": "[0, 1, 2]",
+                    "rank": "[0, 0, 0]",
+                    "mst_weight": 0
+                }
+            },
+            {
+                "line": 34,
+                "desc": "Process edge 0-2 (wt 1). find(0) = 0, find(2) = 2. Components differ. Union them.",
+                "vars": {
+                    "u": 0,
+                    "v": 2,
+                    "w": 1,
+                    "parent": "[0, 1, 0]",
+                    "mst_weight": 1
+                }
+            },
+            {
+                "line": 34,
+                "desc": "Process edge 1-2 (wt 3). find(1) = 1, find(2) = 0. Components differ. Union them.",
+                "vars": {
+                    "u": 1,
+                    "v": 2,
+                    "w": 3,
+                    "parent": "[0, 0, 0]",
+                    "mst_weight": 4
+                }
+            },
+            {
+                "line": 34,
+                "desc": "Process edge 0-1 (wt 5). find(0) = 0, find(1) = 0. Same component, skip to avoid cycle.",
+                "vars": {
+                    "u": 0,
+                    "v": 1,
+                    "w": 5
+                }
+            },
+            {
+                "line": 37,
+                "desc": "Return final MST weight.",
+                "vars": {
+                    "result": 4
+                }
+            }
+        ]
+    },
+    "Maximum Sum of Non-Adjacent Elements": {
+        "title": "Maximum Sum of Non-Adjacent Elements",
+        "problemStatement": "Given an array of positive integers, find the maximum sum of a subsequence such that no two elements in the subsequence are adjacent in the array.",
+        "examples": [
+            {
+                "input": "nums = [2, 4, 6, 7, 8]",
+                "output": "16",
+                "explanation": "Select 2, 6, and 8. Sum is 2 + 6 + 8 = 16."
+            }
+        ],
+        "constraints": [
+            "1 <= nums.length <= 10^5",
+            "1 <= nums[i] <= 10^4"
+        ],
+        "edgeCases": [
+            "Array of size 1: Return the single element.",
+            "Array of size 2: Return max(nums[0], nums[1])."
+        ],
+        "followUps": [
+            "How can you solve this in O(1) space?",
+            "If elements can be negative, how does the recurrence change?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Use recursion. For each element, we have two choices: either pick it (and skip the next element) or skip it (and move to the next element). We recursively check both choices.",
+                "algorithm": "1. Define helper(idx):\n   - If idx >= len(nums), return 0.\n   - return max(nums[idx] + helper(idx + 2), helper(idx + 1)).\n2. Call helper(0).",
+                "code": "def maxNonAdjacentSumBrute(nums: list[int]) -> int:\n    def helper(idx):\n        # Base case: index out of bounds\n        if idx >= len(nums):\n            return 0\n        # Choice 1: Include current element and skip next\n        pick = nums[idx] + helper(idx + 2)\n        # Choice 2: Exclude current element\n        skip = helper(idx + 1)\n        return max(pick, skip)\n    return helper(0)",
+                "complexity": {
+                    "time": "O(2^N) due to branching at each index.",
+                    "space": "O(N) for recursion stack."
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "We can optimize using DP. Let dp[i] be the maximum sum using elements up to index i. In each step, we can either pick nums[i] + dp[i-2], or skip it (dp[i-1]). Since we only need values from the last two steps, we can reduce space to O(1) by maintaining two variables.",
+                "algorithm": "1. Let prev1 = nums[0], and prev2 = 0.\n2. Iterate i from 1 to N-1:\n   - pick = nums[i] + prev2\n   - skip = prev1\n   - cur = max(pick, skip)\n   - Set prev2 = prev1, prev1 = cur\n3. Return prev1.",
+                "code": "def maxNonAdjacentSum(nums: list[int]) -> int:\n    n = len(nums)\n    if n == 0:\n        return 0\n    if n == 1:\n        return nums[0]\n        \n    # prev1 stores max sum up to i-1\n    prev1 = nums[0]\n    # prev2 stores max sum up to i-2\n    prev2 = 0\n    \n    for i in range(1, n):\n        # Option 1: Pick current element + max sum from i-2\n        pick = nums[i] + prev2\n        # Option 2: Skip current element, take max sum from i-1\n        skip = prev1\n        \n        # Current max is the maximum of pick and skip\n        curr = max(pick, skip)\n        \n        # Update variables for next iteration\n        prev2 = prev1\n        prev1 = curr\n        \n    return prev1",
+                "complexity": {
+                    "time": "O(N) to traverse the array of size N.",
+                    "space": "O(1) as we only use two variables for state tracking."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 8,
+                "desc": "Initialize DP variables. nums = [2, 1, 4, 9].",
+                "vars": {
+                    "nums": "[2, 1, 4, 9]",
+                    "prev1": 2,
+                    "prev2": 0
+                }
+            },
+            {
+                "line": 12,
+                "desc": "Iterate i = 1 (val = 1). pick = 1 + 0 = 1. skip = 2. max is 2.",
+                "vars": {
+                    "i": 1,
+                    "pick": 1,
+                    "skip": 2,
+                    "curr": 2,
+                    "prev1": 2,
+                    "prev2": 2
+                }
+            },
+            {
+                "line": 12,
+                "desc": "Iterate i = 2 (val = 4). pick = 4 + 2 = 6. skip = 2. max is 6.",
+                "vars": {
+                    "i": 2,
+                    "pick": 6,
+                    "skip": 2,
+                    "curr": 6,
+                    "prev1": 6,
+                    "prev2": 2
+                }
+            },
+            {
+                "line": 12,
+                "desc": "Iterate i = 3 (val = 9). pick = 9 + 2 = 11. skip = 6. max is 11.",
+                "vars": {
+                    "i": 3,
+                    "pick": 11,
+                    "skip": 6,
+                    "curr": 11,
+                    "prev1": 11,
+                    "prev2": 6
+                }
+            },
+            {
+                "line": 23,
+                "desc": "Loop complete. Return prev1.",
+                "vars": {
+                    "result": 11
+                }
+            }
+        ]
+    },
+    "House Robber": {
+        "title": "House Robber",
+        "problemStatement": "You are a professional robber planning to rob houses along a street. Each house has a certain amount of money stashed, the only constraint stopping you from robbing each of them is that adjacent houses have security systems connected. Given an integer array nums representing the amount of money of each house, return the maximum amount of money you can rob tonight without alerting the police.",
+        "examples": [
+            {
+                "input": "nums = [1,2,3,1]",
+                "output": "4",
+                "explanation": "Rob house 1 (money = 1) and rob house 3 (money = 3). Total = 1 + 3 = 4."
+            }
+        ],
+        "constraints": [
+            "1 <= nums.length <= 100",
+            "0 <= nums[i] <= 400"
+        ],
+        "edgeCases": [
+            "nums is empty: Return 0.",
+            "One house: Return nums[0]."
+        ],
+        "followUps": [
+            "If houses are arranged in a circle (House Robber II), how would you solve it?",
+            "Can you reconstruct the indices of houses that were robbed?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Try all possible subsets of houses that do not contain adjacent indices. This is equivalent to recursion with pick/skip decisions.",
+                "algorithm": "1. Define recursive helper(idx).\n2. Return max of nums[idx] + helper(idx+2) and helper(idx+1).",
+                "code": "def robBrute(nums: list[int]) -> int:\n    def helper(idx):\n        if idx >= len(nums):\n            return 0\n        return max(nums[idx] + helper(idx + 2), helper(idx + 1))\n    return helper(0)",
+                "complexity": {
+                    "time": "O(2^N)",
+                    "space": "O(N)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "Let dp[i] represent the max money robbed from first i houses. dp[i] = max(nums[i] + dp[i-2], dp[i-1]). We only need two previous values to compute the current value, so we optimize space to O(1).",
+                "algorithm": "1. Initialize prev1 = 0, prev2 = 0.\n2. Loop through num in nums:\n   - temp = max(num + prev2, prev1)\n   - prev2 = prev1\n   - prev1 = temp\n3. Return prev1.",
+                "code": "def rob(nums: list[int]) -> int:\n    # prev1 stores max money up to i-1 house\n    prev1 = 0\n    # prev2 stores max money up to i-2 house\n    prev2 = 0\n    \n    for num in nums:\n        # Option 1: Rob current house + max from 2 houses ago\n        # Option 2: Skip current house, take max from 1 house ago\n        temp = max(num + prev2, prev1)\n        # Shift states forward\n        prev2 = prev1\n        prev1 = temp\n        \n    return prev1",
+                "complexity": {
+                    "time": "O(N) to process each house once.",
+                    "space": "O(1) auxiliary space."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 2,
+                "desc": "Initialize prev1 = 0, prev2 = 0. nums = [2, 7, 9, 3]",
+                "vars": {
+                    "nums": "[2, 7, 9, 3]",
+                    "prev1": 0,
+                    "prev2": 0
+                }
+            },
+            {
+                "line": 6,
+                "desc": "Process num = 2. temp = max(2+0, 0) = 2. Update states.",
+                "vars": {
+                    "num": 2,
+                    "temp": 2,
+                    "prev1": 2,
+                    "prev2": 0
+                }
+            },
+            {
+                "line": 6,
+                "desc": "Process num = 7. temp = max(7+0, 2) = 7. Update states.",
+                "vars": {
+                    "num": 7,
+                    "temp": 7,
+                    "prev1": 7,
+                    "prev2": 2
+                }
+            },
+            {
+                "line": 6,
+                "desc": "Process num = 9. temp = max(9+2, 7) = 11. Update states.",
+                "vars": {
+                    "num": 9,
+                    "temp": 11,
+                    "prev1": 11,
+                    "prev2": 7
+                }
+            },
+            {
+                "line": 6,
+                "desc": "Process num = 3. temp = max(3+7, 11) = 11. Update states.",
+                "vars": {
+                    "num": 3,
+                    "temp": 11,
+                    "prev1": 11,
+                    "prev2": 11
+                }
+            },
+            {
+                "line": 12,
+                "desc": "Completed loop. Return prev1.",
+                "vars": {
+                    "result": 11
+                }
+            }
+        ]
+    },
+    "Frog Jump": {
+        "title": "Frog Jump",
+        "problemStatement": "A frog is crossing a river. The river is divided into slots and at each slot there may or may not be a stone. The frog can jump on a stone, but it must not jump into the water. Given a list of stones' positions (in sorted ascending order), determine if the frog can cross the river by landing on the last stone. Initially, the frog is on the first stone and assumes the first jump must be 1 unit. If the frog's last jump was k units, its next jump must be either k - 1, k, or k + 1 units. Note that the frog can only jump in the forward direction.",
+        "examples": [
+            {
+                "input": "stones = [0,1,3,5,6,8,12,17]",
+                "output": "true",
+                "explanation": "The frog can jump: 1 unit to 1st stone, 2 units to 3rd stone, 2 units to 4th stone, 3 units to 6th stone, 4 units to 7th stone, 5 units to 8th stone."
+            }
+        ],
+        "constraints": [
+            "2 <= stones.length <= 2000",
+            "0 <= stones[i] <= 2^31 - 1",
+            "stones[0] == 0",
+            "stones is sorted in a strictly increasing order."
+        ],
+        "edgeCases": [
+            "stones[1] != 1: First jump must be 1 unit, so return false.",
+            "Only 2 stones: Returns true if stones[1] == 1."
+        ],
+        "followUps": [
+            "Can you optimize this with memoization to run in O(N^2) time?",
+            "How would you solve this if jumps could be backward?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Use simple backtracking. At each stone, try all three jump sizes (k-1, k, k+1) to find if any path reaches the destination stone. This will result in many redundant calculations.",
+                "algorithm": "1. Define helper(curr_val, last_jump):\n   - If curr_val == target, return True.\n   - If curr_val not in stones, return False.\n   - Try jump sizes k-1, k, k+1.\n2. Call helper(1, 1).",
+                "code": "def canCrossBrute(stones: list[int]) -> bool:\n    stone_set = set(stones)\n    target = stones[-1]\n    \n    def helper(curr, k):\n        # Base case: reached target stone\n        if curr == target:\n            return True\n        # Try all 3 possible next jumps: k-1, k, k+1\n        for j in (k - 1, k, k + 1):\n            if j > 0 and (curr + j) in stone_set:\n                if helper(curr + j, j):\n                    return True\n        return False\n        \n    if stones[1] != 1:\n        return False\n    return helper(1, 1)",
+                "complexity": {
+                    "time": "O(3^N)",
+                    "space": "O(N)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "Use dynamic programming with a map. For each stone position, we map it to a set of possible jump sizes that can land on it. We iterate through the stones, and for each stone, we look at its possible jump sizes. For each jump size k, we check if jumping k-1, k, or k+1 lands on a subsequent stone. If so, we add those jump sizes to the destination stone's set.",
+                "algorithm": "1. Initialize a hash map dp where keys are stone positions, and values are empty sets.\n2. Add 0 to dp[0].\n3. Loop through stone in stones:\n   - For each jump k in dp[stone]:\n     * For step in (k-1, k, k+1):\n       - If step > 0 and (stone + step) is in dp:\n         * Add step to dp[stone + step].\n4. Return True if dp[target] is not empty, else False.",
+                "code": "def canCross(stones: list[int]) -> bool:\n    # dp maps each stone position to a set of jump sizes that can reach it\n    dp = {stone: set() for stone in stones}\n    # Base case: 0 jump size reaches stone 0\n    dp[0].add(0)\n    \n    for stone in stones:\n        # Process each jump size that reached the current stone\n        for k in dp[stone]:\n            # Try step sizes: k-1, k, k+1\n            for step in (k - 1, k, k + 1):\n                # Jump must be positive and land on an existing stone\n                if step > 0 and (stone + step) in dp:\n                    dp[stone + step].add(step)\n                    \n    # If the last stone has any incoming jumps, crossing is possible\n    return len(dp[stones[-1]]) > 0",
+                "complexity": {
+                    "time": "O(N^2) where N is the number of stones. In the worst case, each stone can have N jump sizes.",
+                    "space": "O(N^2) to store jump sizes in the hash map sets."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 2,
+                "desc": "Initialize map of sets. stones = [0, 1, 3]. dp[0] gets {0}.",
+                "vars": {
+                    "stones": "[0, 1, 3]",
+                    "dp": "{0: {0}, 1: {}, 3: {}}"
+                }
+            },
+            {
+                "line": 6,
+                "desc": "Process stone = 0. k = 0. step sizes: -1, 0, 1. Only step 1 > 0 is valid. (0 + 1) = 1 in dp. Add 1 to dp[1].",
+                "vars": {
+                    "stone": 0,
+                    "k": 0,
+                    "dp": "{0: {0}, 1: {1}, 3: {}}"
+                }
+            },
+            {
+                "line": 6,
+                "desc": "Process stone = 1. k = 1. step sizes: 0, 1, 2. Steps 1, 2 are valid. (1 + 1) = 2 (not in dp). (1 + 2) = 3 (in dp). Add 2 to dp[3].",
+                "vars": {
+                    "stone": 1,
+                    "k": 1,
+                    "dp": "{0: {0}, 1: {1}, 3: {2}}"
+                }
+            },
+            {
+                "line": 6,
+                "desc": "Process stone = 3. k = 2. step sizes: 1, 2, 3. No stones beyond 3, loop finishes.",
+                "vars": {
+                    "stone": 3,
+                    "k": 2
+                }
+            },
+            {
+                "line": 15,
+                "desc": "Check if last stone (3) has any incoming jump sizes. len(dp[3]) = 1 > 0. Return True.",
+                "vars": {
+                    "result": true
+                }
+            }
+        ]
+    },
+    "Frog Jump with K Distance": {
+        "title": "Frog Jump with K Distance",
+        "problemStatement": "There are N stones, numbered 1 to N. For each i, the height of stone i is h[i]. A frog is initially on Stone 1. If the frog is on Stone i, it can jump to Stone i+1, Stone i+2, ..., or Stone i+K. The cost of a jump from Stone i to Stone j is |h[i] - h[j]|. Find the minimum possible total cost incurred before the frog reaches Stone N.",
+        "examples": [
+            {
+                "input": "heights = [10, 30, 40, 50, 20], K = 3",
+                "output": "30",
+                "explanation": "Jump 1 -> 2 (cost |10-30| = 20), then Jump 2 -> 5 (cost |30-20| = 10). Total cost = 30."
+            }
+        ],
+        "constraints": [
+            "2 <= N <= 10^5",
+            "1 <= K <= 100",
+            "1 <= h[i] <= 10^4"
+        ],
+        "edgeCases": [
+            "K >= N: Can jump directly to the end stone, cost is |h[0] - h[N-1]|.",
+            "K = 1: Equivalent to jumping to the adjacent stone each time."
+        ],
+        "followUps": [
+            "Can you optimize the space complexity to O(K) instead of O(N)?",
+            "How would you modify this to print the path the frog took?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Use recursion to explore all possible jumps from Stone i up to Stone i+K, and find the minimum cost recursively.",
+                "algorithm": "1. Define helper(idx):\n   - If idx == 0, return 0.\n   - Initialize min_cost = infinity.\n   - Loop j from 1 to K:\n     * If idx - j >= 0, update min_cost = min(min_cost, helper(idx - j) + abs(heights[idx] - heights[idx - j])).\n   - Return min_cost.",
+                "code": "def minimizeCostBrute(heights: list[int], K: int) -> int:\n    def helper(idx):\n        if idx == 0:\n            return 0\n        min_cost = float('inf')\n        for j in range(1, K + 1):\n            if idx - j >= 0:\n                cost = helper(idx - j) + abs(heights[idx] - heights[idx - j])\n                min_cost = min(min_cost, cost)\n        return min_cost\n    return helper(len(heights) - 1)",
+                "complexity": {
+                    "time": "O(K^N)",
+                    "space": "O(N)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "Use bottom-up DP. Let dp[i] represent the minimum cost to reach Stone i. To calculate dp[i], we check all previous stones from i-1 down to i-K and find the option that minimizes dp[i-j] + |heights[i] - heights[i-j]|.",
+                "algorithm": "1. Initialize dp array of size N with infinity, and set dp[0] = 0.\n2. Loop i from 1 to N-1:\n   - Loop j from 1 to K:\n     * If i - j >= 0:\n       - dp[i] = min(dp[i], dp[i-j] + abs(heights[i] - heights[i-j]))\n3. Return dp[N-1].",
+                "code": "def minimizeCost(heights: list[int], K: int) -> int:\n    n = len(heights)\n    # dp[i] stores the minimum cost to reach stone i\n    dp = [float('inf')] * n\n    # Base case: cost to reach stone 0 is 0\n    dp[0] = 0\n    \n    # Compute minimum cost for each stone\n    for i in range(1, n):\n        # Try all jumps from i-1 down to i-K\n        for j in range(1, K + 1):\n            if i - j >= 0:\n                # Update minimum cost to reach stone i\n                dp[i] = min(dp[i], dp[i - j] + abs(heights[i] - heights[i - j]))\n                \n    return dp[-1]",
+                "complexity": {
+                    "time": "O(N * K) because we have V outer steps, and each step checks at most K options.",
+                    "space": "O(N) for the DP table storage."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 3,
+                "desc": "Initialize DP table. heights = [10, 30, 40], K = 2.",
+                "vars": {
+                    "heights": "[10, 30, 40]",
+                    "K": 2,
+                    "dp": "[0, inf, inf]"
+                }
+            },
+            {
+                "line": 8,
+                "desc": "Iterate i = 1. Jump from j = 1 (stone 0). cost = dp[0] + |30-10| = 20. dp[1] = 20.",
+                "vars": {
+                    "i": 1,
+                    "j": 1,
+                    "dp": "[0, 20, inf]"
+                }
+            },
+            {
+                "line": 8,
+                "desc": "Iterate i = 2. Jump from j = 1 (stone 1). cost = dp[1] + |40-30| = 20 + 10 = 30. dp[2] = 30.",
+                "vars": {
+                    "i": 2,
+                    "j": 1,
+                    "dp": "[0, 20, 30]"
+                }
+            },
+            {
+                "line": 8,
+                "desc": "For i = 2, try j = 2 (stone 0). cost = dp[0] + |40-10| = 30. dp[2] = min(30, 30) = 30.",
+                "vars": {
+                    "i": 2,
+                    "j": 2,
+                    "dp": "[0, 20, 30]"
+                }
+            },
+            {
+                "line": 14,
+                "desc": "Completed. Return dp[-1].",
+                "vars": {
+                    "result": 30
+                }
+            }
+        ]
+    },
+    "Climbing Stairs": {
+        "title": "Climbing Stairs",
+        "problemStatement": "You are climbing a staircase. It takes n steps to reach the top. Each time you can either climb 1 or 2 steps. In how many distinct ways can you climb to the top?",
+        "examples": [
+            {
+                "input": "n = 3",
+                "output": "3",
+                "explanation": "There are three ways to climb to the top:\n1. 1 step + 1 step + 1 step\n2. 1 step + 2 steps\n3. 2 steps + 1 step"
+            }
+        ],
+        "constraints": [
+            "1 <= n <= 45"
+        ],
+        "edgeCases": [
+            "n = 1: Only 1 way.",
+            "n = 2: 2 ways (1+1 or 2)."
+        ],
+        "followUps": [
+            "Can you solve this using the matrix exponentiation technique in O(log N) time?",
+            "If you can climb up to K steps at a time, how does the recurrence change?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "At each step, we can either take 1 step or 2 steps. The total number of ways to reach the top is the sum of ways from step n-1 and ways from step n-2.",
+                "algorithm": "1. Define recursive helper(n).\n2. If n <= 1, return 1.\n3. Return helper(n-1) + helper(n-2).",
+                "code": "def climbStairsBrute(n: int) -> int:\n    # Recursive relation: F(n) = F(n-1) + F(n-2)\n    if n <= 1:\n        return 1\n    return climbStairsBrute(n - 1) + climbStairsBrute(n - 2)",
+                "complexity": {
+                    "time": "O(2^N) due to exponential recursive branching.",
+                    "space": "O(N) for recursion stack."
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "This is the Fibonacci sequence. Since the calculation of ways for step i only depends on step i-1 and step i-2, we can optimize space to O(1) by maintaining only the last two values.",
+                "algorithm": "1. If n <= 2, return n.\n2. Initialize prev1 = 2, prev2 = 1.\n3. Loop i from 3 to n:\n   - cur = prev1 + prev2\n   - prev2 = prev1\n   - prev1 = cur\n4. Return prev1.",
+                "code": "def climbStairs(n: int) -> int:\n    # Base cases\n    if n <= 2:\n        return n\n        \n    # prev1 stores ways to reach i-1 step\n    prev1 = 2\n    # prev2 stores ways to reach i-2 step\n    prev2 = 1\n    \n    for i in range(3, n + 1):\n        # Current ways is sum of ways to reach prev two steps\n        curr = prev1 + prev2\n        # Shift states forward\n        prev2 = prev1\n        prev1 = curr\n        \n    return prev1",
+                "complexity": {
+                    "time": "O(N) to reach the Nth step.",
+                    "space": "O(1) auxiliary space."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 2,
+                "desc": "Check base case. n = 4. Since 4 > 2, continue.",
+                "vars": {
+                    "n": 4
+                }
+            },
+            {
+                "line": 6,
+                "desc": "Initialize variables. prev1 = 2, prev2 = 1.",
+                "vars": {
+                    "prev1": 2,
+                    "prev2": 1
+                }
+            },
+            {
+                "line": 10,
+                "desc": "Iterate i = 3. curr = 2 + 1 = 3. Update states.",
+                "vars": {
+                    "i": 3,
+                    "curr": 3,
+                    "prev1": 3,
+                    "prev2": 2
+                }
+            },
+            {
+                "line": 10,
+                "desc": "Iterate i = 4. curr = 3 + 2 = 5. Update states.",
+                "vars": {
+                    "i": 4,
+                    "curr": 5,
+                    "prev1": 5,
+                    "prev2": 3
+                }
+            },
+            {
+                "line": 15,
+                "desc": "Loop complete. Return prev1.",
+                "vars": {
+                    "result": 5
+                }
+            }
+        ]
+    },
+    "Coin Change": {
+        "title": "Coin Change",
+        "problemStatement": "You are given an integer array coins representing coins of different denominations and an integer amount representing a total amount of money. Return the fewest number of coins that you need to make up that amount. If that amount of money cannot be made up by any combination of the coins, return -1. You may assume that you have an infinite number of each kind of coin.",
+        "examples": [
+            {
+                "input": "coins = [1, 2, 5], amount = 11",
+                "output": "3",
+                "explanation": "11 = 5 + 5 + 1 (3 coins)."
+            }
+        ],
+        "constraints": [
+            "1 <= coins.length <= 12",
+            "1 <= coins[i] <= 2^31 - 1",
+            "0 <= amount <= 10^4"
+        ],
+        "edgeCases": [
+            "amount = 0: Return 0 (no coins needed).",
+            "No combination possible: Return -1."
+        ],
+        "followUps": [
+            "Can you optimize the space complexity to O(amount)?",
+            "How would you write this to find the actual list of coins used?"
+        ],
+        "approaches": [
+            {
+                "name": "Brute Force",
+                "intuition": "Try all possible coin combinations recursively. For each coin, subtract its value from the amount and find the minimum coins recursively. This has exponential time complexity.",
+                "algorithm": "1. Define helper(rem):\n   - If rem == 0, return 0.\n   - If rem < 0, return infinity.\n   - min_coins = infinity.\n   - For each coin in coins:\n     * min_coins = min(min_coins, 1 + helper(rem - coin))\n   - Return min_coins.\n2. Call helper(amount).",
+                "code": "def coinChangeBrute(coins: list[int], amount: int) -> int:\n    def helper(rem):\n        if rem == 0:\n            return 0\n        if rem < 0:\n            return float('inf')\n        min_coins = float('inf')\n        for coin in coins:\n            res = helper(rem - coin)\n            if res != float('inf'):\n                min_coins = min(min_coins, 1 + res)\n        return min_coins\n    ans = helper(amount)\n    return ans if ans != float('inf') else -1",
+                "complexity": {
+                    "time": "O(N^amount)",
+                    "space": "O(amount)"
+                }
+            },
+            {
+                "name": "Optimal",
+                "intuition": "Use bottom-up dynamic programming. Let dp[i] represent the minimum number of coins needed to make change for amount i. We initialize the DP table with a large value (amount + 1). For each amount i from 1 to amount, and for each coin, if coin <= i, we update dp[i] = min(dp[i], dp[i - coin] + 1).",
+                "algorithm": "1. Initialize dp array of size amount + 1 with amount + 1.\n2. Set dp[0] = 0.\n3. Loop i from 1 to amount:\n   - For each coin in coins:\n     * If i - coin >= 0:\n       - dp[i] = min(dp[i], dp[i - coin] + 1)\n4. Return dp[amount] if it is not amount + 1, else -1.",
+                "code": "def coinChange(coins: list[int], amount: int) -> int:\n    # Initialize dp array with value greater than any possible count\n    dp = [amount + 1] * (amount + 1)\n    # Base case: 0 coins needed for amount 0\n    dp[0] = 0\n    \n    # Compute minimum coins for all amounts up to target\n    for i in range(1, amount + 1):\n        for coin in coins:\n            # If coin value can fit in amount i\n            if i - coin >= 0:\n                # Update DP table with minimum coins\n                dp[i] = min(dp[i], dp[i - coin] + 1)\n                \n    # If target amount is still set to initial value, it is unreachable\n    return dp[amount] if dp[amount] != amount + 1 else -1",
+                "complexity": {
+                    "time": "O(N * amount) where N is the number of coins.",
+                    "space": "O(amount) for storing the DP table of size amount + 1."
+                }
+            }
+        ],
+        "trace": [
+            {
+                "line": 3,
+                "desc": "Initialize DP table. coins = [1, 2], amount = 3.",
+                "vars": {
+                    "coins": "[1, 2]",
+                    "amount": 3,
+                    "dp": "[0, 4, 4, 4]"
+                }
+            },
+            {
+                "line": 7,
+                "desc": "Iterate i = 1. coin = 1 fits. dp[1] = min(4, dp[0] + 1) = 1. coin = 2 does not fit.",
+                "vars": {
+                    "i": 1,
+                    "dp": "[0, 1, 4, 4]"
+                }
+            },
+            {
+                "line": 7,
+                "desc": "Iterate i = 2. coin = 1 fits: dp[2] = min(4, dp[1] + 1) = 2. coin = 2 fits: dp[2] = min(2, dp[0] + 1) = 1.",
+                "vars": {
+                    "i": 2,
+                    "dp": "[0, 1, 1, 4]"
+                }
+            },
+            {
+                "line": 7,
+                "desc": "Iterate i = 3. coin = 1 fits: dp[3] = min(4, dp[2] + 1) = 2. coin = 2 fits: dp[3] = min(2, dp[1] + 1) = 2.",
+                "vars": {
+                    "i": 3,
+                    "dp": "[0, 1, 1, 2]"
+                }
+            },
+            {
+                "line": 15,
+                "desc": "Loop complete. Return dp[3] = 2.",
+                "vars": {
+                    "result": 2
+                }
+            }
+        ]
+    }
+}

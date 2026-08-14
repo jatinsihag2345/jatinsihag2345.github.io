@@ -1,0 +1,1423 @@
+{
+  "Buy and Sell Stock": {
+    "title": "Buy and Sell Stock",
+    "problemStatement": "You are given an array prices where prices[i] is the price of a given stock on the ith day. You want to maximize your profit by choosing a single day to buy one stock and choosing a different day in the future to sell that stock. Return the maximum profit you can achieve from this transaction. If you cannot achieve any profit, return 0.",
+    "examples": [
+      {
+        "input": "prices = [7,1,5,3,6,4]",
+        "output": 5,
+        "explanation": "Buy on day 2 (price = 1) and sell on day 5 (price = 6), profit = 6-1 = 5."
+      },
+      {
+        "input": "prices = [7,6,4,3,1]",
+        "output": 0,
+        "explanation": "In this case, no transactions are done and the max profit = 0."
+      }
+    ],
+    "constraints": [
+      "1 <= prices.length <= 10^5",
+      "0 <= prices[i] <= 10^4"
+    ],
+    "edgeCases": [
+      "Prices are in strictly descending order (profit is 0)",
+      "Array size is 1 (cannot buy and sell, profit is 0)",
+      "All prices are equal (profit is 0)"
+    ],
+    "followUps": [
+      "What if you can buy and sell multiple times (Best Time to Buy and Sell Stock II)?",
+      "What if you can only complete at most k transactions (Best Time to Buy and Sell Stock IV)?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Check all possible pairs of buy and sell days where the sell day is after the buy day. Find the maximum difference prices[j] - prices[i].",
+        "algorithm": "1. Initialize max_profit to 0.\n2. Run a loop with index i from 0 to N-1 (buy day).\n3. Run a nested loop with index j from i+1 to N-1 (sell day).\n4. Compute the difference prices[j] - prices[i]. If it is greater than max_profit, update max_profit.\n5. Return max_profit.",
+        "code": "def maxProfit(prices):\n    # Initialize the maximum profit to 0\n    max_profit = 0\n    # Loop through the list to pick the buying price\n    for i in range(len(prices)):\n        # Loop through the remaining days to pick the selling price\n        for j in range(i + 1, len(prices)):\n            # Calculate potential profit\n            profit = prices[j] - prices[i]\n            # Update max_profit if current profit is higher\n            if profit > max_profit:\n                max_profit = profit\n    # Return the final maximum profit found\n    return max_profit",
+        "complexity": {
+          "time": "O(N^2)",
+          "space": "O(1)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "As we iterate through the price list, we keep track of the minimum price observed so far. At each step, we calculate the profit if we sell at the current price and update the maximum profit.",
+        "algorithm": "1. Initialize min_price to infinity and max_profit to 0.\n2. Iterate through each price in the prices array.\n3. Update min_price if the current price is lower.\n4. Calculate the profit (current price - min_price). Update max_profit if it is greater than the current max_profit.\n5. Return max_profit.",
+        "code": "def maxProfit(prices):\n    # Start min_price as infinity to find the true minimum\n    min_price = float('inf')\n    # Start max_profit at 0\n    max_profit = 0\n    # Loop through each price in the input list\n    for price in prices:\n        # Check if the current price is the lowest seen so far\n        if price < min_price:\n            min_price = price\n        # Check if selling at the current price yields a higher profit\n        elif price - min_price > max_profit:\n            max_profit = price - min_price\n    # Return the maximum profit achieved\n    return max_profit",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 2,
+        "desc": "Initialize min_price to infinity",
+        "vars": { "min_price": "inf", "max_profit": 0 }
+      },
+      {
+        "line": 4,
+        "desc": "Initialize max_profit to 0",
+        "vars": { "min_price": "inf", "max_profit": 0 }
+      },
+      {
+        "line": 6,
+        "desc": "Process price = 7",
+        "vars": { "price": 7, "min_price": "inf", "max_profit": 0 }
+      },
+      {
+        "line": 8,
+        "desc": "Update min_price to 7",
+        "vars": { "price": 7, "min_price": 7, "max_profit": 0 }
+      },
+      {
+        "line": 6,
+        "desc": "Process price = 1",
+        "vars": { "price": 1, "min_price": 7, "max_profit": 0 }
+      },
+      {
+        "line": 8,
+        "desc": "Update min_price to 1",
+        "vars": { "price": 1, "min_price": 1, "max_profit": 0 }
+      },
+      {
+        "line": 6,
+        "desc": "Process price = 5",
+        "vars": { "price": 5, "min_price": 1, "max_profit": 0 }
+      },
+      {
+        "line": 10,
+        "desc": "Check if 5 - 1 > 0",
+        "vars": { "price": 5, "min_price": 1, "max_profit": 0 }
+      },
+      {
+        "line": 11,
+        "desc": "Update max_profit to 4",
+        "vars": { "price": 5, "min_price": 1, "max_profit": 4 }
+      },
+      {
+        "line": 13,
+        "desc": "Loop finished, return max_profit",
+        "vars": { "min_price": 1, "max_profit": 4 }
+      }
+    ]
+  },
+  "Rotate Matrix": {
+    "title": "Rotate Matrix",
+    "problemStatement": "You are given an n x n 2D matrix representing an image, rotate the image by 90 degrees (clockwise). You have to rotate the image in-place, which means you have to modify the input 2D matrix directly. DO NOT allocate another 2D matrix.",
+    "examples": [
+      {
+        "input": "matrix = [[1,2,3],[4,5,6],[7,8,9]]",
+        "output": "[[7,4,1],[8,5,2],[9,6,3]]"
+      }
+    ],
+    "constraints": [
+      "n == matrix.length == matrix[i].length",
+      "1 <= n <= 20",
+      "-1000 <= matrix[i][j] <= 1000"
+    ],
+    "edgeCases": [
+      "Matrix of size 1x1 (no rotation needed)",
+      "Negative elements in the matrix"
+    ],
+    "followUps": [
+      "How would you rotate the matrix anti-clockwise?",
+      "Can you perform this rotation in O(1) space without transpose?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Use an auxiliary matrix of size n x n. Place the element matrix[i][j] at dummy[j][n - 1 - i]. Then copy dummy back to original matrix.",
+        "algorithm": "1. Initialize a dummy 2D array of size n x n.\n2. Iterate through matrix, set dummy[j][n - 1 - i] = matrix[i][j].\n3. Copy dummy back to matrix.",
+        "code": "def rotate(matrix):\n    # Get size of matrix\n    n = len(matrix)\n    # Create a dummy matrix filled with zeros\n    dummy = [[0] * n for _ in range(n)]\n    # Populate the dummy matrix with rotated values\n    for i in range(n):\n        for j in range(n):\n            dummy[j][n - 1 - i] = matrix[i][j]\n    # Copy dummy matrix contents back into the original matrix\n    for i in range(n):\n        for j in range(n):\n            matrix[i][j] = dummy[i][j]",
+        "complexity": {
+          "time": "O(N^2)",
+          "space": "O(N^2)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "We can rotate the matrix in-place by performing two steps. First, we transpose the matrix (swap matrix[i][j] with matrix[j][i]). Second, we reverse each row of the transposed matrix.",
+        "algorithm": "1. Transpose the matrix: Swap matrix[i][j] with matrix[j][i] for i from 0 to N-1, and j from i+1 to N-1.\n2. Reverse each row of the matrix.\n3. The matrix is now rotated by 90 degrees clockwise.",
+        "code": "def rotate(matrix):\n    # Get size of matrix\n    n = len(matrix)\n    # Step 1: Transpose the matrix\n    for i in range(n):\n        # Loop starting from i+1 to avoid swapping elements back\n        for j in range(i + 1, n):\n            # Swap elements across the main diagonal\n            matrix[i][j], matrix[j][i] = matrix[j][i], matrix[i][j]\n    # Step 2: Reverse each row of the matrix\n    for i in range(n):\n        # Reverse current row in-place\n        matrix[i].reverse()",
+        "complexity": {
+          "time": "O(N^2)",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Get size of matrix",
+        "vars": { "n": 2 },
+        "matrix": [[1, 2], [3, 4]]
+      },
+      {
+        "line": 5,
+        "desc": "Transpose loop: i = 0",
+        "vars": { "i": 0, "n": 2 },
+        "matrix": [[1, 2], [3, 4]]
+      },
+      {
+        "line": 7,
+        "desc": "Transpose loop: j = 1",
+        "vars": { "i": 0, "j": 1 },
+        "matrix": [[1, 2], [3, 4]]
+      },
+      {
+        "line": 9,
+        "desc": "Swap matrix[0][1] and matrix[1][0]",
+        "vars": { "i": 0, "j": 1 },
+        "matrix": [[1, 3], [2, 4]]
+      },
+      {
+        "line": 5,
+        "desc": "Transpose loop: i = 1",
+        "vars": { "i": 1 },
+        "matrix": [[1, 3], [2, 4]]
+      },
+      {
+        "line": 11,
+        "desc": "Reverse row loop: i = 0",
+        "vars": { "i": 0 },
+        "matrix": [[1, 3], [2, 4]]
+      },
+      {
+        "line": 13,
+        "desc": "Reverse matrix[0] in-place",
+        "vars": { "i": 0 },
+        "matrix": [[3, 1], [2, 4]]
+      },
+      {
+        "line": 11,
+        "desc": "Reverse row loop: i = 1",
+        "vars": { "i": 1 },
+        "matrix": [[3, 1], [2, 4]]
+      },
+      {
+        "line": 13,
+        "desc": "Reverse matrix[1] in-place",
+        "vars": { "i": 1 },
+        "matrix": [[3, 1], [4, 2]]
+      }
+    ]
+  },
+  "Merge Overlapping Intervals": {
+    "title": "Merge Overlapping Intervals",
+    "problemStatement": "Given an array of intervals where intervals[i] = [start_i, end_i], merge all overlapping intervals, and return an array of the non-overlapping intervals.",
+    "examples": [
+      {
+        "input": "intervals = [[1,3],[2,6],[8,10],[15,18]]",
+        "output": [[1,6],[8,10],[15,18]]
+      }
+    ],
+    "constraints": [
+      "1 <= intervals.length <= 10^4",
+      "intervals[i].length == 2",
+      "0 <= start_i <= end_i <= 10^4"
+    ],
+    "edgeCases": [
+      "Only 1 interval in the input list",
+      "All intervals completely overlap with each other",
+      "Intervals are already sorted and disjoint"
+    ],
+    "followUps": [
+      "What if the input intervals are already sorted by start time?",
+      "How would you merge them if you cannot sort the list first (e.g. interval tree / stream inputs)?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Sort intervals first. For each interval, check if it can merge with subsequent intervals. Repeat this process until no overlapping intervals are found.",
+        "algorithm": "1. Sort the intervals.\n2. Repeat: Check if any adjacent intervals overlap. If yes, merge them by updating end time and pop the redundant one.\n3. Return the merged list when no more overlaps exist.",
+        "code": "def merge(intervals):\n    # Sort the intervals first\n    intervals.sort()\n    # Flag to track if a merge took place\n    merged = True\n    # Loop until no more merges can be made\n    while merged:\n        merged = False\n        i = 0\n        # Iterate through adjacent intervals\n        while i < len(intervals) - 1:\n            # Check if current interval overlaps with the next\n            if intervals[i][1] >= intervals[i + 1][0]:\n                # Merge by updating the end time\n                intervals[i][1] = max(intervals[i][1], intervals[i + 1][1])\n                # Remove the next interval since it is merged\n                intervals.pop(i + 1)\n                # Mark that we completed a merge\n                merged = True\n            else:\n                # Increment loop index if no merge occurs\n                i += 1\n    # Return the merged list\n    return intervals",
+        "complexity": {
+          "time": "O(N^2)",
+          "space": "O(1)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Sort intervals by start time. Iterate through the intervals, adding the first one to a result list. For subsequent intervals, if the start of current is <= end of the last in result, merge them by updating end. Otherwise, append the current interval.",
+        "algorithm": "1. Sort intervals by start time.\n2. Initialize merged = [].\n3. Iterate through intervals. If merged is empty or last element in merged doesn't overlap, append current.\n4. Else, update end of last element in merged to max(merged[-1][1], current[1]).\n5. Return merged.",
+        "code": "def merge(intervals):\n    # Sort intervals by start time\n    intervals.sort(key=lambda x: x[0])\n    # List to store merged intervals\n    merged = []\n    # Iterate through each interval\n    for interval in intervals:\n        # If merged is empty or no overlap with last interval\n        if not merged or merged[-1][1] < interval[0]:\n            # Append the current interval\n            merged.append(interval)\n        else:\n            # Update the end time of the last interval to merge them\n            merged[-1][1] = max(merged[-1][1], interval[1])\n    # Return the result list\n    return merged",
+        "complexity": {
+          "time": "O(N log N)",
+          "space": "O(N)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Sort intervals by start time",
+        "vars": {},
+        "list": [[1, 3], [2, 4], [5, 7]]
+      },
+      {
+        "line": 5,
+        "desc": "Initialize merged list",
+        "vars": { "merged": [] }
+      },
+      {
+        "line": 7,
+        "desc": "Loop with interval = [1,3]",
+        "vars": { "interval": [1, 3] }
+      },
+      {
+        "line": 9,
+        "desc": "merged is empty, append [1,3]",
+        "vars": { "merged": [[1, 3]] }
+      },
+      {
+        "line": 7,
+        "desc": "Loop with interval = [2,4]",
+        "vars": { "interval": [2, 4] }
+      },
+      {
+        "line": 13,
+        "desc": "Overlap found (3 >= 2), merge to max(3,4)=4",
+        "vars": { "merged": [[1, 4]] }
+      },
+      {
+        "line": 7,
+        "desc": "Loop with interval = [5,7]",
+        "vars": { "interval": [5, 7] }
+      },
+      {
+        "line": 9,
+        "desc": "No overlap (4 < 5), append [5,7]",
+        "vars": { "merged": [[1, 4], [5, 7]] }
+      },
+      {
+        "line": 15,
+        "desc": "Return merged intervals",
+        "vars": { "merged": [[1, 4], [5, 7]] }
+      }
+    ]
+  },
+  "Merge Two Sorted Arrays Without Extra Space": {
+    "title": "Merge Two Sorted Arrays Without Extra Space",
+    "problemStatement": "Given two sorted arrays arr1[] of size n and arr2[] of size m, merge them in-place in sorted order such that arr1[] contains the first n elements and arr2[] contains the remaining m elements. Do not use any extra space.",
+    "examples": [
+      {
+        "input": "arr1 = [1, 3, 5, 7], arr2 = [0, 2, 6, 8, 9]",
+        "output": "arr1 = [0, 1, 2, 3], arr2 = [5, 6, 7, 8, 9]"
+      }
+    ],
+    "constraints": [
+      "1 <= n, m <= 5 * 10^4",
+      "0 <= arr1[i], arr2[j] <= 10^9"
+    ],
+    "edgeCases": [
+      "All elements of arr1 are smaller than arr2",
+      "All elements of arr1 are larger than arr2"
+    ],
+    "followUps": [
+      "Can you solve it in linear time O(N+M) with O(1) extra space?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Combine both arrays into a temporary list, sort it, and then copy the sorted elements back to both arrays.",
+        "algorithm": "1. Create combined = arr1 + arr2.\n2. Sort combined.\n3. Copy first n elements back to arr1.\n4. Copy remaining elements back to arr2.",
+        "code": "def merge(arr1, arr2):\n    # Combine both arrays into one\n    combined = arr1 + arr2\n    # Sort the combined array\n    combined.sort()\n    # Copy first n elements to arr1\n    for i in range(len(arr1)):\n        arr1[i] = combined[i]\n    # Copy remaining m elements to arr2\n    for j in range(len(arr2)):\n        arr2[j] = combined[len(arr1) + j]",
+        "complexity": {
+          "time": "O((N+M) log(N+M))",
+          "space": "O(N+M)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Use the Gap Method (Shell Sort variant). The initial gap is ceil((n+m)/2). We compare elements at gap distance and swap if out of order. We then halve the gap and repeat until the gap is 0.",
+        "algorithm": "1. Calculate initial gap = ceil((n + m) / 2).\n2. Place left pointer at 0 and right at left + gap.\n3. Traverse and swap elements if arr[left] > arr[right]. Handle cases where left and right fall in arr1 or arr2.\n4. Reduce gap = ceil(gap / 2) and repeat until gap is 0.",
+        "code": "import math\n\ndef merge(arr1, arr2):\n    # Get sizes of arrays\n    n = len(arr1)\n    m = len(arr2)\n    # Total size of combined arrays\n    total_len = n + m\n    # Set initial gap\n    gap = math.ceil(total_len / 2)\n    # Run gap method\n    while gap > 0:\n        left = 0\n        right = left + gap\n        # Traverse elements with gap distance\n        while right < total_len:\n            # Case 1: left in arr1 and right in arr2\n            if left < n and right >= n:\n                idx2 = right - n\n                if arr1[left] > arr2[idx2]:\n                    arr1[left], arr2[idx2] = arr2[idx2], arr1[left]\n            # Case 2: both in arr2\n            elif left >= n:\n                idx1 = left - n\n                idx2 = right - n\n                if arr2[idx1] > arr2[idx2]:\n                    arr2[idx1], arr2[idx2] = arr2[idx2], arr2[idx1]\n            # Case 3: both in arr1\n            else:\n                if arr1[left] > arr1[right]:\n                    arr1[left], arr1[right] = arr1[right], arr1[left]\n            # Advance pointers\n            left += 1\n            right += 1\n        # Stop if gap was 1\n        if gap == 1:\n            break\n        # Update gap to half\n        gap = math.ceil(gap / 2)",
+        "complexity": {
+          "time": "O((N+M) log(N+M))",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 5,
+        "desc": "Calculate sizes",
+        "vars": { "n": 2, "m": 2, "total_len": 4 }
+      },
+      {
+        "line": 10,
+        "desc": "Initialize initial gap to ceil(4/2) = 2",
+        "vars": { "gap": 2 }
+      },
+      {
+        "line": 13,
+        "desc": "Initialize pointers: left=0, right=2",
+        "vars": { "left": 0, "right": 2 }
+      },
+      {
+        "line": 18,
+        "desc": "left in arr1, right in arr2. Swap since arr1[0] (3) > arr2[0] (1)",
+        "vars": { "left": 0, "right": 2, "idx2": 0 },
+        "list": [1, 4, 3, 2]
+      },
+      {
+        "line": 31,
+        "desc": "Advance pointers: left=1, right=3",
+        "vars": { "left": 1, "right": 3 }
+      },
+      {
+        "line": 18,
+        "desc": "left in arr1, right in arr2. Swap since arr1[1] (4) > arr2[1] (2)",
+        "vars": { "left": 1, "right": 3, "idx2": 1 },
+        "list": [1, 2, 3, 4]
+      },
+      {
+        "line": 34,
+        "desc": "Outer iteration done, update gap to ceil(2/2) = 1",
+        "vars": { "gap": 1 }
+      },
+      {
+        "line": 13,
+        "desc": "Initialize pointers: left=0, right=1",
+        "vars": { "left": 0, "right": 1 }
+      },
+      {
+        "line": 28,
+        "desc": "Compare inside arr1: arr1[0] (1) and arr1[1] (2). No swap.",
+        "vars": { "left": 0, "right": 1 }
+      },
+      {
+        "line": 35,
+        "desc": "gap was 1, break.",
+        "vars": { "gap": 1 }
+      }
+    ]
+  },
+  "Find Duplicate Number": {
+    "title": "Find Duplicate Number",
+    "problemStatement": "Given an array of integers nums containing n + 1 integers where each integer is in the range [1, n] inclusive. There is only one repeated number in nums, return this repeated number. Do not modify the array and use constant extra space.",
+    "examples": [
+      {
+        "input": "nums = [1,3,4,2,2]",
+        "output": 2
+      }
+    ],
+    "constraints": [
+      "1 <= n <= 10^5",
+      "nums.length == n + 1",
+      "1 <= nums[i] <= n"
+    ],
+    "edgeCases": [
+      "Duplicate number appears more than twice",
+      "Minimal size of 2: [1, 1]"
+    ],
+    "followUps": [
+      "Can you solve it in O(N) time and O(1) space if modifying the array is allowed?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Use a hash set to keep track of visited numbers. Return the first number that is already in the set.",
+        "algorithm": "1. Initialize an empty set 'seen'.\n2. For each number in the array, check if it exists in 'seen'.\n3. If yes, return it.\n4. Else, add it to 'seen'.",
+        "code": "def findDuplicate(nums):\n    # Create a set to record visited numbers\n    seen = set()\n    # Iterate through numbers\n    for num in nums:\n        # Check if current number was seen before\n        if num in seen:\n            return num\n        # Add current number to the set\n        seen.add(num)\n    # Fallback return\n    return -1",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(N)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Floyd's Tortoise and Hare Cycle Detection. We can model the array as a linked list where indices point to values. Since there is a duplicate, a cycle must exist. We use two pointers to find the cycle intersection and then find the start of the cycle.",
+        "algorithm": "1. Initialize tortoise = nums[0], hare = nums[0].\n2. In a loop, tortoise = nums[tortoise], hare = nums[nums[hare]] until they meet.\n3. Reset tortoise to nums[0].\n4. Advance both pointers by 1 step at a time until they meet again.\n5. Return the meeting point, which is the start of the cycle (the duplicate).",
+        "code": "def findDuplicate(nums):\n    # Phase 1: Detect cycle using slow and fast pointers\n    tortoise = nums[0]\n    hare = nums[0]\n    # Move pointers until they meet\n    while True:\n        # Tortoise moves 1 step\n        tortoise = nums[tortoise]\n        # Hare moves 2 steps\n        hare = nums[nums[hare]]\n        # Check if they intersect\n        if tortoise == hare:\n            break\n    # Phase 2: Find cycle entry point\n    tortoise = nums[0]\n    # Move both 1 step at a time\n    while tortoise != hare:\n        tortoise = nums[tortoise]\n        hare = nums[hare]\n    # Both met at cycle entry point\n    return tortoise",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize tortoise",
+        "vars": { "tortoise": 1, "hare": 1 }
+      },
+      {
+        "line": 8,
+        "desc": "Tortoise moves to nums[1] = 3",
+        "vars": { "tortoise": 3, "hare": 1 }
+      },
+      {
+        "line": 10,
+        "desc": "Hare moves to nums[nums[1]] = nums[3] = 2",
+        "vars": { "tortoise": 3, "hare": 2 }
+      },
+      {
+        "line": 8,
+        "desc": "Tortoise moves to nums[3] = 2",
+        "vars": { "tortoise": 2, "hare": 2 }
+      },
+      {
+        "line": 10,
+        "desc": "Hare moves to nums[nums[2]] = nums[2] = 2",
+        "vars": { "tortoise": 2, "hare": 2 }
+      },
+      {
+        "line": 12,
+        "desc": "Meeting detected, break Phase 1 loop",
+        "vars": { "tortoise": 2, "hare": 2 }
+      },
+      {
+        "line": 15,
+        "desc": "Reset tortoise to nums[0] = 1",
+        "vars": { "tortoise": 1, "hare": 2 }
+      },
+      {
+        "line": 17,
+        "desc": "Check tortoise != hare (1 != 2 is True)",
+        "vars": { "tortoise": 1, "hare": 2 }
+      },
+      {
+        "line": 18,
+        "desc": "Tortoise moves to nums[1] = 3, Hare moves to nums[2] = 2",
+        "vars": { "tortoise": 3, "hare": 2 }
+      },
+      {
+        "line": 18,
+        "desc": "Tortoise moves to nums[3] = 2, Hare moves to nums[2] = 2",
+        "vars": { "tortoise": 2, "hare": 2 }
+      },
+      {
+        "line": 21,
+        "desc": "Loop terminates. Return duplicate 2",
+        "vars": { "tortoise": 2 }
+      }
+    ]
+  },
+  "Repeat and Missing Number": {
+    "title": "Repeat and Missing Number",
+    "problemStatement": "You are given a read-only array of n integers from 1 to n. Each integer appears exactly once except A which appears twice and B which is missing. Return A and B.",
+    "examples": [
+      {
+        "input": "[3, 1, 2, 5, 3]",
+        "output": [3, 4]
+      }
+    ],
+    "constraints": [
+      "2 <= n <= 10^5",
+      "1 <= arr[i] <= n"
+    ],
+    "edgeCases": [
+      "Minimal size of 2: [2, 2] -> Repeat 2, Missing 1"
+    ],
+    "followUps": [
+      "Can you solve it using XOR operations without overflow issues?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Use a frequency array to record count of each element. The number with count 2 is repeating, and count 0 is missing.",
+        "algorithm": "1. Initialize a count array of size n+1 with 0s.\n2. Iterate through input, incrementing counts.\n3. Loop from 1 to n to find elements with count 2 and 0.\n4. Return them.",
+        "code": "def findRepeatAndMissing(arr):\n    # Get array size\n    n = len(arr)\n    # Count array initialized to zero\n    count = [0] * (n + 1)\n    # Count frequencies\n    for x in arr:\n        count[x] += 1\n    # Track repeating and missing\n    repeat = -1\n    missing = -1\n    # Check values from 1 to n\n    for i in range(1, n + 1):\n        if count[i] == 2:\n            repeat = i\n        elif count[i] == 0:\n            missing = i\n    # Return final results\n    return [repeat, missing]",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(N)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Use mathematical equations based on sums. Sum of 1 to n is S. Sum of squares is P. Sum of elements is S_act. Sum of squares is P_act.\nS_act - S = R - M\nP_act - P = R^2 - M^2 = (R-M)(R+M)\nSolve these to find R and M.",
+        "algorithm": "1. Compute sum_n and sum_n_sq.\n2. Compute sum_act and sum_act_sq.\n3. diff1 = sum_act - sum_n (R - M).\n4. diff2 = sum_act_sq - sum_n_sq (R^2 - M^2).\n5. sum_rm = diff2 // diff1 (R + M).\n6. R = (diff1 + sum_rm) // 2.\n7. M = sum_rm - R.\n8. Return [R, M].",
+        "code": "def findRepeatAndMissing(arr):\n    # Size of the array\n    n = len(arr)\n    # Expected sum from 1 to n\n    sum_n = (n * (n + 1)) // 2\n    # Expected sum of squares from 1 to n\n    sum_n_sq = (n * (n + 1) * (2 * n + 1)) // 6\n    # Actual sum and sum of squares\n    sum_act = sum(arr)\n    sum_act_sq = sum(x * x for x in arr)\n    # equations: diff1 = R - M\n    diff1 = sum_act - sum_n\n    # diff2 = R^2 - M^2\n    diff2 = sum_act_sq - sum_n_sq\n    # sum_rm = R + M\n    sum_rm = diff2 // diff1\n    # Calculate repeat R\n    repeat = (diff1 + sum_rm) // 2\n    # Calculate missing M\n    missing = sum_rm - repeat\n    # Return repeat and missing\n    return [repeat, missing]",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Calculate size n",
+        "vars": { "n": 3 }
+      },
+      {
+        "line": 5,
+        "desc": "Calculate expected sum",
+        "vars": { "sum_n": 6 }
+      },
+      {
+        "line": 7,
+        "desc": "Calculate expected sum of squares",
+        "vars": { "sum_n_sq": 14 }
+      },
+      {
+        "line": 9,
+        "desc": "Calculate sum_act = 2+2+3",
+        "vars": { "sum_act": 7 }
+      },
+      {
+        "line": 10,
+        "desc": "Calculate sum_act_sq = 4+4+9",
+        "vars": { "sum_act_sq": 17 }
+      },
+      {
+        "line": 12,
+        "desc": "Calculate diff1 = 7 - 6 = 1",
+        "vars": { "diff1": 1 }
+      },
+      {
+        "line": 14,
+        "desc": "Calculate diff2 = 17 - 14 = 3",
+        "vars": { "diff2": 3 }
+      },
+      {
+        "line": 16,
+        "desc": "Calculate sum_rm = 3 // 1 = 3",
+        "vars": { "sum_rm": 3 }
+      },
+      {
+        "line": 18,
+        "desc": "Calculate R = (1 + 3) // 2 = 2",
+        "vars": { "repeat": 2 }
+      },
+      {
+        "line": 20,
+        "desc": "Calculate M = 3 - 2 = 1",
+        "vars": { "missing": 1 }
+      },
+      {
+        "line": 22,
+        "desc": "Return results [2, 1]",
+        "vars": { "repeat": 2, "missing": 1 }
+      }
+    ]
+  },
+  "Inversion Count": {
+    "title": "Inversion Count",
+    "problemStatement": "Given an array of integers. Find the Inversion Count in the array. Two array elements arr[i] and arr[j] form an inversion if arr[i] > arr[j] and i < j.",
+    "examples": [
+      {
+        "input": "[2, 4, 1, 3, 5]",
+        "output": 3
+      }
+    ],
+    "constraints": [
+      "1 <= N <= 5 * 10^5",
+      "1 <= arr[i] <= 10^9"
+    ],
+    "edgeCases": [
+      "Array is already sorted (inversion count is 0)",
+      "Array is sorted in reverse (inversion count is N * (N - 1) / 2)"
+    ],
+    "followUps": [
+      "Can you solve it in O(N log N) using a Binary Indexed Tree (Fenwick Tree)?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Use nested loops to check all pairs (i, j) where i < j. If arr[i] > arr[j], increment count.",
+        "algorithm": "1. Initialize count = 0.\n2. Outer loop i from 0 to N-1.\n3. Inner loop j from i+1 to N-1.\n4. If arr[i] > arr[j], count += 1.\n5. Return count.",
+        "code": "def countInversions(arr):\n    # Get size of array\n    n = len(arr)\n    # Initialize count to 0\n    count = 0\n    # Loop through all elements\n    for i in range(n):\n        # Compare with subsequent elements\n        for j in range(i + 1, n):\n            # Check inversion condition\n            if arr[i] > arr[j]:\n                count += 1\n    # Return final inversion count\n    return count",
+        "complexity": {
+          "time": "O(N^2)",
+          "space": "O(1)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Adapt the Merge Sort algorithm. During the merge step, if we find that arr[i] > arr[j] (where arr[i] is in the left half and arr[j] is in the right half), then all elements from index i to the end of the left half are also greater than arr[j]. We add (mid - i + 1) to our inversion count.",
+        "algorithm": "1. Implement merge sort recursively.\n2. In merge function, maintain pointers i, j. If arr[i] <= arr[j], merge arr[i].\n3. If arr[i] > arr[j], merge arr[j] and add (mid - i + 1) to count.\n4. Return accumulated counts.",
+        "code": "def countInversions(arr):\n    # Helper recursive function\n    def merge_sort(temp_arr, left, right):\n        inv_count = 0\n        if left < right:\n            mid = (left + right) // 2\n            inv_count += merge_sort(temp_arr, left, mid)\n            inv_count += merge_sort(temp_arr, mid + 1, right)\n            inv_count += merge(temp_arr, left, mid, right)\n        return inv_count\n\n    # Merge step that counts cross-inversions\n    def merge(temp_arr, left, mid, right):\n        i = left\n        j = mid + 1\n        k = left\n        inv_count = 0\n        while i <= mid and j <= right:\n            if arr[i] <= arr[j]:\n                temp_arr[k] = arr[i]\n                i += 1\n            else:\n                temp_arr[k] = arr[j]\n                inv_count += (mid - i + 1)\n                j += 1\n            k += 1\n        while i <= mid:\n            temp_arr[k] = arr[i]\n            i += 1\n            k += 1\n        while j <= right:\n            temp_arr[k] = arr[j]\n            j += 1\n            k += 1\n        for loop_var in range(left, right + 1):\n            arr[loop_var] = temp_arr[loop_var]\n        return inv_count\n\n    # Initialize temp array\n    temp_arr = [0] * len(arr)\n    return merge_sort(temp_arr, 0, len(arr) - 1)",
+        "complexity": {
+          "time": "O(N log N)",
+          "space": "O(N)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 43,
+        "desc": "Start merge sort with left=0, right=3",
+        "vars": { "left": 0, "right": 3 }
+      },
+      {
+        "line": 13,
+        "desc": "Merge step for left=[2, 4] and right=[1, 3]",
+        "vars": { "left": 0, "mid": 1, "right": 3, "i": 0, "j": 2, "k": 0, "inv_count": 0 }
+      },
+      {
+        "line": 22,
+        "desc": "arr[i] (2) > arr[j] (1). Copy arr[j]. Add (1-0+1) = 2 to inv_count",
+        "vars": { "i": 0, "j": 3, "k": 1, "inv_count": 2 }
+      },
+      {
+        "line": 18,
+        "desc": "arr[i] (2) <= arr[j] (3). Copy arr[i]. Increment i.",
+        "vars": { "i": 1, "j": 3, "k": 2, "inv_count": 2 }
+      },
+      {
+        "line": 22,
+        "desc": "arr[i] (4) > arr[j] (3). Copy arr[j]. Add (1-1+1) = 1 to inv_count",
+        "vars": { "i": 1, "j": 4, "k": 3, "inv_count": 3 }
+      },
+      {
+        "line": 27,
+        "desc": "Copy remaining left subarray arr[i] (4) to temp_arr",
+        "vars": { "i": 2, "j": 4, "k": 4 }
+      },
+      {
+        "line": 35,
+        "desc": "Copy temp back to arr",
+        "vars": { "inv_count": 3 }
+      }
+    ]
+  },
+  "Search in a 2D Matrix": {
+    "title": "Search in a 2D Matrix",
+    "problemStatement": "Write an efficient algorithm that searches for a value target in an m x n integer matrix matrix. Integers in each row are sorted from left to right. The first integer of each row is greater than the last integer of the previous row.",
+    "examples": [
+      {
+        "input": "matrix = [[1,3,5,7],[10,11,16,20],[23,30,34,60]], target = 3",
+        "output": true
+      }
+    ],
+    "constraints": [
+      "m == matrix.length",
+      "n == matrix[i].length",
+      "1 <= m, n <= 100",
+      "-10^4 <= matrix[i][j], target <= 10^4"
+    ],
+    "edgeCases": [
+      "Matrix size is 1x1",
+      "Target is smaller than the first element or larger than the last element"
+    ],
+    "followUps": [
+      "How would you solve this if the matrix rows are sorted but columns are also sorted, and first element of a row isn't necessarily larger than the last element of the previous row (Search in 2D Matrix II)?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Linearly scan all elements of the 2D matrix to search for the target.",
+        "algorithm": "1. Loop through each row of the matrix.\n2. Loop through each column element of the row.\n3. If target matches, return True. If loop completes, return False.",
+        "code": "def searchMatrix(matrix, target):\n    # Loop through each row\n    for row in matrix:\n        # Loop through each value in the row\n        for val in row:\n            # Check if target matches current value\n            if val == target:\n                return True\n    # Return False if not found\n    return False",
+        "complexity": {
+          "time": "O(M * N)",
+          "space": "O(1)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Treat the 2D matrix as a sorted 1D array of size m * n. Run a binary search. A 1D index 'mid' can be mapped to 2D row = mid // cols and col = mid % cols.",
+        "algorithm": "1. Initialize left = 0, right = rows * cols - 1.\n2. Compute mid = (left + right) // 2.\n3. Map mid to matrix[mid // cols][mid % cols].\n4. Perform standard binary search comparison to update left or right.\n5. Return True if found, False otherwise.",
+        "code": "def searchMatrix(matrix, target):\n    # Check for empty matrix\n    if not matrix or not matrix[0]:\n        return False\n    # Dimensions of matrix\n    rows = len(matrix)\n    cols = len(matrix[0])\n    # Binary search boundaries\n    left = 0\n    right = rows * cols - 1\n    # Start binary search\n    while left <= right:\n        mid = (left + right) // 2\n        # Map 1D index to 2D index\n        mid_val = matrix[mid // cols][mid % cols]\n        # Check if mid value is target\n        if mid_val == target:\n            return True\n        # If mid_val is smaller, search right half\n        elif mid_val < target:\n            left = mid + 1\n        # Otherwise search left half\n        else:\n            right = mid - 1\n    # Return False if target not found\n    return False",
+        "complexity": {
+          "time": "O(log(M * N))",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 5,
+        "desc": "Initialize rows and cols",
+        "vars": { "rows": 2, "cols": 2 }
+      },
+      {
+        "line": 9,
+        "desc": "Initialize search boundaries",
+        "vars": { "left": 0, "right": 3 }
+      },
+      {
+        "line": 12,
+        "desc": "Check condition: left <= right (0 <= 3 is True)",
+        "vars": { "left": 0, "right": 3 }
+      },
+      {
+        "line": 13,
+        "desc": "Calculate mid = (0+3)//2 = 1",
+        "vars": { "mid": 1 }
+      },
+      {
+        "line": 15,
+        "desc": "Map mid=1 to row=0, col=1. mid_val = matrix[0][1] = 3",
+        "vars": { "mid_val": 3 }
+      },
+      {
+        "line": 20,
+        "desc": "3 < 5 is True. Set left = mid + 1 = 2",
+        "vars": { "left": 2, "right": 3 }
+      },
+      {
+        "line": 12,
+        "desc": "Check condition: left <= right (2 <= 3 is True)",
+        "vars": { "left": 2, "right": 3 }
+      },
+      {
+        "line": 13,
+        "desc": "Calculate mid = (2+3)//2 = 2",
+        "vars": { "mid": 2 }
+      },
+      {
+        "line": 15,
+        "desc": "Map mid=2 to row=1, col=0. mid_val = matrix[1][0] = 5",
+        "vars": { "mid_val": 5 }
+      },
+      {
+        "line": 17,
+        "desc": "5 == 5 is True. Target found. Return True.",
+        "vars": { "mid_val": 5 }
+      }
+    ]
+  },
+  "Pow(x, n)": {
+    "title": "Pow(x, n)",
+    "problemStatement": "Implement pow(x, n), which calculates x raised to the power n (i.e., x^n).",
+    "examples": [
+      {
+        "input": "x = 2.00000, n = 10",
+        "output": 1024.00000
+      }
+    ],
+    "constraints": [
+      "-100.0 < x < 100.0",
+      "-2^31 <= n <= 2^31 - 1",
+      "n is an integer",
+      "Either x is not zero or n > 0"
+    ],
+    "edgeCases": [
+      "n = 0 (returns 1.0)",
+      "n < 0 (must handle division by base)",
+      "n is the lowest possible negative integer -2^31"
+    ],
+    "followUps": [
+      "Can you implement this iteratively and recursively?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Multiply x, n times. If n is negative, invert the base x and change n to positive.",
+        "algorithm": "1. If n == 0, return 1.\n2. If n < 0, invert base x = 1/x and let n = -n.\n3. Multiply result by x, n times.\n4. Return result.",
+        "code": "def myPow(x, n):\n    # Return 1.0 if exponent is 0\n    if n == 0:\n        return 1.0\n    # Handle negative exponent\n    if n < 0:\n        x = 1 / x\n        n = -n\n    ans = 1.0\n    # Multiply x, n times\n    for _ in range(n):\n        ans *= x\n    # Return final product\n    return ans",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(1)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Binary Exponentiation. If n is even, x^n = (x^2)^(n/2). If n is odd, x^n = x * x^(n-1). This reduces calculations to O(log N).",
+        "algorithm": "1. Store original exponent. Work with absolute exponent nn = |n|.\n2. Run a loop while nn > 0.\n3. If nn is odd, multiply ans by x and reduce nn by 1.\n4. If nn is even, square x and divide nn by 2.\n5. If n was negative, return 1 / ans. Else return ans.",
+        "code": "def myPow(x, n):\n    # Base case\n    if n == 0:\n        return 1.0\n    # Working variable for positive exponent\n    nn = n if n >= 0 else -n\n    ans = 1.0\n    # Binary exponentiation loop\n    while nn > 0:\n        # If exponent is odd\n        if nn % 2 == 1:\n            ans = ans * x\n            nn = nn - 1\n        # If exponent is even\n        else:\n            x = x * x\n            nn = nn // 2\n    # Return reciprocal if original exponent was negative\n    return 1.0 / ans if n < 0 else ans",
+        "complexity": {
+          "time": "O(log N)",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 6,
+        "desc": "Initialize nn to positive 5",
+        "vars": { "nn": 5, "ans": 1.0, "x": 2.0 }
+      },
+      {
+        "line": 9,
+        "desc": "Check nn > 0 (5 > 0 is True)",
+        "vars": { "nn": 5 }
+      },
+      {
+        "line": 11,
+        "desc": "5 is odd. Multiply ans by 2.0, decrement nn to 4",
+        "vars": { "ans": 2.0, "nn": 4 }
+      },
+      {
+        "line": 9,
+        "desc": "Check nn > 0 (4 > 0 is True)",
+        "vars": { "nn": 4 }
+      },
+      {
+        "line": 16,
+        "desc": "4 is even. Square x to 4.0, divide nn by 2 to 2",
+        "vars": { "x": 4.0, "nn": 2 }
+      },
+      {
+        "line": 9,
+        "desc": "Check nn > 0 (2 > 0 is True)",
+        "vars": { "nn": 2 }
+      },
+      {
+        "line": 16,
+        "desc": "2 is even. Square x to 16.0, divide nn by 2 to 1",
+        "vars": { "x": 16.0, "nn": 1 }
+      },
+      {
+        "line": 9,
+        "desc": "Check nn > 0 (1 > 0 is True)",
+        "vars": { "nn": 1 }
+      },
+      {
+        "line": 11,
+        "desc": "1 is odd. Multiply ans by 16.0 to 32.0, decrement nn to 0",
+        "vars": { "ans": 32.0, "nn": 0 }
+      },
+      {
+        "line": 19,
+        "desc": "Return ans 32.0",
+        "vars": { "ans": 32.0 }
+      }
+    ]
+  },
+  "Majority Element (> n/2 times)": {
+    "title": "Majority Element (> n/2 times)",
+    "problemStatement": "Given an array nums of size n, return the majority element. The majority element is the element that appears more than ⌊n / 2⌋ times.",
+    "examples": [
+      {
+        "input": "nums = [3,2,3]",
+        "output": 3
+      }
+    ],
+    "constraints": [
+      "n == nums.length",
+      "1 <= n <= 5 * 10^4",
+      "-10^9 <= nums[i] <= 10^9"
+    ],
+    "edgeCases": [
+      "Array size is 1",
+      "All array elements are the same"
+    ],
+    "followUps": [
+      "Could you solve the problem in linear time and in O(1) space?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Use a hash map to count occurrences of each element. Return the element with frequency > n/2.",
+        "algorithm": "1. Initialize an empty dictionary.\n2. Iterate through nums, updating frequency counts.\n3. If count > n // 2, return the element.\n4. Return -1 if not found.",
+        "code": "def majorityElement(nums):\n    # Initialize dictionary for element counts\n    counts = {}\n    # Iterate through numbers\n    for num in nums:\n        # Count occurrences\n        counts[num] = counts.get(num, 0) + 1\n        # Check if majority condition met\n        if counts[num] > len(nums) // 2:\n            return num\n    # Return fallback\n    return -1",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(N)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Boyer-Moore Voting Algorithm. The majority element appears > n/2 times, so it will always outvote other elements. We maintain a candidate and its vote count. If count is 0, choose current as candidate. Increment count if element == candidate, else decrement.",
+        "algorithm": "1. Initialize candidate = None, count = 0.\n2. Loop through each element in nums.\n3. If count == 0, set candidate = element.\n4. Increment count if element == candidate, else decrement count.\n5. Return candidate.",
+        "code": "def majorityElement(nums):\n    # Store candidate majority element\n    candidate = None\n    # Store vote count\n    count = 0\n    # Traverse the array\n    for num in nums:\n        # Update candidate if count is 0\n        if count == 0:\n            candidate = num\n        # Increment vote if match, otherwise decrement\n        if num == candidate:\n            count += 1\n        else:\n            count -= 1\n    # Return candidate\n    return candidate",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize candidate",
+        "vars": { "candidate": null }
+      },
+      {
+        "line": 5,
+        "desc": "Initialize count",
+        "vars": { "count": 0 }
+      },
+      {
+        "line": 7,
+        "desc": "Process num = 2",
+        "vars": { "num": 2, "count": 0 }
+      },
+      {
+        "line": 10,
+        "desc": "Set candidate = 2 since count was 0",
+        "vars": { "candidate": 2 }
+      },
+      {
+        "line": 13,
+        "desc": "Match, increment count to 1",
+        "vars": { "count": 1 }
+      },
+      {
+        "line": 7,
+        "desc": "Process num = 1",
+        "vars": { "num": 1, "count": 1 }
+      },
+      {
+        "line": 15,
+        "desc": "Mismatch, decrement count to 0",
+        "vars": { "count": 0 }
+      },
+      {
+        "line": 7,
+        "desc": "Process num = 2",
+        "vars": { "num": 2, "count": 0 }
+      },
+      {
+        "line": 10,
+        "desc": "Set candidate = 2 since count was 0",
+        "vars": { "candidate": 2 }
+      },
+      {
+        "line": 13,
+        "desc": "Match, increment count to 1",
+        "vars": { "count": 1 }
+      },
+      {
+        "line": 17,
+        "desc": "Loop done, return candidate 2",
+        "vars": { "candidate": 2 }
+      }
+    ]
+  },
+  "Majority Element II (> n/3 times)": {
+    "title": "Majority Element II (> n/3 times)",
+    "problemStatement": "Given an integer array of size n, find all elements that appear more than ⌊ n/3 ⌋ times.",
+    "examples": [
+      {
+        "input": "nums = [3,2,3]",
+        "output": [3]
+      }
+    ],
+    "constraints": [
+      "1 <= nums.length <= 5 * 10^4",
+      "-10^9 <= nums[i] <= 10^9"
+    ],
+    "edgeCases": [
+      "Array size is less than 3",
+      "No element appears more than n/3 times (returns empty list)"
+    ],
+    "followUps": [
+      "Could you solve the problem in linear time and in O(1) space?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Use a hash map to count occurrences of all elements, then filter those with count > n/3.",
+        "algorithm": "1. Initialize a counts dictionary.\n2. Iterate and increment counts.\n3. Filter counts dictionary to extract elements that exceed len(nums) // 3.\n4. Return them.",
+        "code": "def majorityElement(nums):\n    # Get size of the array\n    n = len(nums)\n    # Dictionary to record counts\n    counts = {}\n    for num in nums:\n        counts[num] = counts.get(num, 0) + 1\n    # List to store results\n    result = []\n    # Verify which elements satisfy majority condition\n    for num, count in counts.items():\n        if count > n // 3:\n            result.append(num)\n    # Return result list\n    return result",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(N)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Extended Boyer-Moore Voting Algorithm. At most two elements can appear more than n/3 times. We keep two candidates and their counts. In the first pass, we identify the top two potential candidates. In the second pass, we verify their actual counts.",
+        "algorithm": "1. Set cand1, cand2 = None, counts = 0.\n2. Iterate through nums to update candidates and decrement if mismatching both.\n3. Reset actual counts of cand1, cand2 to 0.\n4. Recalculate their occurrences.\n5. Append to result if they exceed n/3.\n6. Return results.",
+        "code": "def majorityElement(nums):\n    # Candidates and counts initialized\n    cand1, cand2 = None, None\n    count1, count2 = 0, 0\n    # Phase 1: Identify potential candidates\n    for num in nums:\n        if num == cand1:\n            count1 += 1\n        elif num == cand2:\n            count2 += 1\n        elif count1 == 0:\n            cand1 = num\n            count1 = 1\n        elif count2 == 0:\n            cand2 = num\n            count2 = 1\n        else:\n            count1 -= 1\n            count2 -= 1\n    # Phase 2: Verify candidates\n    result = []\n    n = len(nums)\n    c1, c2 = 0, 0\n    for num in nums:\n        if num == cand1:\n            c1 += 1\n        elif num == cand2:\n            c2 += 1\n    if c1 > n // 3:\n        result.append(cand1)\n    if c2 > n // 3:\n        result.append(cand2)\n    # Return majority list\n    return result",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize candidates and counts",
+        "vars": { "cand1": null, "cand2": null, "count1": 0, "count2": 0 }
+      },
+      {
+        "line": 6,
+        "desc": "Process num = 1",
+        "vars": { "num": 1 }
+      },
+      {
+        "line": 12,
+        "desc": "Set cand1 = 1, count1 = 1 since count1 was 0",
+        "vars": { "cand1": 1, "count1": 1 }
+      },
+      {
+        "line": 6,
+        "desc": "Process num = 2",
+        "vars": { "num": 2 }
+      },
+      {
+        "line": 15,
+        "desc": "Set cand2 = 2, count2 = 1 since count2 was 0",
+        "vars": { "cand2": 2, "count2": 1 }
+      },
+      {
+        "line": 6,
+        "desc": "Process num = 1",
+        "vars": { "num": 1 }
+      },
+      {
+        "line": 8,
+        "desc": "Match cand1, increment count1 to 2",
+        "vars": { "count1": 2 }
+      },
+      {
+        "line": 20,
+        "desc": "Verify counts: count of 1 is 2, count of 2 is 1",
+        "vars": { "c1": 2, "c2": 1, "n": 3 }
+      },
+      {
+        "line": 31,
+        "desc": "1 has count 2 > 1 (n//3). Append 1 to result.",
+        "vars": { "result": [1] }
+      }
+    ]
+  },
+  "Grid Unique Paths": {
+    "title": "Grid Unique Paths",
+    "problemStatement": "There is a robot on an m x n grid. The robot is initially located at the top-left corner. The robot tries to move to the bottom-right corner. The robot can only move either down or right. Return the number of possible unique paths.",
+    "examples": [
+      {
+        "input": "m = 3, n = 2",
+        "output": 3
+      }
+    ],
+    "constraints": [
+      "1 <= m, n <= 100"
+    ],
+    "edgeCases": [
+      "m = 1 or n = 1 (returns 1)"
+    ],
+    "followUps": [
+      "What if some cells contain obstacles? (Unique Paths II)"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Recursive backtracking. From any cell, the robot can go down or right. The total paths is the sum of paths from down cell and right cell.",
+        "algorithm": "1. Implement countPaths(i, j).\n2. If i == m - 1 and j == n - 1, return 1.\n3. If i >= m or j >= n, return 0.\n4. Return countPaths(i + 1, j) + countPaths(i, j + 1).",
+        "code": "def uniquePaths(m, n):\n    # Helper recursive function\n    def countPaths(i, j):\n        # Reach target\n        if i == m - 1 and j == n - 1:\n            return 1\n        # Out of bounds\n        if i >= m or j >= n:\n            return 0\n        # Move down or move right\n        return countPaths(i + 1, j) + countPaths(i, j + 1)\n    # Start from top-left\n    return countPaths(0, 0)",
+        "complexity": {
+          "time": "O(2^(M+N))",
+          "space": "O(M+N)"
+        }
+      },
+      {
+        "name": "Better",
+        "intuition": "Dynamic Programming (Tabulation). Create a 2D table where dp[i][j] represents unique paths to reach cell (i, j). Transition: dp[i][j] = dp[i-1][j] + dp[i][j-1].",
+        "algorithm": "1. Initialize dp matrix of size m x n with 1.\n2. Iterate i from 1 to m-1, and j from 1 to n-1.\n3. dp[i][j] = dp[i-1][j] + dp[i][j-1].\n4. Return dp[m-1][n-1].",
+        "code": "def uniquePaths(m, n):\n    # DP grid initialized with 1\n    dp = [[1] * n for _ in range(m)]\n    # Iterate through cells\n    for i in range(1, m):\n        for j in range(1, n):\n            # DP transition\n            dp[i][j] = dp[i - 1][j] + dp[i][j - 1]\n    # Return target cell\n    return dp[m - 1][n - 1]",
+        "complexity": {
+          "time": "O(M * N)",
+          "space": "O(M * N)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Combinatorics. Total steps required = m + n - 2. Down steps = m - 1. Right steps = n - 1. The result is combination (m + n - 2) C (m - 1).",
+        "algorithm": "1. Let N = m + n - 2, r = min(m - 1, n - 1).\n2. Calculate combination N C r iteratively.\n3. Return result.",
+        "code": "def uniquePaths(m, n):\n    # Total number of directions to take\n    N = m + n - 2\n    # Choose the smaller movement\n    r = min(m - 1, n - 1)\n    res = 1\n    # Compute combination NCr\n    for i in range(1, r + 1):\n        res = res * (N - r + i) // i\n    # Return final combination count\n    return res",
+        "complexity": {
+          "time": "O(min(M, N))",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Calculate N = 3 + 3 - 2 = 4",
+        "vars": { "N": 4 }
+      },
+      {
+        "line": 5,
+        "desc": "Calculate r = min(2, 2) = 2",
+        "vars": { "r": 2 }
+      },
+      {
+        "line": 6,
+        "desc": "Initialize res = 1",
+        "vars": { "res": 1 }
+      },
+      {
+        "line": 8,
+        "desc": "Loop i = 1",
+        "vars": { "i": 1 }
+      },
+      {
+        "line": 9,
+        "desc": "res = 1 * (4 - 2 + 1) // 1 = 3",
+        "vars": { "res": 3 }
+      },
+      {
+        "line": 8,
+        "desc": "Loop i = 2",
+        "vars": { "i": 2 }
+      },
+      {
+        "line": 9,
+        "desc": "res = 3 * (4 - 2 + 2) // 2 = 6",
+        "vars": { "res": 6 }
+      },
+      {
+        "line": 11,
+        "desc": "Return result paths count 6",
+        "vars": { "res": 6 }
+      }
+    ]
+  },
+  "Reverse Pairs": {
+    "title": "Reverse Pairs",
+    "problemStatement": "Given an integer array nums, return the number of reverse pairs in the array. A reverse pair is a pair (i, j) where: 0 <= i < j < nums.length and nums[i] > 2 * nums[j].",
+    "examples": [
+      {
+        "input": "nums = [1,3,2,3,1]",
+        "output": 2
+      }
+    ],
+    "constraints": [
+      "1 <= nums.length <= 5 * 10^4",
+      "-2^31 <= nums[i] <= 2^31 - 1"
+    ],
+    "edgeCases": [
+      "Array length is 1",
+      "No reverse pairs exist"
+    ],
+    "followUps": [
+      "Can you solve it using a Segment Tree or Fenwick Tree?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Use nested loops to inspect all pairs (i, j) where i < j and verify the condition nums[i] > 2 * nums[j].",
+        "algorithm": "1. Initialize count = 0.\n2. Iterate i from 0 to N-1.\n3. Iterate j from i+1 to N-1.\n4. If nums[i] > 2 * nums[j], count += 1.\n5. Return count.",
+        "code": "def reversePairs(nums):\n    # Initialize pair count\n    count = 0\n    n = len(nums)\n    # Check all pairs\n    for i in range(n):\n        for j in range(i + 1, n):\n            # Condition check\n            if nums[i] > 2 * nums[j]:\n                count += 1\n    # Return count\n    return count",
+        "complexity": {
+          "time": "O(N^2)",
+          "space": "O(1)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Modified Merge Sort. We count pairs recursively in left and right halves, then count cross pairs where nums[i] > 2 * nums[j] using two pointers, and finally merge the sorted halves.",
+        "algorithm": "1. Implement merge_sort(left, right).\n2. Count pairs recursively in (left, mid) and (mid+1, right).\n3. Use two pointers i, j to count cross pairs: for each i in left half, advance j in right half while nums[i] > 2 * nums[j]. Add (j - (mid + 1)) to count.\n4. Merge sorted halves. Return accumulated counts.",
+        "code": "def reversePairs(nums):\n    # Main divide and conquer function\n    def merge_sort(left, right):\n        if left >= right:\n            return 0\n        mid = (left + right) // 2\n        count = merge_sort(left, mid) + merge_sort(mid + 1, right)\n        count += count_pairs(left, mid, right)\n        merge(left, mid, right)\n        return count\n\n    # Count valid cross-pairs\n    def count_pairs(left, mid, right):\n        count = 0\n        j = mid + 1\n        for i in range(left, mid + 1):\n            while j <= right and nums[i] > 2 * nums[j]:\n                j += 1\n            count += (j - (mid + 1))\n        return count\n\n    # Merge sorted subdivisions\n    def merge(left, mid, right):\n        temp = []\n        i, j = left, mid + 1\n        while i <= mid and j <= right:\n            if nums[i] <= nums[j]:\n                temp.append(nums[i])\n                i += 1\n            else:\n                temp.append(nums[j])\n                j += 1\n        while i <= mid:\n            temp.append(nums[i])\n            i += 1\n        while j <= right:\n            temp.append(nums[j])\n            j += 1\n        for k in range(len(temp)):\n            nums[left + k] = temp[k]\n\n    # Start merge sort\n    return merge_sort(0, len(nums) - 1)",
+        "complexity": {
+          "time": "O(N log N)",
+          "space": "O(N)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 51,
+        "desc": "Start merge sort with left=0, right=3",
+        "vars": { "left": 0, "right": 3 }
+      },
+      {
+        "line": 13,
+        "desc": "Perform count_pairs on sorted left=[4, 6] and right=[1, 2]",
+        "vars": { "left": 0, "mid": 1, "right": 3, "j": 2, "count": 0 }
+      },
+      {
+        "line": 16,
+        "desc": "i = 0 (val 4). Advance j. nums[0] (4) > 2 * nums[2] (2). Increment j to 3.",
+        "vars": { "i": 0, "j": 3 }
+      },
+      {
+        "line": 16,
+        "desc": "Check nums[0] (4) > 2 * nums[3] (4) is False. Add (3 - 2) = 1 to count.",
+        "vars": { "i": 0, "j": 3, "count": 1 }
+      },
+      {
+        "line": 16,
+        "desc": "i = 1 (val 6). Advance j. nums[1] (6) > 2 * nums[3] (4). Increment j to 4.",
+        "vars": { "i": 1, "j": 4 }
+      },
+      {
+        "line": 18,
+        "desc": "j exceeds boundary. Add (4 - 2) = 2 to count.",
+        "vars": { "i": 1, "j": 4, "count": 3 }
+      },
+      {
+        "line": 19,
+        "desc": "Return count 3",
+        "vars": { "count": 3 }
+      }
+    ]
+  },
+  "Four Sum": {
+    "title": "Four Sum",
+    "problemStatement": "Given an array nums of n integers and an integer target, return an array of all the unique quadruplets [nums[a], nums[b], nums[c], nums[d]] such that: 0 <= a, b, c, d < n, a, b, c, and d are distinct, and nums[a] + nums[b] + nums[c] + nums[d] == target.",
+    "examples": [
+      {
+        "input": "nums = [1,0,-1,0,-2,2], target = 0",
+        "output": [[-2,-1,1,2],[-2,0,0,2],[-1,0,0,1]]
+      }
+    ],
+    "constraints": [
+      "1 <= nums.length <= 200",
+      "-10^9 <= nums[i] <= 10^9",
+      "-10^9 <= target <= 10^9"
+    ],
+    "edgeCases": [
+      "Array has less than 4 elements (returns empty list)",
+      "Target is unreachable"
+    ],
+    "followUps": [
+      "Can you generalize the solution to K-Sum?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Use 4 nested loops to check all quadruplets. Sort each match and add it to a set to remove duplicates.",
+        "algorithm": "1. Run 4 loops: i, j, k, l.\n2. If sum is target, sort the quadruplet and insert it as a tuple into set.\n3. Convert set of tuples back to list of lists and return.",
+        "code": "def fourSum(nums, target):\n    # Get size of array\n    n = len(nums)\n    # Set to record unique results\n    res = set()\n    # 4 nested loops to check all quadruplets\n    for i in range(n):\n        for j in range(i + 1, n):\n            for k in range(j + 1, n):\n                for l in range(k + 1, n):\n                    if nums[i] + nums[j] + nums[k] + nums[l] == target:\n                        quad = tuple(sorted([nums[i], nums[j], nums[k], nums[l]]))\n                        res.add(quad)\n    # Return final results converted back to list of lists\n    return [list(x) for x in res]",
+        "complexity": {
+          "time": "O(N^4)",
+          "space": "O(U)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Sort the array. Fix the first two elements with nested loops (i and j), then use two pointers (left and right) for the remaining two elements to search for matching sum. Skip duplicates to ensure uniqueness.",
+        "algorithm": "1. Sort the array.\n2. Loop i from 0 to N-1. If nums[i] == nums[i-1], continue.\n3. Loop j from i+1 to N-1. If nums[j] == nums[j-1], continue.\n4. Initialize left = j + 1, right = N - 1.\n5. Calculate sum = nums[i] + nums[j] + nums[left] + nums[right].\n6. Adjust pointers and skip duplicate elements appropriately.\n7. Return all found quadruplets.",
+        "code": "def fourSum(nums, target):\n    # Sort array\n    nums.sort()\n    n = len(nums)\n    ans = []\n    # Fix first element\n    for i in range(n):\n        # Skip duplicate first element\n        if i > 0 and nums[i] == nums[i - 1]:\n            continue\n        # Fix second element\n        for j in range(i + 1, n):\n            # Skip duplicate second element\n            if j > i + 1 and nums[j] == nums[j - 1]:\n                continue\n            # Two pointers\n            left = j + 1\n            right = n - 1\n            while left < right:\n                curr_sum = nums[i] + nums[j] + nums[left] + nums[right]\n                if curr_sum == target:\n                    ans.append([nums[i], nums[j], nums[left], nums[right]])\n                    left += 1\n                    # Skip duplicate left elements\n                    while left < right and nums[left] == nums[left - 1]:\n                         left += 1\n                    right -= 1\n                    # Skip duplicate right elements\n                    while left < right and nums[right] == nums[right + 1]:\n                         right -= 1\n                elif curr_sum < target:\n                    left += 1\n                else:\n                    right -= 1\n    # Return results\n    return ans",
+        "complexity": {
+          "time": "O(N^3)",
+          "space": "O(1)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Sort nums",
+        "vars": {},
+        "list": [-2, -1, 0, 0, 1, 2]
+      },
+      {
+        "line": 7,
+        "desc": "Outer loop i = 0 (val -2)",
+        "vars": { "i": 0 }
+      },
+      {
+        "line": 12,
+        "desc": "Second loop j = 1 (val -1)",
+        "vars": { "j": 1 }
+      },
+      {
+        "line": 17,
+        "desc": "Initialize left = 2, right = 5",
+        "vars": { "left": 2, "right": 5 }
+      },
+      {
+        "line": 19,
+        "desc": "Calculate sum = -2 + -1 + 0 + 2 = -1",
+        "vars": { "curr_sum": -1 }
+      },
+      {
+        "line": 31,
+        "desc": "Sum is smaller than target 0. Increment left.",
+        "vars": { "left": 3 }
+      },
+      {
+        "line": 19,
+        "desc": "Calculate sum = -2 + -1 + 0 + 2 = -1",
+        "vars": { "curr_sum": -1 }
+      },
+      {
+        "line": 31,
+        "desc": "Sum is smaller than target 0. Increment left.",
+        "vars": { "left": 4 }
+      },
+      {
+        "line": 19,
+        "desc": "Calculate sum = -2 + -1 + 1 + 2 = 0",
+        "vars": { "curr_sum": 0 }
+      },
+      {
+        "line": 21,
+        "desc": "Match! Append [-2, -1, 1, 2] to ans.",
+        "vars": { "ans": [[-2, -1, 1, 2]] }
+      }
+    ]
+  },
+  "Largest Subarray with 0 Sum": {
+    "title": "Largest Subarray with 0 Sum",
+    "problemStatement": "Given an array of integers, find the length of the largest subarray with sum equal to 0.",
+    "examples": [
+      {
+        "input": "[15, -2, 2, -8, 1, 7, 10, 23]",
+        "output": 5
+      }
+    ],
+    "constraints": [
+      "1 <= N <= 10^5",
+      "-1000 <= arr[i] <= 1000"
+    ],
+    "edgeCases": [
+      "No subarray with sum 0 exists",
+      "The entire array sum is 0"
+    ],
+    "followUps": [
+      "Can you find the maximum length subarray with sum K?"
+    ],
+    "approaches": [
+      {
+        "name": "Brute Force",
+        "intuition": "Check all possible subarrays. Compute the sum of each subarray and track the maximum length where sum equals 0.",
+        "algorithm": "1. Initialize max_len = 0.\n2. Loop i from 0 to N-1 (start of subarray).\n3. Loop j from i to N-1 (end of subarray).\n4. Compute subarray sum. If sum == 0, update max_len = max(max_len, j - i + 1).\n5. Return max_len.",
+        "code": "def maxLen(arr):\n    # Initialize max length of zero-sum subarray\n    max_len = 0\n    n = len(arr)\n    # Check every starting point\n    for i in range(n):\n        curr_sum = 0\n        # Check every ending point\n        for j in range(i, n):\n            curr_sum += arr[j]\n            # Update max length if sum is 0\n            if curr_sum == 0:\n                max_len = max(max_len, j - i + 1)\n    # Return maximum length\n    return max_len",
+        "complexity": {
+          "time": "O(N^2)",
+          "space": "O(1)"
+        }
+      },
+      {
+        "name": "Optimal",
+        "intuition": "Maintain the prefix sum. If the prefix sum has been seen before at index 'prev_idx', it means the elements in between sum to 0. We store the first occurrence of each prefix sum in a hash map.",
+        "algorithm": "1. Initialize sum_map = {}, curr_sum = 0, max_len = 0.\n2. Iterate through array. Update curr_sum.\n3. If curr_sum == 0, max_len = i + 1.\n4. Else, if curr_sum in sum_map, max_len = max(max_len, i - sum_map[curr_sum]).\n5. Else, store sum_map[curr_sum] = i.\n6. Return max_len.",
+        "code": "def maxLen(arr):\n    # Store first occurrence index of prefix sums\n    sum_map = {}\n    curr_sum = 0\n    max_len = 0\n    # Iterate through array elements\n    for i in range(len(arr)):\n        curr_sum += arr[i]\n        # Case 1: Prefix sum is 0\n        if curr_sum == 0:\n            max_len = i + 1\n        # Case 2: Prefix sum seen before\n        elif curr_sum in sum_map:\n            max_len = max(max_len, i - sum_map[curr_sum])\n        # Case 3: Prefix sum is new\n        else:\n            sum_map[curr_sum] = i\n    # Return result\n    return max_len",
+        "complexity": {
+          "time": "O(N)",
+          "space": "O(N)"
+        }
+      }
+    ],
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize sum_map",
+        "vars": { "sum_map": {} }
+      },
+      {
+        "line": 5,
+        "desc": "Initialize curr_sum and max_len",
+        "vars": { "curr_sum": 0, "max_len": 0 }
+      },
+      {
+        "line": 7,
+        "desc": "Process index i = 0 (val 1)",
+        "vars": { "i": 0 }
+      },
+      {
+        "line": 8,
+        "desc": "Update curr_sum = 1",
+        "vars": { "curr_sum": 1 }
+      },
+      {
+        "line": 17,
+        "desc": "New sum 1, add to sum_map",
+        "vars": { "sum_map": { "1": 0 } }
+      },
+      {
+        "line": 7,
+        "desc": "Process index i = 1 (val -1)",
+        "vars": { "i": 1 }
+      },
+      {
+        "line": 8,
+        "desc": "Update curr_sum = 0",
+        "vars": { "curr_sum": 0 }
+      },
+      {
+        "line": 11,
+        "desc": "curr_sum is 0, update max_len = 2",
+        "vars": { "max_len": 2 }
+      },
+      {
+        "line": 19,
+        "desc": "Return final max_len = 2",
+        "vars": { "max_len": 2 }
+      }
+    ]
+  }
+}

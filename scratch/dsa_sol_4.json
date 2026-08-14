@@ -1,0 +1,1948 @@
+{
+  "Longest Palindromic Substring": {
+    "solution": {
+      "problemStatement": "Given a string s, return the longest palindromic substring in s.",
+      "examples": [
+        {
+          "input": "s = \"babad\"",
+          "output": "\"bab\"",
+          "explanation": "\"aba\" is also a valid answer."
+        },
+        {
+          "input": "s = \"cbbd\"",
+          "output": "\"bb\"",
+          "explanation": ""
+        }
+      ],
+      "constraints": [
+        "1 <= s.length <= 1000",
+        "s consists of only digits and English letters."
+      ],
+      "edgeCases": [
+        "Single character string ('a')",
+        "All same characters ('aaaa')",
+        "No palindromes longer than 1 ('abc')",
+        "Even length palindrome ('abba')"
+      ],
+      "followUps": [
+        "Can you solve it in O(N) time and O(N) space using Manacher's Algorithm?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Check all possible substrings to see if they are palindromes, and keep track of the longest one.",
+          "algorithm": "1. Run nested loops to generate all substrings s[i:j+1].\n2. For each substring, check if it reads the same forward and backward.\n3. If it is a palindrome and longer than the current maximum, update the longest palindrome.",
+          "code": "def longestPalindrome(s: str) -> str:\n    # Return empty string if input is empty\n    if not s:\n        return \"\"\n    \n    n = len(s)\n    longest = \"\"\n    \n    # Iterate over all possible starting positions of substrings\n    for i in range(n):\n        # Iterate over all possible ending positions\n        for j in range(i, n):\n            substring = s[i:j+1]\n            # Check if current substring is equal to its reverse\n            if substring == substring[::-1]:\n                # If this palindrome is longer than the previous maximum, update it\n                if len(substring) > len(longest):\n                    longest = substring\n                    \n    # Return the longest palindromic substring found\n    return longest",
+          "complexity": {
+            "time": "O(N^3)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Every palindrome has a center. We can expand outwards from each potential center (each character and each gap between characters) to find the longest palindrome.",
+          "algorithm": "1. Define a helper function expand(left, right) that expands outward as long as the characters match and returns the longest palindrome bounds.\n2. Iterate through the string, treating each character index i as the center for an odd-length palindrome expand(i, i), and the space between i and i+1 as the center for an even-length palindrome expand(i, i+1).\n3. Keep track of the start and end indices of the maximum length palindrome found.\n4. Return the substring defined by these indices.",
+          "code": "def longestPalindrome(s: str) -> str:\n    # Handle edge case where string is empty\n    if not s:\n        return \"\"\n    \n    # Store the start and end indices of the longest palindrome found\n    start, end = 0, 0\n    \n    # Helper function to expand outward from center\n    def expandAroundCenter(left: int, right: int) -> int:\n        # Loop while inside bounds and characters at pointers match\n        while left >= 0 and right < len(s) and s[left] == s[right]:\n            # Expand left pointer leftward\n            left -= 1\n            # Expand right pointer rightward\n            right += 1\n        # Return length of palindrome found (right - left - 1)\n        return right - left - 1\n    \n    # Check every index as a center\n    for i in range(len(s)):\n        # Check odd-length palindromes (e.g., 'aba')\n        len1 = expandAroundCenter(i, i)\n        # Check even-length palindromes (e.g., 'abba')\n        len2 = expandAroundCenter(i, i + 1)\n        \n        # Find maximum length from both cases\n        max_len = max(len1, len2)\n        \n        # If a longer palindrome is found, update start and end pointers\n        if max_len > (end - start):\n            start = i - (max_len - 1) // 2\n            end = i + max_len // 2\n            \n    # Return the longest palindromic substring\n    return s[start:end+1]",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(1)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 6,
+        "desc": "Initialize start and end pointers of the longest palindrome to 0.",
+        "vars": {
+          "s": "babad",
+          "start": 0,
+          "end": 0
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Loop starting index i = 0. We expand around (0, 0) and (0, 1).",
+        "vars": {
+          "i": 0
+        }
+      },
+      {
+        "line": 20,
+        "desc": "For i = 0: expandAroundCenter(0, 0) returns 1. expandAroundCenter(0, 1) returns 0.",
+        "vars": {
+          "len1": 1,
+          "len2": 0,
+          "max_len": 1
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Since max_len (1) is not greater than end - start (0 - 0 = 0), start and end remain 0.",
+        "vars": {
+          "start": 0,
+          "end": 0
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Loop index i = 1 ('a'). We expand around (1, 1) and (1, 2).",
+        "vars": {
+          "i": 1
+        }
+      },
+      {
+        "line": 20,
+        "desc": "For i = 1: expandAroundCenter(1, 1) expands to index 0 and 2 ('bab' matches). Returns 3.",
+        "vars": {
+          "len1": 3,
+          "len2": 1,
+          "max_len": 3
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Since max_len (3) is greater than end - start (0), update start and end.",
+        "vars": {
+          "start": 0,
+          "end": 2,
+          "max_len": 3
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Loop index i = 2 ('b'). We expand around (2, 2) and (2, 3).",
+        "vars": {
+          "i": 2
+        }
+      },
+      {
+        "line": 20,
+        "desc": "For i = 2: expandAroundCenter(2, 2) expands to index 1 and 3 ('aba' matches). Returns 3.",
+        "vars": {
+          "len1": 3,
+          "len2": 0,
+          "max_len": 3
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Since max_len (3) is not greater than end - start (2 - 0 = 2), start and end remain 0 and 2.",
+        "vars": {
+          "start": 0,
+          "end": 2
+        }
+      },
+      {
+        "line": 30,
+        "desc": "After completing loop, return s[start:end+1] which is s[0:3] = 'bab'.",
+        "vars": {
+          "start": 0,
+          "end": 2,
+          "result": "bab"
+        }
+      }
+    ]
+  },
+  "Roman to Integer": {
+    "solution": {
+      "problemStatement": "Roman numerals are represented by seven different symbols: I, V, X, L, C, D and M. Given a roman numeral, convert it to an integer.",
+      "examples": [
+        {
+          "input": "s = \"III\"",
+          "output": "3",
+          "explanation": "III = 3."
+        },
+        {
+          "input": "s = \"LVIII\"",
+          "output": "58",
+          "explanation": "L = 50, V = 5, III = 3."
+        },
+        {
+          "input": "s = \"MCMXCIV\"",
+          "output": "1994",
+          "explanation": "M = 1000, CM = 900, XC = 90, and IV = 4."
+        }
+      ],
+      "constraints": [
+        "1 <= s.length <= 15",
+        "s contains only the characters ('I', 'V', 'X', 'L', 'C', 'D', 'M').",
+        "It is guaranteed that s is a valid roman numeral in the range [1, 3999]."
+      ],
+      "edgeCases": [
+        "Single character ('I' -> 1)",
+        "All additions ('VIII' -> 8)",
+        "All subtractions ('IX' -> 9)",
+        "Complex mixed cases ('MCMXCIV' -> 1994)"
+      ],
+      "followUps": [
+        "Can you convert an Integer to Roman numeral?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Iterate through the string, and check if the current character matches a subtractive prefix (like IV, IX, XL, XC, CD, CM). If it does, add the value of the two characters combined and advance two positions. Otherwise, add the value of a single character and advance one.",
+          "algorithm": "1. Initialize a pointer i to 0 and total to 0.\n2. In a loop, check if s[i:i+2] matches 'IV', 'IX', 'XL', 'XC', 'CD', 'CM'.\n3. If it does, add the corresponding subtractive value to total, and add 2 to i.\n4. Otherwise, look up s[i] in the standard roman dictionary, add to total, and add 1 to i.\n5. Return total.",
+          "code": "def romanToInt(s: str) -> int:\n    roman = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}\n    subtractive = {'IV': 4, 'IX': 9, 'XL': 40, 'XC': 90, 'CD': 400, 'CM': 900}\n    total = 0\n    i = 0\n    n = len(s)\n    # Process characters from left to right\n    while i < n:\n        # Check if the next two characters form a subtractive pair\n        if i + 1 < n and s[i:i+2] in subtractive:\n            # Add subtractive value and advance pointer by 2\n            total += subtractive[s[i:i+2]]\n            i += 2\n        else:\n            # Add single character value and advance pointer by 1\n            total += roman[s[i]]\n            i += 1\n    # Return total integer value\n    return total",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "If we traverse the string, we notice that if a smaller Roman character precedes a larger Roman character, we should subtract the smaller value. Otherwise, we add it. We can do this in a single scan without hardcoding the subtractive combinations.",
+          "algorithm": "1. Map each Roman character to its integer value.\n2. Iterate through the string character by character.\n3. If the value of the current character is less than the value of the next character, subtract current value from total.\n4. Otherwise, add current value to total.\n5. Return total.",
+          "code": "def romanToInt(s: str) -> int:\n    # Map Roman characters to their integer values\n    roman = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}\n    total = 0\n    n = len(s)\n    # Iterate through each character in the string\n    for i in range(n):\n        curr_val = roman[s[i]]\n        # Check if current value is less than the next character's value\n        if i + 1 < n and curr_val < roman[s[i+1]]:\n            # If smaller value is before larger value, subtract it\n            total -= curr_val\n        else:\n            # Otherwise, add the value\n            total += curr_val\n    # Return the accumulated total value\n    return total",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(1)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 4,
+        "desc": "Initialize total to 0, retrieve s = 'IX'.",
+        "vars": {
+          "s": "IX",
+          "total": 0,
+          "n": 2
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Process index i = 0. s[0] = 'I', curr_val = 1.",
+        "vars": {
+          "i": 0,
+          "curr_val": 1
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Since i + 1 = 1 < 2, and roman['I'] (1) is less than roman['X'] (10), subtract curr_val from total.",
+        "vars": {
+          "total": -1
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Process index i = 1. s[1] = 'X', curr_val = 10.",
+        "vars": {
+          "i": 1,
+          "curr_val": 10
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Since i + 1 = 2 is not < 2, add curr_val to total.",
+        "vars": {
+          "total": 9
+        }
+      },
+      {
+        "line": 16,
+        "desc": "Loop ends, return total.",
+        "vars": {
+          "result": 9
+        }
+      }
+    ]
+  },
+  "String to Integer (atoi)": {
+    "solution": {
+      "problemStatement": "Implement the myAtoi(string s) function, which converts a string to a 32-bit signed integer (similar to C/C++'s atoi function). The algorithm should discard whitespaces, handle sign, read digits, and clamp overflow/underflow.",
+      "examples": [
+        {
+          "input": "s = \"42\"",
+          "output": "42",
+          "explanation": "The read in number is 42."
+        },
+        {
+          "input": "s = \"   -042\"",
+          "output": "-42",
+          "explanation": "Reading starts after whitespace; '-' indicates negative, digits are '042'."
+        },
+        {
+          "input": "s = \"1337c0d3\"",
+          "output": "1337",
+          "explanation": "Reading stops at 'c' as it is a non-digit."
+        }
+      ],
+      "constraints": [
+        "0 <= s.length <= 200",
+        "s consists of English letters, digits, spaces, and signs ('+', '-', '.')."
+      ],
+      "edgeCases": [
+        "Empty or spaces only ('  ')",
+        "Signs only ('+') or ('-')",
+        "Non-digits before digits ('words and 987')",
+        "Overflow (2147483648 -> 2147483647)",
+        "Underflow (-91283472332 -> -2147483648)"
+      ],
+      "followUps": [
+        "Can you implement it without using any multiplication or division operations?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Use regex to capture the optional whitespace, optional sign, and sequence of digits, then parse the result.",
+          "algorithm": "1. Use python `re` module with pattern `^\\s*([-+]?\\d+)` to match prefix numbers.\n2. If no match is found, return 0.\n3. Convert match to int, apply bounds checking, and return.",
+          "code": "import re\n\ndef myAtoi(s: str) -> int:\n    # Use regular expression to find optional whitespace followed by an optional sign and digits\n    match = re.match(r'^\\s*([-+]?\\d+)', s)\n    if not match:\n        return 0\n    \n    # Convert matched string to integer\n    val = int(match.group(1))\n    \n    # Clamp the integer within 32-bit signed integer range\n    INT_MIN, INT_MAX = -2**31, 2**31 - 1\n    if val < INT_MIN:\n        return INT_MIN\n    if val > INT_MAX:\n        return INT_MAX\n    \n    # Return the clamped value\n    return val",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Parse the string character by character sequentially, matching the behavior of a finite state machine. We skip leading spaces, identify an optional sign, read digits, and clamp whenever an overflow threshold is crossed.",
+          "algorithm": "1. Initialize variables i = 0, sign = 1, res = 0.\n2. Skip spaces while s[i] == ' '.\n3. Check if current character is '+' or '-' to set sign.\n4. Iterate through consecutive digits, convert each to int, and multiply res by 10 and add digit.\n5. During digit accumulation, check if res > (2**31 - 1 - digit) // 10. If so, return INT_MAX or INT_MIN depending on sign.\n6. Return sign * res.",
+          "code": "def myAtoi(s: str) -> int:\n    # Define limits for 32-bit signed integer\n    INT_MAX = 2**31 - 1\n    INT_MIN = -2**31\n    i = 0\n    n = len(s)\n    \n    # Skip leading whitespaces\n    while i < n and s[i] == ' ':\n        i += 1\n        \n    # If the string is empty or contains only spaces, return 0\n    if i == n:\n        return 0\n        \n    sign = 1\n    # Check for optional positive or negative sign\n    if s[i] == '-':\n        sign = -1\n        i += 1\n    elif s[i] == '+':\n        i += 1\n        \n    res = 0\n    # Accumulate digits until a non-digit is encountered\n    while i < n and s[i].isdigit():\n        digit = int(s[i])\n        # Check for overflow before appending current digit\n        if res > (INT_MAX - digit) // 10:\n            return INT_MAX if sign == 1 else INT_MIN\n        res = res * 10 + digit\n        i += 1\n        \n    # Return the final signed integer\n    return sign * res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(1)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 4,
+        "desc": "Initialize limits, i = 0 and n = 8 for s = '   -42'.",
+        "vars": {
+          "s": "   -42",
+          "i": 0,
+          "n": 8
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Skip leading whitespaces, moving pointer i to 3.",
+        "vars": {
+          "i": 3
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Character at index 3 is '-', set sign = -1, increment i.",
+        "vars": {
+          "i": 4,
+          "sign": -1
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Process first digit s[4] = '4', check overflow, update res = 4.",
+        "vars": {
+          "i": 5,
+          "digit": 4,
+          "res": 4
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Process next digit s[5] = '2', check overflow, update res = 42.",
+        "vars": {
+          "i": 6,
+          "digit": 2,
+          "res": 42
+        }
+      },
+      {
+        "line": 33,
+        "desc": "Loop terminates at non-digit or end of string, return sign * res = -42.",
+        "vars": {
+          "result": -42
+        }
+      }
+    ]
+  },
+  "Longest Common Prefix": {
+    "solution": {
+      "problemStatement": "Write a function to find the longest common prefix string amongst an array of strings. If there is no common prefix, return an empty string.",
+      "examples": [
+        {
+          "input": "strs = [\"flower\",\"flow\",\"flight\"]",
+          "output": "\"fl\"",
+          "explanation": ""
+        },
+        {
+          "input": "strs = [\"dog\",\"racecar\",\"car\"]",
+          "output": "\"\"",
+          "explanation": "There is no common prefix among the input strings."
+        }
+      ],
+      "constraints": [
+        "1 <= strs.length <= 200",
+        "0 <= strs[i].length <= 200",
+        "strs[i] consists of only lowercase English letters."
+      ],
+      "edgeCases": [
+        "Empty list ([])",
+        "Single string in list (['a'] -> 'a')",
+        "One string is empty (['', 'abc'] -> '')",
+        "No common prefix (['a', 'b'] -> '')"
+      ],
+      "followUps": [
+        "What if we need to search multiple queries? Can we use a Trie?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Compare characters at each index vertically across all strings. If a character mismatch is found or index out of bounds for any string, return the prefix up to that point.",
+          "algorithm": "1. If list is empty, return ''.\n2. Iterate through each index of the first string.\n3. Compare the character at that index in the first string with the character at the same index in all other strings.\n4. If a mismatch or out-of-bounds index is reached, return the string up to the current index.\n5. If loop completes, return the first string.",
+          "code": "def longestCommonPrefix(strs: list[str]) -> str:\n    if not strs:\n        return \"\"\n    \n    # Iterate through the indices of the first string\n    for i in range(len(strs[0])):\n        char = strs[0][i]\n        # Compare this character with the same index of all other strings\n        for j in range(1, len(strs)):\n            # If current string is shorter or has a different character, return current prefix\n            if i >= len(strs[j]) or strs[j][i] != char:\n                return strs[0][:i]\n                \n    # Return the entire first string if no mismatch is found\n    return strs[0]",
+          "complexity": {
+            "time": "O(S)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Horizontal scanning. Assume the first string is the initial prefix. Then compare it with each subsequent string, shrinking the prefix from the right end until the target string starts with the prefix.",
+          "algorithm": "1. If list is empty, return ''.\n2. Set prefix = strs[0].\n3. Loop from index 1 to the end of strs.\n4. While strs[i] does not start with prefix, remove the last character of prefix.\n5. If prefix becomes empty, return ''.\n6. Return prefix.",
+          "code": "def longestCommonPrefix(strs: list[str]) -> str:\n    # If the input list is empty, return empty string\n    if not strs:\n        return \"\"\n    \n    # Assume the first string is the starting prefix\n    prefix = strs[0]\n    \n    # Compare the prefix with each string in the list\n    for i in range(1, len(strs)):\n        # Shrink the prefix until strs[i] starts with the prefix\n        while not strs[i].startswith(prefix):\n            prefix = prefix[:-1]\n            # If prefix becomes empty, return immediately\n            if not prefix:\n                return \"\"\n                \n    # Return the longest common prefix\n    return prefix",
+          "complexity": {
+            "time": "O(S)",
+            "space": "O(1)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Check if strs is empty. Set initial prefix to strs[0] = 'flower'.",
+        "vars": {
+          "strs": [
+            "flower",
+            "flow",
+            "flight"
+          ],
+          "prefix": "flower"
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Start outer loop at index i = 1 for string 'flow'.",
+        "vars": {
+          "i": 1,
+          "current_str": "flow"
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Since 'flow' does not start with 'flower', shrink prefix to 'flowe'.",
+        "vars": {
+          "prefix": "flowe"
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Since 'flow' does not start with 'flowe', shrink prefix to 'flow'.",
+        "vars": {
+          "prefix": "flow"
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Move to index i = 2 for string 'flight'.",
+        "vars": {
+          "i": 2,
+          "current_str": "flight"
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Since 'flight' does not start with 'flow', shrink prefix to 'flo'.",
+        "vars": {
+          "prefix": "flo"
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Since 'flight' does not start with 'flo', shrink prefix to 'fl'.",
+        "vars": {
+          "prefix": "fl"
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Prefix 'fl' matches start of 'flight'. Loop ends. Return 'fl'.",
+        "vars": {
+          "result": "fl"
+        }
+      }
+    ]
+  },
+  "Rabin Karp": {
+    "solution": {
+      "problemStatement": "Given a text and a pattern, implement the Rabin-Karp algorithm to find the first index of occurrence of pattern in text. If the pattern is not found, return -1.",
+      "examples": [
+        {
+          "input": "text = \"hello\", pattern = \"ll\"",
+          "output": "2",
+          "explanation": ""
+        },
+        {
+          "input": "text = \"aaaaa\", pattern = \"bba\"",
+          "output": "-1",
+          "explanation": ""
+        }
+      ],
+      "constraints": [
+        "1 <= text.length, pattern.length <= 10^5",
+        "text and pattern consist of English letters."
+      ],
+      "edgeCases": [
+        "Pattern is longer than text (returns -1)",
+        "Pattern matches the start/end of text",
+        "No match anywhere",
+        "Multiple matches (returns first index)"
+      ],
+      "followUps": [
+        "How does Rabin-Karp compare to KMP in practice, and how do we prevent hash collisions?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Loop through each starting position in text, and compare the substring of length m with the pattern character by character.",
+          "algorithm": "1. Loop index i from 0 to n-m.\n2. Extract substring text[i:i+m].\n3. If it equals pattern, return i.\n4. If loop completes, return -1.",
+          "code": "def rabinKarp(text: str, pattern: str) -> int:\n    n, m = len(text), len(pattern)\n    # If pattern is longer than text, it cannot match\n    if m > n:\n        return -1\n        \n    # Check every starting position in the text\n    for i in range(n - m + 1):\n        # Check if the substring matches the pattern\n        if text[i:i+m] == pattern:\n            return i\n            \n    # Return -1 if not found\n    return -1",
+          "complexity": {
+            "time": "O(N*M)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a rolling hash to compare the pattern with windows of text in O(1) average time. If hashes match, we perform a character-by-character validation to handle potential hash collisions.",
+          "algorithm": "1. Choose base = 256 and prime = 101.\n2. Compute hash of pattern and first window of text.\n3. Keep power h = (base ** (m - 1)) % prime.\n4. Slide the window. In each step, if hashes match, verify characters. Else, subtract leading char hash, multiply base, add trailing char hash, mod prime.\n5. Return start index if matched, else -1.",
+          "code": "def rabinKarp(text: str, pattern: str) -> int:\n    n, m = len(text), len(pattern)\n    # If pattern is longer than text, match is impossible\n    if m > n:\n        return -1\n        \n    base = 256\n    prime = 101\n    h = 1\n    \n    # Precompute h = (base ** (m-1)) % prime\n    for i in range(m - 1):\n        h = (h * base) % prime\n        \n    p_hash = 0\n    t_hash = 0\n    \n    # Calculate initial hash value for pattern and first window of text\n    for i in range(m):\n        p_hash = (base * p_hash + ord(pattern[i])) % prime\n        t_hash = (base * t_hash + ord(text[i])) % prime\n        \n    # Slide the pattern over text step-by-step\n    for i in range(n - m + 1):\n        # Check if hash values of current window and pattern match\n        if p_hash == t_hash:\n            # Verify character by character to handle collisions\n            if text[i:i+m] == pattern:\n                return i\n                \n        # Calculate hash value for next window of text\n        if i < n - m:\n            t_hash = (base * (t_hash - ord(text[i]) * h) + ord(text[i+m])) % prime\n            # Make sure hash is positive\n            if t_hash < 0:\n                t_hash += prime\n                \n    return -1",
+          "complexity": {
+            "time": "O(N+M)",
+            "space": "O(1)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 2,
+        "desc": "Check lengths. text = 'hello', pattern = 'll'. n = 5, m = 2.",
+        "vars": {
+          "n": 5,
+          "m": 2
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Compute h = (256 ** 1) % 101 = 54.",
+        "vars": {
+          "h": 54
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Calculate initial hashes. pattern='ll' -> p_hash = 26. text[0:2]='he' -> t_hash = 74.",
+        "vars": {
+          "p_hash": 26,
+          "t_hash": 74
+        }
+      },
+      {
+        "line": 23,
+        "desc": "Loop starting index i = 0. t_hash (74) != p_hash (26). Calculate next window hash.",
+        "vars": {
+          "i": 0
+        }
+      },
+      {
+        "line": 30,
+        "desc": "Slide to index 1. text[1:3]='el' -> t_hash = (256 * (74 - ord('h') * 54) + ord('l')) % 101 = 81.",
+        "vars": {
+          "i": 1,
+          "t_hash": 81
+        }
+      },
+      {
+        "line": 23,
+        "desc": "Loop starting index i = 1. t_hash (81) != p_hash (26). Calculate next window hash.",
+        "vars": {
+          "i": 1
+        }
+      },
+      {
+        "line": 30,
+        "desc": "Slide to index 2. text[2:4]='ll' -> t_hash = (256 * (81 - ord('e') * 54) + ord('l')) % 101 = 26.",
+        "vars": {
+          "i": 2,
+          "t_hash": 26
+        }
+      },
+      {
+        "line": 25,
+        "desc": "At index i = 2, hashes match (26 == 26). Verify substring matches pattern 'll'. Return index 2.",
+        "vars": {
+          "i": 2,
+          "result": 2
+        }
+      }
+    ]
+  },
+  "Z Function": {
+    "solution": {
+      "problemStatement": "Given a string s, compute the Z-array for the string. Z[i] is the length of the longest common prefix between s and the suffix of s starting at i.",
+      "examples": [
+        {
+          "input": "s = \"aab\"",
+          "output": "[0, 1, 0]",
+          "explanation": "Z[0] is typically 0 (or n, by convention we output 0). Z[1] = 1 ('a' matches 'a'). Z[2] = 0."
+        },
+        {
+          "input": "s = \"ababa\"",
+          "output": "[0, 0, 3, 0, 1]",
+          "explanation": "At index 2, suffix is 'aba', longest prefix match is 3."
+        }
+      ],
+      "constraints": [
+        "1 <= s.length <= 10^5",
+        "s consists of lowercase English letters."
+      ],
+      "edgeCases": [
+        "Single character string ('a' -> [0])",
+        "All identical characters ('aaaa' -> [0, 3, 2, 1])",
+        "No matching prefix ('abc' -> [0, 0, 0])"
+      ],
+      "followUps": [
+        "How can we use the Z-array to search for a pattern in linear time?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "For each index i from 1 to n-1, compare characters starting at i with characters starting at index 0 until a mismatch is found.",
+          "algorithm": "1. Initialize Z array of size n with 0.\n2. For each index i from 1 to n-1, count matches starting from index 0.\n3. Update Z[i] with count.",
+          "code": "def zFunction(s: str) -> list[int]:\n    n = len(s)\n    z = [0] * n\n    \n    # Loop through each position from 1 to n-1\n    for i in range(1, n):\n        # Compare characters starting from i with the prefix\n        while i + z[i] < n and s[z[i]] == s[i + z[i]]:\n            z[i] += 1\n            \n    # Return the computed Z-array\n    return z",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Maintain an active window [L, R] which represents the prefix match furthest to the right. If i is inside this window, we can initialize Z[i] from the already computed Z-value of the corresponding character in the prefix (Z[i-L]), and expand if necessary.",
+          "algorithm": "1. Initialize Z-array of size n with 0. Let l = 0, r = 0.\n2. Iterate i from 1 to n-1.\n3. If i <= r, initialize Z[i] = min(r - i + 1, Z[i - l]).\n4. Expand matching count beyond boundaries if s[Z[i]] == s[i + Z[i]].\n5. If i + Z[i] - 1 > r, update window boundaries: l = i, r = i + Z[i] - 1.\n6. Return Z.",
+          "code": "def zFunction(s: str) -> list[int]:\n    n = len(s)\n    z = [0] * n\n    l, r = 0, 0\n    \n    # Iterate through characters from index 1\n    for i in range(1, n):\n        # If current index is within the window [l, r], reuse Z-value\n        if i <= r:\n            z[i] = min(r - i + 1, z[i - l])\n            \n        # Expand matching prefix length if characters match\n        while i + z[i] < n and s[z[i]] == s[i + z[i]]:\n            z[i] += 1\n            \n        # Update window boundary if new matching segment extends beyond r\n        if i + z[i] - 1 > r:\n            l = i\n            r = i + z[i] - 1\n            \n    # Return computed Z-array\n    return z",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 4,
+        "desc": "Initialize Z-array [0,0,0,0,0], n = 5, and window pointers l = 0, r = 0.",
+        "vars": {
+          "s": "ababa",
+          "z": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "l": 0,
+          "r": 0
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Index i = 1: i (1) is not <= r (0). Compare s[0] and s[1]. Mismatch. z[1] = 0.",
+        "vars": {
+          "i": 1,
+          "z": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Index i = 2: i (2) is not <= r (0). Compare s[0] vs s[2], s[1] vs s[3], s[2] vs s[4]. All match. z[2] = 3.",
+        "vars": {
+          "i": 2,
+          "z": [
+            0,
+            0,
+            3,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Since 2 + 3 - 1 = 4 > r (0), update window boundaries to l = 2, r = 4.",
+        "vars": {
+          "l": 2,
+          "r": 4
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Index i = 3: i (3) <= r (4). Set initial z[3] = min(4-3+1, z[3-2]) = min(2, z[1]) = min(2, 0) = 0.",
+        "vars": {
+          "i": 3,
+          "z": [
+            0,
+            0,
+            3,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Compare s[0] and s[3]. Mismatch. z[3] remains 0.",
+        "vars": {
+          "z": [
+            0,
+            0,
+            3,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Index i = 4: i (4) <= r (4). Set initial z[4] = min(4-4+1, z[4-2]) = min(1, z[2]) = min(1, 3) = 1.",
+        "vars": {
+          "i": 4,
+          "z": [
+            0,
+            0,
+            3,
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Compare s[1] and s[5] (out of bounds). Match ends. z[4] remains 1.",
+        "vars": {
+          "z": [
+            0,
+            0,
+            3,
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Loop finishes, return completed Z-array.",
+        "vars": {
+          "result": [
+            0,
+            0,
+            3,
+            0,
+            1
+          ]
+        }
+      }
+    ]
+  },
+  "KMP Algorithm": {
+    "solution": {
+      "problemStatement": "Given a text and a pattern, implement the Knuth-Morris-Pratt (KMP) algorithm to find the first index of occurrence of pattern in text. If not found, return -1.",
+      "examples": [
+        {
+          "input": "text = \"sadbutsad\", pattern = \"sad\"",
+          "output": "0",
+          "explanation": "First occurrence of 'sad' is at index 0."
+        },
+        {
+          "input": "text = \"leetcode\", pattern = \"leeto\"",
+          "output": "-1",
+          "explanation": "Pattern 'leeto' is not in 'leetcode'."
+        }
+      ],
+      "constraints": [
+        "1 <= text.length, pattern.length <= 10^4",
+        "text and pattern consist of lowercase English characters."
+      ],
+      "edgeCases": [
+        "Empty pattern (returns 0)",
+        "Pattern longer than text (returns -1)",
+        "No match found (returns -1)",
+        "Overlapping matches (like 'aaaa', pattern 'aa')"
+      ],
+      "followUps": [
+        "How can KMP be extended to find all non-overlapping matches or overlapping matches?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Slide the pattern over the text one character at a time and compare every character.",
+          "algorithm": "1. Run a loop i from 0 to n-m.\n2. In a nested loop j from 0 to m-1, match text[i+j] with pattern[j].\n3. If all characters match, return i.\n4. If loop completes without match, return -1.",
+          "code": "def kmpSearch(text: str, pattern: str) -> int:\n    n, m = len(text), len(pattern)\n    if m == 0:\n        return 0\n        \n    # Iterate through all possible starting positions in text\n    for i in range(n - m + 1):\n        j = 0\n        # Compare pattern with substring of text\n        while j < m and text[i + j] == pattern[j]:\n            j += 1\n        # If full match is found, return the start index\n        if j == m:\n            return i\n            \n    return -1",
+          "complexity": {
+            "time": "O(N*M)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "By precomputing the Longest Prefix Suffix (LPS) array for the pattern, we avoid backtracking on the text index. When a mismatch occurs, we use the LPS array to slide the pattern to the next logical alignment.",
+          "algorithm": "1. Build LPS array where LPS[i] stores the length of the longest proper prefix of pattern[0..i] that is also a suffix.\n2. Use pointers i for text and j for pattern.\n3. If text[i] == pattern[j], increment both. If j == m, return i - j.\n4. If text[i] != pattern[j], if j != 0 update j = LPS[j-1]; else increment i.\n5. If loop completes, return -1.",
+          "code": "def kmpSearch(text: str, pattern: str) -> int:\n    m = len(pattern)\n    n = len(text)\n    if m == 0:\n        return 0\n        \n    # Compute the Longest Prefix Suffix (LPS) array\n    lps = [0] * m\n    length = 0\n    i = 1\n    while i < m:\n        if pattern[i] == pattern[length]:\n            length += 1\n            lps[i] = length\n            i += 1\n        else:\n            if length != 0:\n                length = lps[length - 1]\n            else:\n                lps[i] = 0\n                i += 1\n                \n    # Search phase using the LPS array\n    i = 0  # text index\n    j = 0  # pattern index\n    while i < n:\n        if pattern[j] == text[i]:\n            i += 1\n            j += 1\n        if j == m:\n            # Return the matching start index\n            return i - j\n        elif i < n and pattern[j] != text[i]:\n            # Skip redundant comparisons using LPS array\n            if j != 0:\n                j = lps[j - 1]\n            else:\n                i += 1\n                \n    return -1",
+          "complexity": {
+            "time": "O(N+M)",
+            "space": "O(M)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 7,
+        "desc": "Initialize LPS array for pattern = 'abc'. lps = [0, 0, 0].",
+        "vars": {
+          "pattern": "abc",
+          "lps": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 23,
+        "desc": "Initialize text pointer i = 0, pattern pointer j = 0. text = 'ababc'.",
+        "vars": {
+          "text": "ababc",
+          "i": 0,
+          "j": 0
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Compare pattern[0] ('a') and text[0] ('a'). Equal. Increment both i and j.",
+        "vars": {
+          "i": 1,
+          "j": 1
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Compare pattern[1] ('b') and text[1] ('b'). Equal. Increment both i and j.",
+        "vars": {
+          "i": 2,
+          "j": 2
+        }
+      },
+      {
+        "line": 29,
+        "desc": "Compare pattern[2] ('c') and text[2] ('a'). Mismatch. Since j != 0, fallback j to lps[1] = 0.",
+        "vars": {
+          "i": 2,
+          "j": 0
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Compare pattern[0] ('a') and text[2] ('a'). Equal. Increment both i and j.",
+        "vars": {
+          "i": 3,
+          "j": 1
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Compare pattern[1] ('b') and text[3] ('b'). Equal. Increment both i and j.",
+        "vars": {
+          "i": 4,
+          "j": 2
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Compare pattern[2] ('c') and text[4] ('c'). Equal. Increment both i and j.",
+        "vars": {
+          "i": 5,
+          "j": 3
+        }
+      },
+      {
+        "line": 27,
+        "desc": "Since j == m (3), match is found. Return i - j = 5 - 3 = 2.",
+        "vars": {
+          "result": 2
+        }
+      }
+    ]
+  },
+  "Minimum Characters Needed for Palindrome": {
+    "solution": {
+      "problemStatement": "Given a string s, find the minimum number of characters to be added at the beginning of the string to make it a palindrome.",
+      "examples": [
+        {
+          "input": "s = \"AACECAAAA\"",
+          "output": "2",
+          "explanation": "We can make it a palindrome by adding 'AA' at the beginning to get 'AAAACECAAAA'."
+        },
+        {
+          "input": "s = \"ABCD\"",
+          "output": "3",
+          "explanation": "We can make it a palindrome by adding 'DCB' at the beginning to get 'DCBABCD'."
+        }
+      ],
+      "constraints": [
+        "1 <= s.length <= 10^6",
+        "s consists of English letters."
+      ],
+      "edgeCases": [
+        "Empty string (returns 0)",
+        "Already a palindrome (returns 0)",
+        "Single character (returns 0)",
+        "All characters distinct (e.g. 'abc' -> 2)"
+      ],
+      "followUps": [
+        "Can you solve this problem if additions were allowed at the end, or both ends?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "To make a palindrome, we need to find the longest prefix of s that is already a palindrome. The remaining characters from the end must be mirrored and placed at the beginning.",
+          "algorithm": "1. Iterate index i from length of s down to 1.\n2. Check if the substring s[0:i] is a palindrome.\n3. If it is, then the longest palindromic prefix has length i.\n4. The characters that need to be added is len(s) - i.\n5. Return len(s) - i.",
+          "code": "def minCharForPalindrome(s: str) -> int:\n    if not s:\n        return 0\n        \n    n = len(s)\n    # Check prefixes from longest to shortest\n    for i in range(n, 0, -1):\n        # Extract prefix of length i\n        prefix = s[:i]\n        # If prefix is a palindrome, return remaining length\n        if prefix == prefix[::-1]:\n            return n - i\n            \n    return 0",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "This problem can be transformed into finding the longest prefix of s which is also a suffix of s reversed. We concatenate s + '$' + reverse(s). The LPS array's last value for this concatenated string will give the length of the longest palindromic prefix.",
+          "algorithm": "1. Create combined string: temp = s + '$' + s[::-1].\n2. Compute the LPS array for temp using KMP prefix function logic.\n3. The value at the last index of the LPS array is the length of the longest palindromic prefix.\n4. Subtract this length from len(s) to get the result.",
+          "code": "def minCharForPalindrome(s: str) -> int:\n    # Return 0 if the string is empty\n    if not s:\n        return 0\n        \n    # Concatenate s, delimiter, and reversed s\n    temp = s + \"$\" + s[::-1]\n    n = len(temp)\n    lps = [0] * n\n    length = 0\n    i = 1\n    \n    # Standard KMP LPS array construction\n    while i < n:\n        if temp[i] == temp[length]:\n            length += 1\n            lps[i] = length\n            i += 1\n        else:\n            if length != 0:\n                length = lps[length - 1]\n            else:\n                lps[i] = 0\n                i += 1\n                \n    # Minimum chars to add is total original length minus longest palindromic prefix length\n    return len(s) - lps[-1]",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 7,
+        "desc": "Initialize temp string 'abac$caba', n = 9, lps = [0]*9.",
+        "vars": {
+          "s": "abac",
+          "temp": "abac$caba",
+          "n": 9,
+          "lps": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Compute LPS array. At index 1, 'b' != 'a'. lps[1] = 0.",
+        "vars": {
+          "i": 1,
+          "length": 0
+        }
+      },
+      {
+        "line": 13,
+        "desc": "At index 2, 'a' == 'a'. length = 1. lps[2] = 1.",
+        "vars": {
+          "i": 2,
+          "length": 1,
+          "lps": [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 13,
+        "desc": "At index 3, temp[3] ('c') != temp[1] ('b'). length goes to lps[0] = 0. Then temp[3] ('c') != temp[0] ('a'). lps[3] = 0.",
+        "vars": {
+          "i": 3,
+          "length": 0
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Continue building LPS. At index 8 (last index), temp[8] ('a') == temp[2] ('a'). length = 3. lps[8] = 3.",
+        "vars": {
+          "i": 8,
+          "length": 3,
+          "lps": [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            3
+          ]
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Subtract longest palindromic prefix length (3) from s length (4). Return 4 - 3 = 1.",
+        "vars": {
+          "result": 1
+        }
+      }
+    ]
+  },
+  "Anagram Check": {
+    "solution": {
+      "problemStatement": "Given two strings s and t, return true if t is an anagram of s, and false otherwise. An anagram is a word or phrase formed by rearranging the letters of a different word or phrase.",
+      "examples": [
+        {
+          "input": "s = \"anagram\", t = \"nagaram\"",
+          "output": "true",
+          "explanation": ""
+        },
+        {
+          "input": "s = \"rat\", t = \"car\"",
+          "output": "false",
+          "explanation": ""
+        }
+      ],
+      "constraints": [
+        "1 <= s.length, t.length <= 5 * 10^4",
+        "s and t consist of lowercase English letters."
+      ],
+      "edgeCases": [
+        "Different lengths (returns false immediately)",
+        "Duplicate characters",
+        "Single character strings",
+        "Empty strings (if allowed, here minimum length is 1)"
+      ],
+      "followUps": [
+        "What if the inputs contain Unicode characters? How would you adapt your solution?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Sort both strings. If they are anagrams, their sorted representations will be identical.",
+          "algorithm": "1. If lengths of s and t are different, return False.\n2. Sort characters in s, sort characters in t.\n3. Compare sorted results. If identical, return True; else False.",
+          "code": "def isAnagram(s: str, t: str) -> bool:\n    # If lengths are not equal, they cannot be anagrams\n    if len(s) != len(t):\n        return False\n        \n    # Sort characters of both strings and compare them\n    return sorted(s) == sorted(t)",
+          "complexity": {
+            "time": "O(N log N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Count the frequency of each character in both strings. We can use a single array of size 26 since characters are lowercase English letters. Increment for s, decrement for t.",
+          "algorithm": "1. If lengths of s and t are different, return False.\n2. Initialize a frequency array of size 26 with 0.\n3. Loop through indices, incrementing for s[i] and decrementing for t[i].\n4. If any element in the array is not 0, return False.\n5. Return True.",
+          "code": "def isAnagram(s: str, t: str) -> bool:\n    # Anagrams must have the exact same length\n    if len(s) != len(t):\n        return False\n        \n    # Fixed-size array to store counts of 26 English letters\n    count = [0] * 26\n    \n    # Iterate through strings and count character frequencies\n    for i in range(len(s)):\n        count[ord(s[i]) - ord('a')] += 1\n        count[ord(t[i]) - ord('a')] -= 1\n        \n    # Check if all counts are zero\n    for val in count:\n        if val != 0:\n            return False\n            \n    return True",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(1)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Check lengths: len('rat') = 3, len('car') = 3. Equal. Initialize count array of size 26.",
+        "vars": {
+          "s": "rat",
+          "t": "car",
+          "count": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Iterate index i = 0. s[0]='r', t[0]='c'. Increment 'r', decrement 'c'.",
+        "vars": {
+          "i": 0,
+          "count_r": 1,
+          "count_c": -1
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Iterate index i = 1. s[1]='a', t[1]='a'. Increment 'a', decrement 'a'. Offset remains 0.",
+        "vars": {
+          "i": 1,
+          "count_a": 0
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Iterate index i = 2. s[2]='t', t[2]='r'. Increment 't', decrement 'r'.",
+        "vars": {
+          "i": 2,
+          "count_t": 1,
+          "count_r": 0
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Check counts. 'c' count is -1, which is not 0. Return False.",
+        "vars": {
+          "result": false
+        }
+      }
+    ]
+  },
+  "Count and Say": {
+    "solution": {
+      "problemStatement": "The count-and-say sequence is a sequence of digit strings defined by the recursive formula: countAndSay(1) = '1', countAndSay(n) is the run-length encoding of countAndSay(n-1). Given an integer n, return the n-th term of the count-and-say sequence.",
+      "examples": [
+        {
+          "input": "n = 1",
+          "output": "\"1\"",
+          "explanation": "This is the base case."
+        },
+        {
+          "input": "n = 4",
+          "output": "\"1211\"",
+          "explanation": "countAndSay(1) = \"1\", countAndSay(2) = RLE of \"1\" = \"11\", countAndSay(3) = RLE of \"11\" = \"21\", countAndSay(4) = RLE of \"21\" = \"1211\"."
+        }
+      ],
+      "constraints": [
+        "1 <= n <= 30"
+      ],
+      "edgeCases": [
+        "n = 1 (returns '1' immediately)",
+        "n = 30 (limits of recursion/iteration length)"
+      ],
+      "followUps": [
+        "Can you write a generator to yield this sequence indefinitely without memory constraints?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Use recursion directly to fetch the string of n-1, then parse and construct the run-length encoded string.",
+          "algorithm": "1. If n == 1, return '1'.\n2. Call countAndSay(n-1) to get the previous term.\n3. Loop through the previous term to count consecutive characters and build the next string.\n4. Return the new string.",
+          "code": "def countAndSay(n: int) -> str:\n    # Base case\n    if n == 1:\n        return \"1\"\n        \n    # Get the value of the previous term recursively\n    prev = countAndSay(n - 1)\n    res = []\n    i = 0\n    \n    # Compute run-length encoding of the previous term\n    while i < len(prev):\n        count = 1\n        while i + 1 < len(prev) and prev[i] == prev[i+1]:\n            count += 1\n            i += 1\n        res.append(str(count))\n        res.append(prev[i])\n        i += 1\n        \n    # Return the assembled string\n    return \"\".join(res)",
+          "complexity": {
+            "time": "O(2^N)",
+            "space": "O(2^N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Iteratively generate the terms of the sequence up to n. This avoids recursive function call overhead and is cleaner.",
+          "algorithm": "1. Initialize curr = '1'.\n2. Loop from 2 to n. In each iteration, construct the next string by traversing curr.\n3. Maintain index i, count duplicate characters, append count + character to string builder list.\n4. Update curr = join(list).\n5. Return curr.",
+          "code": "def countAndSay(n: int) -> str:\n    # Handle base cases\n    if n <= 0:\n        return \"\"\n    \n    curr = \"1\"\n    # Iteratively generate terms from 1 to n\n    for _ in range(1, n):\n        next_str = []\n        i = 0\n        # Process characters of the current string\n        while i < len(curr):\n            count = 1\n            # Count consecutive duplicates\n            while i + 1 < len(curr) and curr[i] == curr[i+1]:\n                count += 1\n                i += 1\n            # Append count and character to building list\n            next_str.append(str(count))\n            next_str.append(curr[i])\n            i += 1\n        # Join list to form current string for next iteration\n        curr = \"\".join(next_str)\n        \n    # Return the n-th term\n    return curr",
+          "complexity": {
+            "time": "O(2^N)",
+            "space": "O(2^N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 6,
+        "desc": "Initialize curr = '1'. Loop for range(1, 3) since n = 3.",
+        "vars": {
+          "n": 3,
+          "curr": "1"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Outer iteration 1. i = 0, process '1'. count = 1. next_str = ['1', '1'].",
+        "vars": {
+          "curr": "1",
+          "i": 1,
+          "next_str": [
+            "1",
+            "1"
+          ]
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Join next_str to update curr = '11'.",
+        "vars": {
+          "curr": "11"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Outer iteration 2. i = 0, s[0]=='1' and s[1]=='1' (duplicates). count = 2. next_str = ['2', '1'].",
+        "vars": {
+          "curr": "11",
+          "i": 2,
+          "next_str": [
+            "2",
+            "1"
+          ]
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Join next_str to update curr = '21'. Loop ends.",
+        "vars": {
+          "curr": "21"
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Return final value '21'.",
+        "vars": {
+          "result": "21"
+        }
+      }
+    ]
+  },
+  "Compare Version Numbers": {
+    "solution": {
+      "problemStatement": "Given two version strings version1 and version2, compare them. If version1 < version2 return -1, if version1 > version2 return 1, otherwise return 0. The comparisons should ignore leading zeros and treat missing components as 0.",
+      "examples": [
+        {
+          "input": "version1 = \"1.01\", version2 = \"1.001\"",
+          "output": "0",
+          "explanation": "Ignoring leading zeroes, both '01' and '001' represent the same integer 1."
+        },
+        {
+          "input": "version1 = \"1.0\", version2 = \"1.0.0.0\"",
+          "output": "0",
+          "explanation": "version1 has less components, treat missing components as 0."
+        },
+        {
+          "input": "version1 = \"0.1\", version2 = \"1.1\"",
+          "output": "-1",
+          "explanation": "version1's first revision is 0, version2's first revision is 1. 0 < 1."
+        }
+      ],
+      "constraints": [
+        "1 <= version1.length, version2.length <= 500",
+        "version1 and version2 consist of digits and dots.",
+        "version1 and version2 are valid version numbers."
+      ],
+      "edgeCases": [
+        "Unequal length of segments ('1.0.1' vs '1')",
+        "Trailing zeros ('1.0' vs '1.0.0')",
+        "Single version segment ('1' vs '2')"
+      ],
+      "followUps": [
+        "How would you handle versions with non-numeric suffixes like alpha, beta (e.g. '1.0-alpha' vs '1.0-beta')?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Iterate through components character by character, parsing integers on the fly using two pointers without string split methods.",
+          "algorithm": "1. Initialize pointer i = 0, j = 0.\n2. In a loop, extract the number from version1 starting at i until dot or end, convert to int.\n3. Similarly extract from version2 starting at j.\n4. Compare numbers. If not equal, return -1 or 1.\n5. Advance pointers past dots. Continue until both strings are fully read.\n6. If loop completes, return 0.",
+          "code": "def compareVersion(version1: str, version2: str) -> int:\n    i, j = 0, 0\n    n1, n2 = len(version1), len(version2)\n    \n    while i < n1 or j < n2:\n        num1, num2 = 0, 0\n        # Parse next integer component of version1\n        while i < n1 and version1[i] != '.':\n            num1 = num1 * 10 + int(version1[i])\n            i += 1\n        # Parse next integer component of version2\n        while j < n2 and version2[j] != '.':\n            num2 = num2 * 10 + int(version2[j])\n            j += 1\n            \n        # Compare parsed components\n        if num1 < num2:\n            return -1\n        elif num1 > num2:\n            return 1\n            \n        # Skip the dots\n        i += 1\n        j += 1\n        \n    return 0",
+          "complexity": {
+            "time": "O(N+M)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Split both versions by '.' into lists of strings. Loop up to the maximum list length. Convert corresponding values to int (defaulting to 0 if index is out of bounds) and compare.",
+          "algorithm": "1. Split version1 and version2 by '.' into v1_parts and v2_parts.\n2. Iterate through index range of max length of both lists.\n3. For each index, fetch integer value at index, or 0 if index is out of bounds.\n4. Compare values and return -1 or 1 if different.\n5. Return 0 if loop ends without differences.",
+          "code": "def compareVersion(version1: str, version2: str) -> int:\n    # Split version strings by dot delimiter\n    v1_parts = version1.split('.')\n    v2_parts = version2.split('.')\n    n1, n2 = len(v1_parts), len(v2_parts)\n    \n    # Iterate up to the length of the version with more segments\n    for i in range(max(n1, n2)):\n        # Convert segment to integer or use 0 if segment does not exist\n        num1 = int(v1_parts[i]) if i < n1 else 0\n        num2 = int(v2_parts[i]) if i < n2 else 0\n        \n        # Compare the segment values\n        if num1 < num2:\n            return -1\n        elif num1 > num2:\n            return 1\n            \n    # Versions are equal\n    return 0",
+          "complexity": {
+            "time": "O(N+M)",
+            "space": "O(N+M)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Split version strings. version1 = '1.0.1' -> v1_parts = ['1','0','1']. version2 = '1' -> v2_parts = ['1'].",
+        "vars": {
+          "v1_parts": [
+            "1",
+            "0",
+            "1"
+          ],
+          "v2_parts": [
+            "1"
+          ],
+          "n1": 3,
+          "n2": 1
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Iteration i = 0: num1 = 1, num2 = 1. Equal. Move to next segment.",
+        "vars": {
+          "i": 0,
+          "num1": 1,
+          "num2": 1
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Iteration i = 1: num1 = 0, num2 = 0 (since index 1 is out of bounds for version2). Equal. Move to next segment.",
+        "vars": {
+          "i": 1,
+          "num1": 0,
+          "num2": 0
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Iteration i = 2: num1 = 1, num2 = 0. Since num1 > num2, return 1.",
+        "vars": {
+          "i": 2,
+          "num1": 1,
+          "num2": 0,
+          "result": 1
+        }
+      }
+    ]
+  },
+  "Longest Palindromic Prefix": {
+    "solution": {
+      "problemStatement": "Given a string s, return the longest prefix of s that is also a palindrome.",
+      "examples": [
+        {
+          "input": "s = \"aacecaaa\"",
+          "output": "\"aacecaa\"",
+          "explanation": "The prefix 'aacecaa' is a palindrome and is the longest possible."
+        },
+        {
+          "input": "s = \"abcd\"",
+          "output": "\"a\"",
+          "explanation": "Only 'a' is a palindrome prefix."
+        }
+      ],
+      "constraints": [
+        "1 <= s.length <= 10^5",
+        "s consists of lowercase English letters."
+      ],
+      "edgeCases": [
+        "Empty string (returns '')",
+        "Single character string (returns s)",
+        "Whole string is a palindrome (returns s)",
+        "All distinct characters (returns s[0])"
+      ],
+      "followUps": [
+        "Can you solve this using rolling hashes?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Check each prefix of the string starting from the longest possible (full length) to the shortest (length 1). Return the first one that is a palindrome.",
+          "algorithm": "1. Loop index i from len(s) down to 1.\n2. Slice prefix s[:i].\n3. If prefix == prefix[::-1], return prefix.\n4. Return s[0] (or '' if empty).",
+          "code": "def longestPalindromicPrefix(s: str) -> str:\n    if not s:\n        return \"\"\n        \n    # Check all prefixes from longest to shortest\n    for i in range(len(s), 0, -1):\n        prefix = s[:i]\n        # If the prefix is a palindrome, it is the longest\n        if prefix == prefix[::-1]:\n            return prefix\n            \n    return \"\"",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "By concatenating the string s with a delimiter and its reverse (s + '$' + reverse(s)), the length of the longest palindromic prefix is precisely the value at the last position of the KMP LPS array.",
+          "algorithm": "1. Construct temp = s + '$' + s[::-1].\n2. Compute the LPS array for temp using KMP precomputation.\n3. The value at lps[-1] represents the length of the longest palindromic prefix.\n4. Return the prefix s[:lps[-1]].",
+          "code": "def longestPalindromicPrefix(s: str) -> str:\n    if not s:\n        return \"\"\n        \n    # Create combined string to find longest matching prefix/suffix\n    temp = s + \"$\" + s[::-1]\n    n = len(temp)\n    lps = [0] * n\n    length = 0\n    i = 1\n    \n    # Construct LPS array\n    while i < n:\n        if temp[i] == temp[length]:\n            length += 1\n            lps[i] = length\n            i += 1\n        else:\n            if length != 0:\n                length = lps[length - 1]\n            else:\n                lps[i] = 0\n                i += 1\n                \n    # Longest palindromic prefix length is given by the last LPS element\n    max_len = lps[-1]\n    return s[:max_len]",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 5,
+        "desc": "Check empty and build combined string: s = 'aab' -> temp = 'aab$baa'.",
+        "vars": {
+          "s": "aab",
+          "temp": "aab$baa",
+          "n": 7,
+          "lps": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Build LPS array. i = 1: temp[1] ('a') == temp[0] ('a'). length = 1. lps[1] = 1.",
+        "vars": {
+          "i": 2,
+          "length": 1,
+          "lps": [
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 13,
+        "desc": "i = 2: temp[2] ('b') != temp[1] ('a'). length becomes 0. Then temp[2] ('b') != temp[0] ('a'). lps[2] = 0.",
+        "vars": {
+          "i": 3,
+          "length": 0
+        }
+      },
+      {
+        "line": 13,
+        "desc": "Proceeding with LPS construction. At the last index i = 6, temp[6] ('a') == temp[1] ('a') (length was 1). length = 2. lps[6] = 2.",
+        "vars": {
+          "i": 7,
+          "length": 2,
+          "lps": [
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            2
+          ]
+        }
+      },
+      {
+        "line": 26,
+        "desc": "max_len is lps[-1] = 2. Slice and return s[:2] = 'aa'.",
+        "vars": {
+          "max_len": 2,
+          "result": "aa"
+        }
+      }
+    ]
+  },
+  "Implement strstr()": {
+    "solution": {
+      "problemStatement": "Given two strings needle and haystack, return the index of the first occurrence of needle in haystack, or -1 if needle is not part of haystack.",
+      "examples": [
+        {
+          "input": "haystack = \"sadbutsad\", needle = \"sad\"",
+          "output": "0",
+          "explanation": "'sad' occurs at index 0 and 6. The first occurrence is at index 0."
+        },
+        {
+          "input": "haystack = \"leetcode\", needle = \"leeto\"",
+          "output": "-1",
+          "explanation": "'leeto' did not occur in 'leetcode'."
+        }
+      ],
+      "constraints": [
+        "1 <= haystack.length, needle.length <= 10^4",
+        "haystack and needle consist of lowercase English characters."
+      ],
+      "edgeCases": [
+        "Needle is empty (returns 0)",
+        "Needle is longer than haystack (returns -1)",
+        "Needle matches start, end, or middle",
+        "Multiple partial matches"
+      ],
+      "followUps": [
+        "Can you implement the Boyer-Moore or Rabin-Karp algorithms to solve this problem?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Slide a window of size equal to the needle across the haystack, and check if the substring matches the needle.",
+          "algorithm": "1. Handle empty needle case.\n2. Iterate i from 0 to len(haystack) - len(needle).\n3. If haystack[i:i+len(needle)] == needle, return i.\n4. If loop completes, return -1.",
+          "code": "def strStr(haystack: str, needle: str) -> int:\n    # Return 0 if needle is empty\n    if not needle:\n        return 0\n        \n    n, m = len(haystack), len(needle)\n    # Slide a window of length m across haystack\n    for i in range(n - m + 1):\n        if haystack[i:i+m] == needle:\n            return i\n            \n    return -1",
+          "complexity": {
+            "time": "O(N*M)",
+            "space": "O(1)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use the Knuth-Morris-Pratt (KMP) pattern matching algorithm, which uses a precomputed LPS (Longest Prefix Suffix) table to prevent backtracking of the haystack pointer.",
+          "algorithm": "1. Compute LPS table for the needle.\n2. Perform matching. If characters match, increment both pointers.\n3. If full needle is matched, return start index.\n4. If mismatch and needle pointer j > 0, fallback j to LPS[j-1]. Else, increment haystack pointer i.\n5. Return -1 if no match.",
+          "code": "def strStr(haystack: str, needle: str) -> int:\n    if not needle:\n        return 0\n        \n    n = len(haystack)\n    m = len(needle)\n    lps = [0] * m\n    length = 0\n    i = 1\n    \n    # Step 1: Precompute LPS array for the needle\n    while i < m:\n        if needle[i] == needle[length]:\n            length += 1\n            lps[i] = length\n            i += 1\n        else:\n            if length != 0:\n                length = lps[length - 1]\n            else:\n                lps[i] = 0\n                i += 1\n                \n    # Step 2: Search phase\n    i = 0  # haystack index\n    j = 0  # needle index\n    while i < n:\n        if needle[j] == haystack[i]:\n            i += 1\n            j += 1\n        if j == m:\n            # Match found, return the start index\n            return i - j\n        elif i < n and needle[j] != haystack[i]:\n            # Mismatch. Use LPS table to slide needle\n            if j != 0:\n                j = lps[j - 1]\n            else:\n                i += 1\n                \n    return -1",
+          "complexity": {
+            "time": "O(N+M)",
+            "space": "O(M)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 6,
+        "desc": "Check empty and initialize pointers. haystack = 'abc', needle = 'bc'. n = 3, m = 2, lps = [0, 0].",
+        "vars": {
+          "haystack": "abc",
+          "needle": "bc",
+          "n": 3,
+          "j": 0
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Compute LPS for 'bc': lps = [0, 0].",
+        "vars": {
+          "lps": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 25,
+        "desc": "Search starts. i = 0 (haystack[0]='a'), j = 0 (needle[0]='b'). Mismatch.",
+        "vars": {
+          "i": 0,
+          "j": 0
+        }
+      },
+      {
+        "line": 35,
+        "desc": "Since j == 0, increment haystack index i to 1.",
+        "vars": {
+          "i": 1,
+          "j": 0
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Compare needle[0] ('b') and haystack[1] ('b'). Match! Increment both i and j.",
+        "vars": {
+          "i": 2,
+          "j": 1
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Compare needle[1] ('c') and haystack[2] ('c'). Match! Increment both i and j.",
+        "vars": {
+          "i": 3,
+          "j": 2
+        }
+      },
+      {
+        "line": 29,
+        "desc": "Since j == m (2), match found. Return i - j = 3 - 2 = 1.",
+        "vars": {
+          "result": 1
+        }
+      }
+    ]
+  },
+  "Postorder Traversal": {
+    "solution": {
+      "problemStatement": "Given the root of a binary tree, return the postorder traversal of its nodes' values.",
+      "examples": [
+        {
+          "input": "root = [1,null,2,3]",
+          "output": "[3,2,1]",
+          "explanation": "Node 3 is visited first, then Node 2, then Node 1."
+        },
+        {
+          "input": "root = []",
+          "output": "[]",
+          "explanation": ""
+        },
+        {
+          "input": "root = [1]",
+          "output": "[1]",
+          "explanation": ""
+        }
+      ],
+      "constraints": [
+        "The number of the nodes in the tree is in the range [0, 100].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Empty tree (returns [])",
+        "Single node tree (returns [val])",
+        "Skewed tree (only left or only right children)"
+      ],
+      "followUps": [
+        "Can you implement the solution iteratively without recursion?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Perform a recursive postorder traversal (left, then right, then root) and add values to a global list.",
+          "algorithm": "1. Initialize an empty list res.\n2. Define a helper function dfs(node). If node is None, return.\n3. Call dfs(node.left).\n4. Call dfs(node.right).\n5. Append node.val to res.\n6. Call dfs(root) and return res.",
+          "code": "# Definition for a binary tree node.\n# class TreeNode:\n#     def __init__(self, val=0, left=None, right=None):\n#         self.val = val\n#         self.left = left\n#         self.right = right\n\ndef postorderTraversal(root) -> list[int]:\n    res = []\n    \n    # Helper function to perform recursive postorder traversal\n    def dfs(node):\n        if not node:\n            return\n        # Traverse left child\n        dfs(node.left)\n        # Traverse right child\n        dfs(node.right)\n        # Append current node value\n        res.append(node.val)\n        \n    dfs(root)\n    return res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Iterative postorder traversal using a stack. We traverse down to the left-most node, keeping nodes in stack. When we reach None, we check if the node on top of stack has a right child. If it does and it hasn't been visited yet, we move to the right child. Otherwise, we process the node and pop it.",
+          "algorithm": "1. Initialize res = [], stack = [], curr = root, last_visited = None.\n2. While curr is not None or stack is not empty:\n3. If curr is not None, push it to stack and move to curr.left.\n4. Else, peek at node on top of stack. If right child exists and is not last_visited, set curr = peek_node.right.\n5. Else, pop node from stack, append its value to res, set last_visited = popped_node.",
+          "code": "# Definition for a binary tree node.\n# class TreeNode:\n#     def __init__(self, val=0, left=None, right=None):\n#         self.val = val\n#         self.left = left\n#         self.right = right\n\ndef postorderTraversal(root) -> list[int]:\n    res = []\n    if not root:\n        return res\n        \n    stack = []\n    curr = root\n    last_visited = None\n    \n    # Iterate while there are nodes to process\n    while stack or curr:\n        # Reach the leftmost node of current node\n        if curr:\n            stack.append(curr)\n            curr = curr.left\n        else:\n            peek_node = stack[-1]\n            # If right child exists and is not yet processed, move right\n            if peek_node.right and last_visited != peek_node.right:\n                curr = peek_node.right\n            else:\n                # Process current node and pop it from stack\n                res.append(peek_node.val)\n                last_visited = stack.pop()\n                \n    return res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 9,
+        "desc": "Initialize empty result list, stack = [], curr = root, last_visited = None.",
+        "vars": {
+          "root_val": 1,
+          "res": [],
+          "stack": [],
+          "last_visited": null
+        }
+      },
+      {
+        "line": 18,
+        "desc": "curr (node 1) is not None, push to stack, set curr = curr.left (None).",
+        "vars": {
+          "stack_vals": [
+            1
+          ],
+          "curr": null
+        }
+      },
+      {
+        "line": 18,
+        "desc": "curr is None, peek node is 1. Since node 1 has right child (2) and last_visited != 2, set curr = node 2.",
+        "vars": {
+          "curr_val": 2,
+          "stack_vals": [
+            1
+          ]
+        }
+      },
+      {
+        "line": 18,
+        "desc": "curr (node 2) is not None, push to stack, set curr = curr.left (node 3).",
+        "vars": {
+          "stack_vals": [
+            1,
+            2
+          ],
+          "curr_val": 3
+        }
+      },
+      {
+        "line": 18,
+        "desc": "curr (node 3) is not None, push to stack, set curr = curr.left (None).",
+        "vars": {
+          "stack_vals": [
+            1,
+            2,
+            3
+          ],
+          "curr": null
+        }
+      },
+      {
+        "line": 21,
+        "desc": "curr is None, peek node is 3. It has no right child. Pop node 3, append to res, set last_visited = node 3.",
+        "vars": {
+          "res": [
+            3
+          ],
+          "last_visited_val": 3,
+          "stack_vals": [
+            1,
+            2
+          ]
+        }
+      },
+      {
+        "line": 21,
+        "desc": "peek node is 2. Its right child is None. Pop node 2, append to res, set last_visited = node 2.",
+        "vars": {
+          "res": [
+            3,
+            2
+          ],
+          "last_visited_val": 2,
+          "stack_vals": [
+            1
+          ]
+        }
+      },
+      {
+        "line": 21,
+        "desc": "peek node is 1. Its right child is 2, which equals last_visited. Pop node 1, append to res, set last_visited = 1.",
+        "vars": {
+          "res": [
+            3,
+            2,
+            1
+          ],
+          "last_visited_val": 1,
+          "stack_vals": []
+        }
+      },
+      {
+        "line": 31,
+        "desc": "Loop terminates. Return result list [3, 2, 1].",
+        "vars": {
+          "result": [
+            3,
+            2,
+            1
+          ]
+        }
+      }
+    ]
+  },
+  "Level Order Traversal": {
+    "solution": {
+      "problemStatement": "Given the root of a binary tree, return the level order traversal of its nodes' values. (i.e., from left to right, level by level).",
+      "examples": [
+        {
+          "input": "root = [3,9,20,null,null,15,7]",
+          "output": "[[3],[9,20],[15,7]]",
+          "explanation": "Level 1: [3], Level 2: [9,20], Level 3: [15,7]."
+        },
+        {
+          "input": "root = [1]",
+          "output": "[[1]]",
+          "explanation": ""
+        },
+        {
+          "input": "root = []",
+          "output": "[]",
+          "explanation": ""
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 2000].",
+        "-1000 <= Node.val <= 1000"
+      ],
+      "edgeCases": [
+        "Empty tree (returns [])",
+        "Single node (returns [[val]])",
+        "Skewed tree (only left children or only right children)"
+      ],
+      "followUps": [
+        "Can you solve this with O(1) extra space (excluding the output array)?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Use Depth First Search (DFS). Maintain a variable level representing current depth. Append the node value to the sub-list at index level in the result list.",
+          "algorithm": "1. Initialize res = [].\n2. Define helper function dfs(node, level). If node is None, return.\n3. If level == len(res), append a new empty list to res.\n4. Append node.val to res[level].\n5. Recursively call dfs(node.left, level + 1) and dfs(node.right, level + 1).\n6. Call dfs(root, 0) and return res.",
+          "code": "# Definition for a binary tree node.\n# class TreeNode:\n#     def __init__(self, val=0, left=None, right=None):\n#         self.val = val\n#         self.left = left\n#         self.right = right\n\ndef levelOrder(root) -> list[list[int]]:\n    res = []\n    \n    # DFS helper tracking current node and level depth\n    def dfs(node, level):\n        if not node:\n            return\n        # Expand result list as we go deeper\n        if level == len(res):\n            res.append([])\n        # Add node value to its corresponding level list\n        res[level].append(node.val)\n        # Recursively visit children\n        dfs(node.left, level + 1)\n        dfs(node.right, level + 1)\n        \n    dfs(root, 0)\n    return res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use Breadth First Search (BFS) with a queue. In each iteration of the outer loop, record the size of the queue. This size represents the number of nodes at the current level. Process that many nodes, and push their children to the queue.",
+          "algorithm": "1. If root is None, return [].\n2. Initialize queue with root.\n3. While queue is not empty, get current queue size level_size.\n4. Initialize curr_level list. Loop level_size times: pop node from queue, append its value to curr_level, enqueue left child then right child.\n5. Append curr_level to res.\n6. Return res.",
+          "code": "# Definition for a binary tree node.\n# class TreeNode:\n#     def __init__(self, val=0, left=None, right=None):\n#         self.val = val\n#         self.left = left\n#         self.right = right\n\nfrom collections import deque\n\ndef levelOrder(root) -> list[list[int]]:\n    res = []\n    if not root:\n        return res\n        \n    # Initialize queue with root node\n    queue = deque([root])\n    \n    # Process level by level\n    while queue:\n        level_size = len(queue)\n        curr_level = []\n        \n        # Dequeue all nodes at the current level\n        for _ in range(level_size):\n            node = queue.popleft()\n            curr_level.append(node.val)\n            # Enqueue left child if it exists\n            if node.left:\n                queue.append(node.left)\n            # Enqueue right child if it exists\n            if node.right:\n                queue.append(node.right)\n                \n        # Add current level values to result\n        res.append(curr_level)\n        \n    return res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 9,
+        "desc": "Check empty. Initialize queue = [node 3].",
+        "vars": {
+          "root_val": 3,
+          "res": [],
+          "queue_vals": [
+            3
+          ]
+        }
+      },
+      {
+        "line": 17,
+        "desc": "First level. level_size = 1. curr_level = [].",
+        "vars": {
+          "level_size": 1,
+          "curr_level": []
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Pop node 3 from queue, add to curr_level. Enqueue left child (9) and right child (20).",
+        "vars": {
+          "curr_level": [
+            3
+          ],
+          "queue_vals": [
+            9,
+            20
+          ]
+        }
+      },
+      {
+        "line": 29,
+        "desc": "Append level to result: res = [[3]].",
+        "vars": {
+          "res": [
+            [
+              3
+            ]
+          ]
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Second level. level_size = 2. curr_level = [].",
+        "vars": {
+          "level_size": 2,
+          "curr_level": []
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Pop node 9, append to curr_level. No children to enqueue.",
+        "vars": {
+          "curr_level": [
+            9
+          ],
+          "queue_vals": [
+            20
+          ]
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Pop node 20, append to curr_level. Enqueue left (15) and right (7).",
+        "vars": {
+          "curr_level": [
+            9,
+            20
+          ],
+          "queue_vals": [
+            15,
+            7
+          ]
+        }
+      },
+      {
+        "line": 29,
+        "desc": "Append level to result: res = [[3], [9, 20]].",
+        "vars": {
+          "res": [
+            [
+              3
+            ],
+            [
+              9,
+              20
+            ]
+          ]
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Third level. level_size = 2. curr_level = [].",
+        "vars": {
+          "level_size": 2,
+          "curr_level": []
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Pop node 15 and 7, append to curr_level. No children to enqueue. Queue is empty.",
+        "vars": {
+          "curr_level": [
+            15,
+            7
+          ],
+          "queue_vals": []
+        }
+      },
+      {
+        "line": 29,
+        "desc": "Append level to result. res = [[3], [9, 20], [15, 7]]. Loop ends. Return res.",
+        "vars": {
+          "res": [
+            [
+              3
+            ],
+            [
+              9,
+              20
+            ],
+            [
+              15,
+              7
+            ]
+          ]
+        }
+      }
+    ]
+  }
+}

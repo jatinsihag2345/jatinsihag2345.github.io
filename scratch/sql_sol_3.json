@@ -1,0 +1,110 @@
+{
+  "List the Products Ordered in a Period": {
+    "title": "List the Products Ordered in a Period",
+    "problemStatement": "Write a solution to get the names of products that have at least 100 units ordered in February 2020 and their total units.",
+    "schema": "CREATE TABLE Products (\n    product_id INT PRIMARY KEY,\n    product_name VARCHAR(255),\n    product_category VARCHAR(255)\n);\n\nCREATE TABLE Orders (\n    product_id INT,\n    order_date DATE,\n    unit INT,\n    FOREIGN KEY (product_id) REFERENCES Products(product_id)\n);",
+    "exampleData": [
+      {
+        "tableName": "Products",
+        "headers": ["product_id", "product_name", "product_category"],
+        "rows": [
+          [1, "Leetcode Solutions", "Book"],
+          [2, "Jewels of Stringology", "Book"],
+          [3, "HP", "Laptop"],
+          [4, "Lenovo", "Laptop"],
+          [5, "Leetcode Kit", "T-shirt"]
+        ]
+      },
+      {
+        "tableName": "Orders",
+        "headers": ["product_id", "order_date", "unit"],
+        "rows": [
+          [1, "2020-02-05", 60],
+          [1, "2020-02-10", 70],
+          [2, "2020-01-18", 30],
+          [2, "2020-02-11", 80],
+          [3, "2020-02-17", 2],
+          [3, "2020-02-24", 3],
+          [4, "2020-03-01", 20],
+          [5, "2020-02-25", 50],
+          [5, "2020-02-27", 50]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "Result",
+      "headers": ["product_name", "unit"],
+      "rows": [
+        ["Leetcode Solutions", 130],
+        ["Leetcode Kit", 100]
+      ]
+    },
+    "solutions": [
+      {
+        "name": "MySQL JOIN with Date Filter & GROUP BY",
+        "query": "SELECT \n    p.product_name, \n    SUM(o.unit) AS unit\nFROM \n    Products p\nJOIN \n    Orders o ON p.product_id = o.product_id\nWHERE \n    o.order_date >= '2020-02-01' AND o.order_date <= '2020-02-29'\nGROUP BY \n    p.product_id, p.product_name\nHAVING \n    SUM(o.unit) >= 100;",
+        "explanation": "First, we filter the `Orders` table to include only records from February 2020. Then we join the `Products` table with the `Orders` table on `product_id` to retrieve the product name. We group the result by `product_id` and `product_name`, aggregate the order units using `SUM()`, and finally filter the aggregated units using a `HAVING` clause to keep only products with at least 100 units ordered."
+      },
+      {
+        "name": "Alternative Date Filtering (DATE_FORMAT)",
+        "query": "SELECT \n    p.product_name, \n    SUM(o.unit) AS unit\nFROM \n    Products p\nJOIN \n    Orders o ON p.product_id = o.product_id\nWHERE \n    DATE_FORMAT(o.order_date, '%Y-%m') = '2020-02'\nGROUP BY \n    p.product_id, p.product_name\nHAVING \n    SUM(o.unit) >= 100;",
+        "explanation": "This solution uses MySQL's `DATE_FORMAT` function to filter for orders placed in February 2020. While convenient, it is generally less optimal than a range-based date filter because it prevents the query optimizer from utilizing indexes on the `order_date` column (making the query non-sargable)."
+      }
+    ],
+    "edgeCases": [
+      "Orders made in February of other years (e.g., 2019 or 2021) must not be counted.",
+      "A product with exactly 100 units in February 2020 should be included in the results (boundary condition `>= 100`).",
+      "Products that have no orders at all in February 2020 should not be included (handled by `INNER JOIN`).",
+      "Orders from the same product on multiple days within February 2020 must be aggregated correctly.",
+      "Leap year considerations (2020 is a leap year, so February has 29 days)."
+    ]
+  },
+  "Find Users With Valid E-Mails": {
+    "title": "Find Users With Valid E-Mails",
+    "problemStatement": "Write a solution to find the users who have valid emails. A valid email has a prefix name and a domain. The prefix name is a string that starts with a letter and can contain letters (upper or lower case), digits, underscores, periods, and/or dashes. The domain must be '@leetcode.com'.",
+    "schema": "CREATE TABLE Users (\n    user_id INT PRIMARY KEY,\n    name VARCHAR(255),\n    mail VARCHAR(255)\n);",
+    "exampleData": [
+      {
+        "tableName": "Users",
+        "headers": ["user_id", "name", "mail"],
+        "rows": [
+          [1, "Winston", "winston@leetcode.com"],
+          [2, "Jonathan", "jonathanisgreat"],
+          [3, "Annabelle", "bella-@leetcode.com"],
+          [4, "Sally", "sally.come@leetcode.com"],
+          [5, "Marwan", "quarz#2020@leetcode.com"],
+          [6, "David", "david69@gmail.com"],
+          [7, "Shapiro", ".shapo@leetcode.com"]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "Result",
+      "headers": ["user_id", "name", "mail"],
+      "rows": [
+        [1, "Winston", "winston@leetcode.com"],
+        [3, "Annabelle", "bella-@leetcode.com"],
+        [4, "Sally", "sally.come@leetcode.com"]
+      ]
+    },
+    "solutions": [
+      {
+        "name": "MySQL REGEXP",
+        "query": "SELECT user_id, name, mail\nFROM Users\nWHERE mail REGEXP '^[a-zA-Z][a-zA-Z0-9._-]*@leetcode\\\\.com$';",
+        "explanation": "We use the `REGEXP` operator in MySQL to match the email format. The regex `^[a-zA-Z][a-zA-Z0-9._-]*@leetcode\\\\.com$` ensures that: \n1. `^` matches the beginning of the string.\n2. `[a-zA-Z]` requires the first character to be a letter.\n3. `[a-zA-Z0-9._-]*` matches zero or more characters that are letters, digits, periods, underscores, or dashes (placing the dash at the end of the character class avoids range syntax issues).\n4. `@leetcode\\\\.com$` matches the literal string '@leetcode.com' at the end of the email (the dot is escaped as `\\\\.` because a single dot matches any character in regex, and in SQL strings, we double escape the backslash)."
+      },
+      {
+        "name": "PostgreSQL Regex (using ~)",
+        "query": "SELECT user_id, name, mail\nFROM Users\nWHERE mail ~ '^[a-zA-Z][a-zA-Z0-9._-]*@leetcode\\\\.com$';",
+        "explanation": "In PostgreSQL, the `~` operator is used for case-sensitive regular expression matching. Since PostgreSQL matches case-sensitively by default with `~`, we specify both uppercase and lowercase letters. To escape the period in `@leetcode.com`, we use `\\\\.` in SQL standard strings (or `\\.` depending on configuration)."
+      }
+    ],
+    "edgeCases": [
+      "The prefix starts with a non-letter character (like a number, underscore, period, or dash), which should be rejected.",
+      "The domain contains additional characters or has different domains like `@leetcode.com.cn` or `@gmail.com`.",
+      "The prefix contains invalid characters like `#`, `@`, `%`, etc. (e.g. `quarz#2020@leetcode.com`).",
+      "The domain is capitalized (e.g. `@LeetCode.com`), which should be rejected based on the exact case requirement.",
+      "The email has no prefix (e.g. `@leetcode.com`)."
+    ]
+  }
+}

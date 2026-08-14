@@ -1,0 +1,1844 @@
+{
+  "Maximum Width of Binary Tree": {
+    "solution": {
+      "title": "Maximum Width of Binary Tree",
+      "problemStatement": "Given the root of a binary tree, return the maximum width of the given tree.\n\nThe maximum width of a tree is the maximum width among all levels.\n\nThe width of one level is defined as the length between the end-nodes (the leftmost and rightmost non-null nodes in the level, where the null nodes between the end-nodes that would be present in a complete binary tree extending down to that level are also counted into the width calculation).\n\nIt is guaranteed that the answer will fit in a 32-bit signed integer.",
+      "examples": [
+        {
+          "input": "root = [1,3,2,5,3,null,9]",
+          "output": "4",
+          "explanation": "The maximum width exists in the third level with width 4 (5, 3, null, 9)."
+        },
+        {
+          "input": "root = [1,3,2,5,null,null,9,6,null,7]",
+          "output": "7",
+          "explanation": "The maximum width exists in the fourth level with width 7 (6, null, null, null, null, null, 7)."
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [1, 3000].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Empty tree (returns 0).",
+        "Single node tree (returns 1).",
+        "Skewed tree (width remains 1 at each level)."
+      ],
+      "followUps": [
+        "Can you solve this without using a queue?",
+        "How would you handle integer overflow if the tree depth is very large (e.g. depth > 64)?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Perform a level order traversal (BFS) where we keep all nodes, including None, in the level list. For each level, we strip the None nodes from both ends and the length of the remaining list is the width of that level. We stop when the list contains only None nodes.",
+          "algorithm": "1. If root is None, return 0.\n2. Store the nodes of the current level in a list, starting with root.\n3. Loop while there is at least one non-None node in the current level list.\n4. Find the first non-None node from the left and the first non-None node from the right.\n5. Calculate the width as right_idx - left_idx + 1 and update max_width.\n6. Generate the next level list by appending left and right children (including None) of all nodes between left_idx and right_idx.\n7. Repeat until no more non-None nodes are left.\n8. Return max_width.",
+          "code": "def widthOfBinaryTree(root):\n    # If root is None, width is 0\n    if not root:\n        return 0\n    # Store the nodes of the current level, starting with root\n    current_level = [root]\n    # Keep track of the maximum width\n    max_width = 0\n    # Continue as long as there are nodes to process\n    while any(node is not None for node in current_level):\n        # Find the first non-None node index from left\n        left = 0\n        while left < len(current_level) and current_level[left] is None:\n            left += 1\n        # Find the first non-None node index from right\n        right = len(current_level) - 1\n        while right >= 0 and current_level[right] is None:\n            right -= 1\n        # Calculate width of current level\n        level_width = right - left + 1\n        # Update maximum width\n        max_width = max(max_width, level_width)\n        # Generate next level including None nodes\n        next_level = []\n        for i in range(left, right + 1):\n            node = current_level[i]\n            if node:\n                next_level.append(node.left)\n                next_level.append(node.right)\n            else:\n                next_level.append(None)\n                next_level.append(None)\n        # Update current level\n        current_level = next_level\n    # Return the maximum width found\n    return max_width",
+          "complexity": {
+            "time": "O(2^H) in the worst case where H is tree height",
+            "space": "O(2^H) to store the level nodes"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use 0-based indexing for the binary tree nodes, similar to heap index representation (left child is 2*i + 1, right child is 2*i + 2). At each level, the width is the index difference between the rightmost and leftmost nodes + 1. Subtract the minimum index of each level from all indices at that level to avoid potential integer overflow.",
+          "algorithm": "1. Initialize a queue with (root, 0) and max_width = 0.\n2. Run a loop while the queue is not empty.\n3. Get the size of the queue (nodes at the current level) and the minimum index at this level.\n4. Iterate through the nodes of this level, pop each node and index, calculate its normalized index (idx - min_idx).\n5. Keep track of the first and last normalized indices of the level.\n6. Push left and right children to the queue with their calculated child indices.\n7. After processing the level, update max_width with (last_idx - first_idx + 1).\n8. Return max_width.",
+          "code": "def widthOfBinaryTree(root):\n    # If root is None, width is 0\n    if not root:\n        return 0\n    # Initialize maximum width to 0\n    max_width = 0\n    # Queue stores pairs of (node, index)\n    queue = [(root, 0)]\n    # Loop until queue is empty\n    while queue:\n        # Number of nodes at current level\n        size = len(queue)\n        # Index of first node in current level\n        min_idx = queue[0][1]\n        # Variables to track first and last index of level\n        first, last = 0, 0\n        # Iterate over all nodes in the current level\n        for i in range(size):\n            # Pop node and index from queue\n            node, idx = queue.pop(0)\n            # Normalize index to prevent overflow\n            cur_id = idx - min_idx\n            # If it is the first node of the level\n            if i == 0:\n                first = cur_id\n            # If it is the last node of the level\n            if i == size - 1:\n                last = cur_id\n            # If left child exists, push with index 2 * cur_id + 1\n            if node.left:\n                queue.append((node.left, 2 * cur_id + 1))\n            # If right child exists, push with index 2 * cur_id + 2\n            if node.right:\n                queue.append((node.right, 2 * cur_id + 2))\n        # Update maximum width\n        max_width = max(max_width, last - first + 1)\n    # Return the maximum width found\n    return max_width",
+          "complexity": {
+            "time": "O(N) where N is the total number of nodes",
+            "space": "O(W) where W is the maximum width of the tree"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Check if root is None. It is not.",
+        "vars": {"root": "TreeNode(1)"}
+      },
+      {
+        "line": 6,
+        "desc": "Initialize max_width to 0.",
+        "vars": {"max_width": 0}
+      },
+      {
+        "line": 8,
+        "desc": "Initialize queue with root and index 0.",
+        "vars": {"queue": "[(TreeNode(1), 0)]"}
+      },
+      {
+        "line": 10,
+        "desc": "Queue is not empty, start processing levels.",
+        "vars": {"queue": "[(TreeNode(1), 0)]"}
+      },
+      {
+        "line": 12,
+        "desc": "Get level size.",
+        "vars": {"size": 1}
+      },
+      {
+        "line": 14,
+        "desc": "Store minimum index of current level.",
+        "vars": {"min_idx": 0}
+      },
+      {
+        "line": 16,
+        "desc": "Initialize first and last indices.",
+        "vars": {"first": 0, "last": 0}
+      },
+      {
+        "line": 18,
+        "desc": "Process first node in level.",
+        "vars": {"i": 0, "size": 1}
+      },
+      {
+        "line": 20,
+        "desc": "Pop first node.",
+        "vars": {"node": "TreeNode(1)", "idx": 0}
+      },
+      {
+        "line": 22,
+        "desc": "Normalize index.",
+        "vars": {"cur_id": 0}
+      },
+      {
+        "line": 25,
+        "desc": "Update first index.",
+        "vars": {"first": 0}
+      },
+      {
+        "line": 28,
+        "desc": "Update last index.",
+        "vars": {"last": 0}
+      },
+      {
+        "line": 30,
+        "desc": "Left child exists (value 3). Push to queue with index 2 * 0 + 1 = 1.",
+        "vars": {"queue": "[(TreeNode(3), 1)]"}
+      },
+      {
+        "line": 33,
+        "desc": "Right child exists (value 2). Push to queue with index 2 * 0 + 2 = 2.",
+        "vars": {"queue": "[(TreeNode(3), 1), (TreeNode(2), 2)]"}
+      },
+      {
+        "line": 36,
+        "desc": "Update max_width to max(0, 0 - 0 + 1) = 1.",
+        "vars": {"max_width": 1}
+      },
+      {
+        "line": 10,
+        "desc": "Queue is not empty. Process next level.",
+        "vars": {"queue": "[(TreeNode(3), 1), (TreeNode(2), 2)]"}
+      },
+      {
+        "line": 12,
+        "desc": "Get size of level 2.",
+        "vars": {"size": 2}
+      },
+      {
+        "line": 14,
+        "desc": "Get minimum index of level 2.",
+        "vars": {"min_idx": 1}
+      },
+      {
+        "line": 20,
+        "desc": "Pop TreeNode(3) with idx 1.",
+        "vars": {"node": "TreeNode(3)", "idx": 1}
+      },
+      {
+        "line": 22,
+        "desc": "Normalize idx: 1 - 1 = 0.",
+        "vars": {"cur_id": 0}
+      },
+      {
+        "line": 25,
+        "desc": "Update first to 0.",
+        "vars": {"first": 0}
+      },
+      {
+        "line": 20,
+        "desc": "Pop TreeNode(2) with idx 2.",
+        "vars": {"node": "TreeNode(2)", "idx": 2}
+      },
+      {
+        "line": 22,
+        "desc": "Normalize idx: 2 - 1 = 1.",
+        "vars": {"cur_id": 1}
+      },
+      {
+        "line": 28,
+        "desc": "Update last to 1.",
+        "vars": {"last": 1}
+      },
+      {
+        "line": 36,
+        "desc": "Update max_width to max(1, 1 - 0 + 1) = 2.",
+        "vars": {"max_width": 2}
+      },
+      {
+        "line": 38,
+        "desc": "Return final max_width.",
+        "vars": {"max_width": 2}
+      }
+    ]
+  },
+  "Children Sum Property": {
+    "solution": {
+      "title": "Children Sum Property",
+      "problemStatement": "Given a binary tree, write a program to convert it so that it satisfies the Children Sum Property.\n\nThe property is: for every node, the data value must be equal to sum of data values in left and right children. If both left and right children are NULL, then the node value can be anything. You can only increment node values (cannot decrement).",
+      "examples": [
+        {
+          "input": "root = [50, 7, 2, 3, 5, 1, 30]",
+          "output": "Converted tree satisfying the property."
+        }
+      ],
+      "constraints": [
+        "1 <= Number of nodes <= 10^4",
+        "1 <= Node.val <= 10^5"
+      ],
+      "edgeCases": [
+        "Leaf node (no changes needed).",
+        "Already satisfying children sum property.",
+        "Root value is already much larger than children sum."
+      ],
+      "followUps": [
+        "How can you check if a binary tree satisfies the children sum property in O(N) time and O(1) space?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Check if the tree satisfies the Children Sum Property recursively. If a node value is not equal to its children sum, we cannot easily convert it without propagating updates, but we can verify it.",
+          "algorithm": "1. If root is None, return True.\n2. If root is a leaf node, return True.\n3. Calculate sum of left and right children.\n4. If root value equals sum and left/right subtrees also satisfy the property, return True; else False.",
+          "code": "def isParentSum(root):\n    # Base case: empty node satisfies property\n    if not root:\n        return True\n    # Base case: leaf node satisfies property\n    if not root.left and not root.right:\n        return True\n    # Sum of children\n    child_sum = 0\n    if root.left:\n        child_sum += root.left.val\n    if root.right:\n        child_sum += root.right.val\n    # Check current node and recursively check children\n    return root.val == child_sum and isParentSum(root.left) and isParentSum(root.right)",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H) recursion stack space"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Convert the tree. We traverse preorder. If the sum of left and right child is less than the node value, we update the children values to match the parent value to ensure we only increment. If the sum is greater or equal, we do nothing. Then we recursively solve for left and right subtrees. On returning (postorder), we update the parent node value to be the sum of its children's updated values.",
+          "algorithm": "1. If root is None or a leaf node, return.\n2. Compute sum of children.\n3. If parent value is greater than child sum, assign parent value to both children (if they exist).\n4. Recursively call changeTree for left and right subtrees.\n5. Postorder: Update parent value to the sum of left and right child values.",
+          "code": "def changeTree(root):\n    # Base case: if root is None, return\n    if not root:\n        return\n    # Base case: if it is a leaf node, return\n    if not root.left and not root.right:\n        return\n    # Calculate sum of children\n    child_sum = 0\n    if root.left:\n        child_sum += root.left.val\n    if root.right:\n        child_sum += root.right.val\n    # If parent's value is greater than sum of children\n    if root.val > child_sum:\n        if root.left:\n            root.left.val = root.val\n        if root.right:\n            root.right.val = root.val\n    # Recurse on left and right subtrees\n    changeTree(root.left)\n    changeTree(root.right)\n    # Post-order update of parent value\n    tot_sum = 0\n    if root.left:\n        tot_sum += root.left.val\n    if root.right:\n        tot_sum += root.right.val\n    # Update parent value\n    root.val = tot_sum",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H) recursion stack space"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Check if root is None.",
+        "vars": {"root": "TreeNode(10)"}
+      },
+      {
+        "line": 6,
+        "desc": "Check if root is leaf node.",
+        "vars": {"root.left": "TreeNode(3)", "root.right": "TreeNode(5)"}
+      },
+      {
+        "line": 9,
+        "desc": "Initialize child_sum.",
+        "vars": {"child_sum": 0}
+      },
+      {
+        "line": 11,
+        "desc": "Add left child's value.",
+        "vars": {"child_sum": 3}
+      },
+      {
+        "line": 13,
+        "desc": "Add right child's value.",
+        "vars": {"child_sum": 8}
+      },
+      {
+        "line": 15,
+        "desc": "Compare root value (10) with child_sum (8). 10 > 8 is True.",
+        "vars": {"root.val": 10, "child_sum": 8}
+      },
+      {
+        "line": 17,
+        "desc": "Update left child value to match parent.",
+        "vars": {"root.left.val": 10}
+      },
+      {
+        "line": 19,
+        "desc": "Update right child value to match parent.",
+        "vars": {"root.right.val": 10}
+      },
+      {
+        "line": 21,
+        "desc": "Recurse on left child changeTree(root.left).",
+        "vars": {}
+      },
+      {
+        "line": 6,
+        "desc": "changeTree(left child 10) enters. It is a leaf, returns immediately.",
+        "vars": {}
+      },
+      {
+        "line": 23,
+        "desc": "Recurse on right child changeTree(root.right).",
+        "vars": {}
+      },
+      {
+        "line": 6,
+        "desc": "changeTree(right child 10) enters. It is a leaf, returns immediately.",
+        "vars": {}
+      },
+      {
+        "line": 25,
+        "desc": "Postorder step: Initialize tot_sum to 0.",
+        "vars": {"tot_sum": 0}
+      },
+      {
+        "line": 27,
+        "desc": "Add updated left child value (10) to tot_sum.",
+        "vars": {"tot_sum": 10}
+      },
+      {
+        "line": 29,
+        "desc": "Add updated right child value (10) to tot_sum.",
+        "vars": {"tot_sum": 20}
+      },
+      {
+        "line": 31,
+        "desc": "Update root value to tot_sum.",
+        "vars": {"root.val": 20}
+      }
+    ]
+  },
+  "Nodes at Distance K": {
+    "solution": {
+      "title": "Nodes at Distance K",
+      "problemStatement": "Given the root of a binary tree, the value of a target node target, and an integer k, return an array of the values of all nodes that have a distance k from the target node. You can return the answer in any order.",
+      "examples": [
+        {
+          "input": "root = [3,5,1,6,2,0,8,null,null,7,4], target = 5, k = 2",
+          "output": "[7,4,1]",
+          "explanation": "The nodes that are a distance 2 from the target node (with value 5) have values 7, 4, and 1."
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [1, 500].",
+        "0 <= Node.val <= 500",
+        "All the values Node.val are unique.",
+        "target is the value of one of the nodes in the tree.",
+        "0 <= k <= 1000"
+      ],
+      "edgeCases": [
+        "k = 0 (returns [target]).",
+        "target is the root.",
+        "No nodes at distance k (returns [])."
+      ],
+      "followUps": [
+        "Can you solve this using a single DFS traversal without building parent pointers?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Convert the binary tree to an undirected graph (adjacency list representation). Then, perform a Breadth-First Search (BFS) or Depth-First Search (DFS) on this graph starting from the target node up to depth k.",
+          "algorithm": "1. Build an adjacency list of the graph by traversing the tree recursively.\n2. Start BFS from target node with distance 0.\n3. Track visited nodes to avoid visiting parents again.\n4. When distance equals k, collect all values in the queue and return.",
+          "code": "def distanceK(root, target, k):\n    from collections import defaultdict\n    # Adjacency list representation of the tree as a graph\n    graph = defaultdict(list)\n    # DFS helper to build graph edges\n    def build_graph(node, parent):\n        if not node:\n            return\n        if parent:\n            graph[node.val].append(parent.val)\n            graph[parent.val].append(node.val)\n        build_graph(node.left, node)\n        build_graph(node.right, node)\n    # Build graph starting from root\n    build_graph(root, None)\n    # BFS initialization\n    queue = [target.val]\n    visited = {target.val}\n    curr_dist = 0\n    # BFS up to distance k\n    while queue:\n        if curr_dist == k:\n            return queue\n        next_queue = []\n        for node_val in queue:\n            for neighbor in graph[node_val]:\n                if neighbor not in visited:\n                    visited.add(neighbor)\n                    next_queue.append(neighbor)\n        queue = next_queue\n        curr_dist += 1\n    # Return empty list if target distance cannot be reached\n    return []",
+          "complexity": {
+            "time": "O(N) to build the graph and traverse it",
+            "space": "O(N) to store graph edges and visited nodes"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Build a parent map so that we can traverse upwards. Perform a standard BFS starting from the target node, spreading in three directions: left child, right child, and parent. We maintain a visited set to avoid processing a node multiple times.",
+          "algorithm": "1. Traverse the tree using DFS and construct a parent map where key is node and value is its parent node.\n2. Initialize a queue with (target, 0) and a visited set with target.\n3. While queue is not empty, pop the current node and its distance.\n4. If distance equals k, add current node's value to the result.\n5. If distance is less than k, enqueue left child, right child, and parent if they exist and are not visited.\n6. Return result.",
+          "code": "def distanceK(root, target, k):\n    # Dictionary to store parent pointers\n    parent_map = {}\n    # Helper function to populate parent map\n    def populate_parents(node, parent):\n        if node:\n            # Map current node to its parent\n            parent_map[node] = parent\n            # Recurse on left child\n            populate_parents(node.left, node)\n            # Recurse on right child\n            populate_parents(node.right, node)\n    # Populate the parent map starting from root\n    populate_parents(root, None)\n    # Queue for BFS, storing tuples of (node, distance)\n    queue = [(target, 0)]\n    # Set to keep track of visited nodes\n    visited = {target}\n    # List to store final result\n    result = []\n    # Loop until queue is empty\n    while queue:\n        # Get the current node and its distance from target\n        curr, dist = queue.pop(0)\n        # If distance equals k, add to result\n        if dist == k:\n            result.append(curr.val)\n        # If distance is less than k, explore neighbors\n        elif dist < k:\n            # Check left child\n            if curr.left and curr.left not in visited:\n                visited.add(curr.left)\n                queue.append((curr.left, dist + 1))\n            # Check right child\n            if curr.right and curr.right not in visited:\n                visited.add(curr.right)\n                queue.append((curr.right, dist + 1))\n            # Check parent node\n            parent = parent_map.get(curr)\n            if parent and parent not in visited:\n                visited.add(parent)\n                queue.append((parent, dist + 1))\n    # Return the list of nodes at distance k\n    return result",
+          "complexity": {
+            "time": "O(N) since we visit each node at most once",
+            "space": "O(N) for parent map, BFS queue, and visited set"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize parent map dictionary.",
+        "vars": {"parent_map": "{}"}
+      },
+      {
+        "line": 14,
+        "desc": "Call populate_parents on root.",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Initialize queue with (target, 0). Let target be TreeNode(5) and k = 1.",
+        "vars": {"queue": "[(TreeNode(5), 0)]"}
+      },
+      {
+        "line": 18,
+        "desc": "Initialize visited set with target.",
+        "vars": {"visited": "{TreeNode(5)}"}
+      },
+      {
+        "line": 20,
+        "desc": "Initialize result list.",
+        "vars": {"result": "[]"}
+      },
+      {
+        "line": 22,
+        "desc": "Queue is not empty, begin BFS.",
+        "vars": {"queue": "[(TreeNode(5), 0)]"}
+      },
+      {
+        "line": 24,
+        "desc": "Pop first element from queue.",
+        "vars": {"curr": "TreeNode(5)", "dist": 0}
+      },
+      {
+        "line": 29,
+        "desc": "Check if dist < k (0 < 1 is True).",
+        "vars": {"dist": 0, "k": 1}
+      },
+      {
+        "line": 31,
+        "desc": "Left child (TreeNode(6)) is not visited. Add to queue.",
+        "vars": {"queue": "[(TreeNode(6), 1)]", "visited": "{TreeNode(5), TreeNode(6)}"}
+      },
+      {
+        "line": 35,
+        "desc": "Right child (TreeNode(2)) is not visited. Add to queue.",
+        "vars": {"queue": "[(TreeNode(6), 1), (TreeNode(2), 1)]", "visited": "{TreeNode(5), TreeNode(6), TreeNode(2)}"}
+      },
+      {
+        "line": 39,
+        "desc": "Parent (TreeNode(3)) is not visited. Add to queue.",
+        "vars": {"queue": "[(TreeNode(6), 1), (TreeNode(2), 1), (TreeNode(3), 1)]"}
+      },
+      {
+        "line": 22,
+        "desc": "Next loop iteration: Queue has elements.",
+        "vars": {}
+      },
+      {
+        "line": 24,
+        "desc": "Pop TreeNode(6).",
+        "vars": {"curr": "TreeNode(6)", "dist": 1}
+      },
+      {
+        "line": 26,
+        "desc": "dist == k (1 == 1) is True. Add val to result.",
+        "vars": {"result": "[6]"}
+      },
+      {
+        "line": 24,
+        "desc": "Pop TreeNode(2).",
+        "vars": {"curr": "TreeNode(2)", "dist": 1}
+      },
+      {
+        "line": 26,
+        "desc": "dist == k (1 == 1) is True. Add val to result.",
+        "vars": {"result": "[6, 2]"}
+      },
+      {
+        "line": 24,
+        "desc": "Pop TreeNode(3).",
+        "vars": {"curr": "TreeNode(3)", "dist": 1}
+      },
+      {
+        "line": 26,
+        "desc": "dist == k (1 == 1) is True. Add val to result.",
+        "vars": {"result": "[6, 2, 3]"}
+      },
+      {
+        "line": 43,
+        "desc": "Return final result list.",
+        "vars": {"result": "[6, 2, 3]"}
+      }
+    ]
+  },
+  "Burn a Binary Tree": {
+    "solution": {
+      "title": "Burn a Binary Tree",
+      "problemStatement": "Given a binary tree and a leaf node target, find the minimum time required to burn the entire binary tree if we start burning it from target.\n\nBurning takes 1 second to spread from a node to its connected nodes (left child, right child, or parent node).",
+      "examples": [
+        {
+          "input": "root = [1,2,3,4,5,null,6,null,null,7,8,null,9], target = 8",
+          "output": "7",
+          "explanation": "The tree starts burning from node 8 and takes 7 seconds to burn the entire tree."
+        }
+      ],
+      "constraints": [
+        "1 <= Number of nodes <= 10^5",
+        "1 <= Node.val <= 10^5"
+      ],
+      "edgeCases": [
+        "Tree has only 1 node.",
+        "Target is the root node.",
+        "The tree is a straight line (skewed)."
+      ],
+      "followUps": [
+        "Can you solve this by finding the diameter of the tree starting from the target node?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Represent the binary tree as a generic graph using an adjacency list. Find the target node in the graph, and then execute a standard BFS starting from the target node. The depth of BFS traversal represents the time taken to burn all nodes.",
+          "algorithm": "1. Construct an undirected graph from the tree.\n2. Initialize a BFS queue with target node and time = 0.\n3. Track maximum time.\n4. Standard BFS to visit all adjacent nodes (left, right, parent).\n5. Return maximum time.",
+          "code": "def minTime(root, target_val):\n    from collections import defaultdict\n    # Adjacency list representation of the tree as a graph\n    graph = defaultdict(list)\n    # DFS helper to build graph edges\n    def build_graph(node, parent):\n        if not node:\n            return\n        if parent:\n            graph[node.val].append(parent.val)\n            graph[parent.val].append(node.val)\n        build_graph(node.left, node)\n        build_graph(node.right, node)\n    # Build graph starting from root\n    build_graph(root, None)\n    # BFS initialization\n    queue = [(target_val, 0)]\n    visited = {target_val}\n    max_time = 0\n    # BFS to traverse the graph\n    while queue:\n        curr, time = queue.pop(0)\n        max_time = max(max_time, time)\n        for neighbor in graph[curr]:\n            if neighbor not in visited:\n                visited.add(neighbor)\n                queue.append((neighbor, time + 1))\n    # Return the maximum time found\n    return max_time",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N) to store graph and visited set"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use DFS to locate the target node and build a parent pointer map. Then, run a BFS starting from the target node, propagating the fire to the left child, right child, and parent node simultaneously. The maximum level of BFS is the total time to burn the tree.",
+          "algorithm": "1. Initialize parent_map and target_node variables.\n2. Run a DFS to populate parent_map and find the target node pointer.\n3. Enqueue target_node with time 0, and add it to visited.\n4. Run BFS: Pop current node and its time, update max_time.\n5. Enqueue left child, right child, and parent if they exist and are not visited.\n6. Return max_time.",
+          "code": "def minTime(root, target_val):\n    # Dictionary to map node to its parent node\n    parent_map = {}\n    # Variable to store the target node object\n    target_node = None\n    # Helper function to find target and map parents\n    def dfs(node, parent):\n        nonlocal target_node\n        if not node:\n            return\n        # If target node is found, store it\n        if node.val == target_val:\n            target_node = node\n        # Map node to its parent\n        parent_map[node] = parent\n        # Traverse left child\n        dfs(node.left, node)\n        # Traverse right child\n        dfs(node.right, node)\n    # Populate parents and find target node\n    dfs(root, None)\n    # Queue for BFS, storing (node, current_time)\n    queue = [(target_node, 0)]\n    # Visited set to prevent cyclic traversal\n    visited = {target_node}\n    # Track the maximum time taken to burn the tree\n    max_time = 0\n    # Process the queue\n    while queue:\n        # Get current node and time\n        curr, time = queue.pop(0)\n        # Update maximum time\n        max_time = max(max_time, time)\n        # Check left child\n        if curr.left and curr.left not in visited:\n            visited.add(curr.left)\n            queue.append((curr.left, time + 1))\n        # Check right child\n        if curr.right and curr.right not in visited:\n            visited.add(curr.right)\n            queue.append((curr.right, time + 1))\n        # Check parent\n        parent = parent_map.get(curr)\n        if parent and parent not in visited:\n            visited.add(parent)\n            queue.append((parent, time + 1))\n    # Return total time to burn the tree\n    return max_time",
+          "complexity": {
+            "time": "O(N) to map parents and run BFS",
+            "space": "O(N) for recursion stack, parent map, and queue"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize parent map.",
+        "vars": {"parent_map": "{}"}
+      },
+      {
+        "line": 5,
+        "desc": "Initialize target_node to None.",
+        "vars": {"target_node": "null"}
+      },
+      {
+        "line": 21,
+        "desc": "Run DFS to find target and map parents.",
+        "vars": {}
+      },
+      {
+        "line": 23,
+        "desc": "Initialize BFS queue with target node.",
+        "vars": {"queue": "[(target_node, 0)]"}
+      },
+      {
+        "line": 25,
+        "desc": "Initialize visited with target_node.",
+        "vars": {"visited": "{target_node}"}
+      },
+      {
+        "line": 27,
+        "desc": "Initialize max_time to 0.",
+        "vars": {"max_time": 0}
+      },
+      {
+        "line": 29,
+        "desc": "Start BFS queue loop.",
+        "vars": {}
+      },
+      {
+        "line": 31,
+        "desc": "Pop first queue item.",
+        "vars": {"curr.val": 8, "time": 0}
+      },
+      {
+        "line": 33,
+        "desc": "Update max_time to max(0, 0) = 0.",
+        "vars": {"max_time": 0}
+      },
+      {
+        "line": 43,
+        "desc": "Get parent of node 8 (which is 5). Parent is not visited, enqueue it.",
+        "vars": {"queue": "[(TreeNode(5), 1)]", "visited": "{TreeNode(8), TreeNode(5)}"}
+      },
+      {
+        "line": 29,
+        "desc": "Queue has element, continue BFS.",
+        "vars": {}
+      },
+      {
+        "line": 31,
+        "desc": "Pop node 5 with time 1.",
+        "vars": {"curr.val": 5, "time": 1}
+      },
+      {
+        "line": 33,
+        "desc": "Update max_time to max(0, 1) = 1.",
+        "vars": {"max_time": 1}
+      },
+      {
+        "line": 48,
+        "desc": "Continue BFS until queue empty.",
+        "vars": {"max_time": 7}
+      }
+    ]
+  },
+  "Count Total Nodes in Complete Binary Tree": {
+    "solution": {
+      "title": "Count Total Nodes in Complete Binary Tree",
+      "problemStatement": "Given the root of a complete binary tree, return the number of nodes in the tree.\n\nAccording to Wikipedia, every level, except possibly the last, is completely filled in a complete binary tree, and all nodes in the last level are as far left as possible. It can have between 1 and 2^h nodes inclusive at the last level h.",
+      "examples": [
+        {
+          "input": "root = [1,2,3,4,5,6]",
+          "output": "6"
+        },
+        {
+          "input": "root = []",
+          "output": "0"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 5 * 10^4].",
+        "0 <= Node.val <= 5 * 10^4",
+        "The tree is guaranteed to be complete."
+      ],
+      "edgeCases": [
+        "Empty tree (returns 0).",
+        "Single node tree (returns 1).",
+        "Perfect binary tree of height H."
+      ],
+      "followUps": [
+        "Design an algorithm that runs in less than O(N) time complexity."
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Traverse the entire binary tree recursively (like preorder or inorder) or iteratively (BFS) and keep a running count of all visited nodes. This does not take advantage of the complete binary tree property.",
+          "algorithm": "1. If root is None, return 0.\n2. Return 1 + countNodes(left subtree) + countNodes(right subtree).",
+          "code": "def countNodes(root):\n    # Base case: if root is None, return 0\n    if not root:\n        return 0\n    # Count 1 for the root, plus recursive count of left and right subtrees\n    return 1 + countNodes(root.left) + countNodes(root.right)",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H) recursion stack space"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "For a complete binary tree, we can find the left height and right height. If left height equals right height, it is a perfect binary tree, and the total nodes is 2^height - 1. If not, we recursively count the nodes of left and right subtrees and add 1. Since at least one child is always a perfect binary tree at any step, the recursive steps are at most O(log N).",
+          "algorithm": "1. If root is None, return 0.\n2. Calculate left height by going node = node.left until None.\n3. Calculate right height by going node = node.right until None.\n4. If left height == right height, return (1 << left height) - 1.\n5. If heights are not equal, return 1 + countNodes(root.left) + countNodes(root.right).",
+          "code": "def countNodes(root):\n    # If root is None, return 0\n    if not root:\n        return 0\n    # Helper to calculate left height\n    def get_left_height(node):\n        h = 0\n        while node:\n            h += 1\n            node = node.left\n        return h\n    # Helper to calculate right height\n    def get_right_height(node):\n        h = 0\n        while node:\n            h += 1\n            node = node.right\n        return h\n    # Calculate heights\n    lh = get_left_height(root)\n    rh = get_right_height(root)\n    # If left height equals right height, it is a perfect binary tree\n    if lh == rh:\n        return (1 << lh) - 1\n    # Otherwise, recursively count nodes in left and right subtrees\n    return 1 + countNodes(root.left) + countNodes(root.right)",
+          "complexity": {
+            "time": "O((log N)^2) since height calculation takes O(log N) and recursion occurs at most O(log N) times",
+            "space": "O(log N) recursion stack space"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Check if root is None.",
+        "vars": {"root": "TreeNode(1)"}
+      },
+      {
+        "line": 20,
+        "desc": "Get left height of root.",
+        "vars": {"lh": 3}
+      },
+      {
+        "line": 21,
+        "desc": "Get right height of root.",
+        "vars": {"rh": 2}
+      },
+      {
+        "line": 23,
+        "desc": "Compare lh and rh. 3 == 2 is False.",
+        "vars": {"lh": 3, "rh": 2}
+      },
+      {
+        "line": 26,
+        "desc": "Recurse on left child countNodes(root.left) and right child countNodes(root.right).",
+        "vars": {}
+      },
+      {
+        "line": 3,
+        "desc": "countNodes(root.left) enters with root.left (TreeNode(2)).",
+        "vars": {"root": "TreeNode(2)"}
+      },
+      {
+        "line": 20,
+        "desc": "Calculate left height for node 2.",
+        "vars": {"lh": 2}
+      },
+      {
+        "line": 21,
+        "desc": "Calculate right height for node 2.",
+        "vars": {"rh": 2}
+      },
+      {
+        "line": 23,
+        "desc": "Compare lh and rh. 2 == 2 is True (perfect tree!).",
+        "vars": {"lh": 2, "rh": 2}
+      },
+      {
+        "line": 24,
+        "desc": "Return (1 << 2) - 1 = 3.",
+        "vars": {"result": 3}
+      }
+    ]
+  },
+  "Construct Binary Tree from Preorder and Inorder": {
+    "solution": {
+      "title": "Construct Binary Tree from Preorder and Inorder",
+      "problemStatement": "Given two integer arrays preorder and inorder where preorder is the preorder traversal of a binary tree and inorder is the inorder traversal of the same tree, construct and return the binary tree.",
+      "examples": [
+        {
+          "input": "preorder = [3,9,20,15,7], inorder = [9,3,15,20,7]",
+          "output": "[3,9,20,null,null,15,7]"
+        }
+      ],
+      "constraints": [
+        "1 <= preorder.length <= 3000",
+        "inorder.length == preorder.length",
+        "-3000 <= preorder[i], inorder[i] <= 3000",
+        "preorder and inorder consist of unique values.",
+        "Each value of inorder also appears in preorder."
+      ],
+      "edgeCases": [
+        "Single element array.",
+        "Left-skewed tree.",
+        "Right-skewed tree."
+      ],
+      "followUps": [
+        "Can you optimize the space complexity by avoiding sub-arrays creation?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "In preorder, the first element is the root. We find this root in inorder, which splits the tree into left and right subtrees. We recursively construct the subtrees. To find the root in inorder, we perform a linear search, leading to a suboptimal time complexity.",
+          "algorithm": "1. If preorder or inorder is empty, return None.\n2. Pick the first element of preorder as root.\n3. Search for root value in inorder to find index root_idx.\n4. Recursively build left subtree using left slices of preorder and inorder.\n5. Recursively build right subtree using right slices.\n6. Return root.",
+          "code": "def buildTree(preorder, inorder):\n    # If either list is empty, subtree is empty\n    if not preorder or not inorder:\n        return None\n    # The first element in preorder traversal is always the root\n    root_val = preorder[0]\n    root = TreeNode(root_val)\n    # Find the position of the root in the inorder list\n    root_idx = inorder.index(root_val)\n    # Recursively construct left and right subtrees by slicing lists\n    root.left = buildTree(preorder[1 : root_idx + 1], inorder[:root_idx])\n    root.right = buildTree(preorder[root_idx + 1 :], inorder[root_idx + 1 :])\n    # Return the constructed tree root\n    return root",
+          "complexity": {
+            "time": "O(N^2) due to list index lookup and slicing at each node",
+            "space": "O(N^2) for array slices stored in recursion stack"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Optimize the inorder root index lookup using a Hash Map. Avoid array slicing by passing boundaries (start and end indices) of the inorder subarray to the helper recursion function. Keep a global index pointer for the preorder list.",
+          "algorithm": "1. Construct a hash map in_map storing value -> index for inorder list.\n2. Define helper function with in_start and in_end boundaries.\n3. Maintain pre_idx pointing to current root in preorder.\n4. Base case: if in_start > in_end, return None.\n5. Create node for preorder[pre_idx], increment pre_idx.\n6. Retrieve root_idx from map.\n7. Recurse left subtree from in_start to root_idx - 1.\n8. Recurse right subtree from root_idx + 1 to in_end.\n9. Return node.",
+          "code": "def buildTree(preorder, inorder):\n    # Map to store index of each value in inorder array\n    in_map = {val: idx for idx, val in enumerate(inorder)}\n    # Pointer to track current root in preorder list\n    pre_idx = 0\n    # Recursive helper function\n    def helper(in_start, in_end):\n        nonlocal pre_idx\n        # Base case: if range is invalid\n        if in_start > in_end:\n            return None\n        # Get current root value\n        root_val = preorder[pre_idx]\n        # Create root node\n        root = TreeNode(root_val)\n        # Increment preorder index\n        pre_idx += 1\n        # Find index of root in inorder array\n        root_idx = in_map[root_val]\n        # Build left subtree\n        root.left = helper(in_start, root_idx - 1)\n        # Build right subtree\n        root.right = helper(root_idx + 1, in_end)\n        # Return root node\n        return root\n    # Build tree and return\n    return helper(0, len(inorder) - 1)",
+          "complexity": {
+            "time": "O(N) to build hash map and traverse nodes",
+            "space": "O(N) for hash map and recursion stack"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Build in_map mapping inorder elements to indices.",
+        "vars": {"in_map": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}"}
+      },
+      {
+        "line": 5,
+        "desc": "Initialize pre_idx to 0.",
+        "vars": {"pre_idx": 0}
+      },
+      {
+        "line": 27,
+        "desc": "Invoke helper with boundaries 0 and len(inorder)-1.",
+        "vars": {"in_start": 0, "in_end": 4}
+      },
+      {
+        "line": 10,
+        "desc": "Check helper base case. 0 > 4 is False.",
+        "vars": {}
+      },
+      {
+        "line": 13,
+        "desc": "Retrieve root value from preorder[0].",
+        "vars": {"root_val": 3}
+      },
+      {
+        "line": 15,
+        "desc": "Create TreeNode for value 3.",
+        "vars": {"root": "TreeNode(3)"}
+      },
+      {
+        "line": 17,
+        "desc": "Increment pre_idx.",
+        "vars": {"pre_idx": 1}
+      },
+      {
+        "line": 19,
+        "desc": "Look up root_val index in in_map.",
+        "vars": {"root_idx": 1}
+      },
+      {
+        "line": 21,
+        "desc": "Recurse on left subtree. helper(0, 0).",
+        "vars": {"in_start": 0, "in_end": 0}
+      },
+      {
+        "line": 13,
+        "desc": "Inside helper(0, 0), retrieve root value from preorder[1].",
+        "vars": {"root_val": 9}
+      },
+      {
+        "line": 15,
+        "desc": "Create TreeNode for value 9.",
+        "vars": {"root": "TreeNode(9)"}
+      },
+      {
+        "line": 17,
+        "desc": "Increment pre_idx.",
+        "vars": {"pre_idx": 2}
+      },
+      {
+        "line": 19,
+        "desc": "Look up 9 index.",
+        "vars": {"root_idx": 0}
+      },
+      {
+        "line": 21,
+        "desc": "Recurse left: helper(0, -1) which returns None.",
+        "vars": {}
+      }
+    ]
+  },
+  "Construct Binary Tree from Postorder and Inorder": {
+    "solution": {
+      "title": "Construct Binary Tree from Postorder and Inorder",
+      "problemStatement": "Given two integer arrays inorder and postorder where inorder is the inorder traversal of a binary tree and postorder is the postorder traversal of the same tree, construct and return the binary tree.",
+      "examples": [
+        {
+          "input": "inorder = [9,3,15,20,7], postorder = [9,15,7,20,3]",
+          "output": "[3,9,20,null,null,15,7]"
+        }
+      ],
+      "constraints": [
+        "1 <= inorder.length <= 3000",
+        "postorder.length == inorder.length",
+        "-3000 <= inorder[i], postorder[i] <= 3000",
+        "inorder and postorder consist of unique values.",
+        "Each value of postorder also appears in inorder."
+      ],
+      "edgeCases": [
+        "Single element array.",
+        "Left-skewed tree.",
+        "Right-skewed tree."
+      ],
+      "followUps": [
+        "Can you write this iteratively using a stack?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "In postorder, the last element is the root. We locate the root in inorder using linear search to divide it into left and right subtrees. Then recursively build the tree.",
+          "algorithm": "1. If postorder or inorder is empty, return None.\n2. Pick the last element of postorder as root.\n3. Linear search in inorder for root's index.\n4. Recursively build right and left subtrees.\n5. Return root.",
+          "code": "def buildTree(inorder, postorder):\n    # If either list is empty, return None\n    if not inorder or not postorder:\n        return None\n    # The last element in postorder traversal is always the root\n    root_val = postorder[-1]\n    root = TreeNode(root_val)\n    # Find index of root in inorder list\n    root_idx = inorder.index(root_val)\n    # Recursively construct right subtree first, then left subtree\n    root.left = buildTree(inorder[:root_idx], postorder[:root_idx])\n    root.right = buildTree(inorder[root_idx + 1 :], postorder[root_idx : -1])\n    # Return constructed root\n    return root",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(N^2)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a Hash Map for fast index lookup in inorder list. Traverse the postorder list from right to left using a pointer `post_idx` decremented in each step. Note that when building from postorder backwards, the next element is the root of the right subtree, so build right subtree first, then left.",
+          "algorithm": "1. Build in_map storing value -> index of inorder list.\n2. Set post_idx = len(postorder) - 1.\n3. Define helper with in_start and in_end boundaries.\n4. Base case: if in_start > in_end, return None.\n5. Create node for postorder[post_idx], decrement post_idx.\n6. Look up root_idx in in_map.\n7. Recurse right child helper(root_idx + 1, in_end).\n8. Recurse left child helper(in_start, root_idx - 1).\n9. Return node.",
+          "code": "def buildTree(inorder, postorder):\n    # Map to store index of each value in inorder array\n    in_map = {val: idx for idx, val in enumerate(inorder)}\n    # Pointer to track current root in postorder list from right to left\n    post_idx = len(postorder) - 1\n    # Recursive helper function\n    def helper(in_start, in_end):\n        nonlocal post_idx\n        # Base case: if range is invalid\n        if in_start > in_end:\n            return None\n        # Get current root value\n        root_val = postorder[post_idx]\n        # Create root node\n        root = TreeNode(root_val)\n        # Decrement postorder index\n        post_idx -= 1\n        # Find index of root in inorder array\n        root_idx = in_map[root_val]\n        # Build right subtree first (since we traverse postorder from end)\n        root.right = helper(root_idx + 1, in_end)\n        # Build left subtree\n        root.left = helper(in_start, root_idx - 1)\n        # Return root node\n        return root\n    # Build tree and return\n    return helper(0, len(inorder) - 1)",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N) for map and recursion stack"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Build in_map for fast index lookup.",
+        "vars": {"in_map": "{9: 0, 3: 1, 15: 2, 20: 3, 7: 4}"}
+      },
+      {
+        "line": 5,
+        "desc": "Set post_idx to last element index (4).",
+        "vars": {"post_idx": 4}
+      },
+      {
+        "line": 27,
+        "desc": "Call helper with boundaries 0 and 4.",
+        "vars": {"in_start": 0, "in_end": 4}
+      },
+      {
+        "line": 13,
+        "desc": "Get root value from postorder[4].",
+        "vars": {"root_val": 3}
+      },
+      {
+        "line": 15,
+        "desc": "Create TreeNode for 3.",
+        "vars": {"root": "TreeNode(3)"}
+      },
+      {
+        "line": 17,
+        "desc": "Decrement post_idx.",
+        "vars": {"post_idx": 3}
+      },
+      {
+        "line": 19,
+        "desc": "Find root_val (3) in inorder.",
+        "vars": {"root_idx": 1}
+      },
+      {
+        "line": 21,
+        "desc": "Recurse right subtree helper(2, 4) first.",
+        "vars": {"in_start": 2, "in_end": 4}
+      },
+      {
+        "line": 13,
+        "desc": "Get next root value from postorder[3].",
+        "vars": {"root_val": 20}
+      },
+      {
+        "line": 15,
+        "desc": "Create TreeNode for 20.",
+        "vars": {"root": "TreeNode(20)"}
+      },
+      {
+        "line": 17,
+        "desc": "Decrement post_idx.",
+        "vars": {"post_idx": 2}
+      },
+      {
+        "line": 19,
+        "desc": "Find index of 20.",
+        "vars": {"root_idx": 3}
+      },
+      {
+        "line": 21,
+        "desc": "Recurse right: helper(4, 4) to build right child of 20.",
+        "vars": {}
+      }
+    ]
+  },
+  "Serialize and Deserialize Binary Tree": {
+    "solution": {
+      "title": "Serialize and Deserialize Binary Tree",
+      "problemStatement": "Serialization is the process of converting a data structure or object into a sequence of bits so that it can be stored in a file or memory buffer, or transmitted across a network connection link to be reconstructed later in the same or another computer environment.\n\nDesign an algorithm to serialize and deserialize a binary tree. There is no restriction on how your serialization/deserialization algorithm should work. You just need to ensure that a binary tree can be serialized to a string and this string can be deserialized to the original tree structure.",
+      "examples": [
+        {
+          "input": "root = [1,2,3,null,null,4,5]",
+          "output": "Serialized as '1,2,3,#,#,4,5,#,#,#,#' and then deserialized back to original tree."
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 10^4].",
+        "-1000 <= Node.val <= 1000"
+      ],
+      "edgeCases": [
+        "Empty tree.",
+        "Single node tree.",
+        "Skewed tree."
+      ],
+      "followUps": [
+        "Can you serialize the tree using preorder traversal instead of BFS?",
+        "Is it possible to optimize the serialized string length to use fewer bytes?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Use an array-like heap representation of the tree where a node at index i has children at 2*i + 1 and 2*i + 2. However, this is highly inefficient for skewed trees because it requires O(2^H) size, leading to Memory Limit Exceeded.",
+          "algorithm": "1. Perform a recursive helper to place tree elements in an array at index-based positions.\n2. Convert the array to a comma-separated string.\n3. To deserialize, read indices and recreate nodes.",
+          "code": "def serialize(root):\n    # Helper to calculate height of tree\n    def get_height(node):\n        if not node: return 0\n        return 1 + max(get_height(node.left), get_height(node.right))\n    h = get_height(root)\n    # Total slots needed for a full binary tree\n    total_size = (1 << h) - 1\n    arr = [\"#\"] * total_size\n    # Helper to place nodes in array\n    def fill(node, i):\n        if not node: return\n        arr[i] = str(node.val)\n        fill(node.left, 2 * i + 1)\n        fill(node.right, 2 * i + 2)\n    fill(root, 0)\n    return \",\".join(arr)\n\ndef deserialize(data):\n    if not data:\n        return None\n    arr = data.split(\",\")\n    nodes = [None if val == \"#\" else TreeNode(int(val)) for val in arr]\n    for i in range(len(nodes)):\n        if nodes[i]:\n            left_idx = 2 * i + 1\n            right_idx = 2 * i + 2\n            if left_idx < len(nodes):\n                nodes[i].left = nodes[left_idx]\n            if right_idx < len(nodes):\n                nodes[i].right = nodes[right_idx]\n    return nodes[0] if nodes else None",
+          "complexity": {
+            "time": "O(2^H) in the worst case (skewed tree)",
+            "space": "O(2^H) to store the heap-represented tree array"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use Level Order Traversal (BFS) to serialize the tree. Record '#' for Null nodes. We use a queue for serialization and a queue for deserialization to correctly map children to parents sequentially in O(N) time and space.",
+          "algorithm": "Serialization:\n1. If root is None, return empty string.\n2. Initialize queue with root and empty result list.\n3. Loop while queue is not empty: pop node. If exists, append val, queue left and right. If None, append '#'.\n4. Return joined string.\n\nDeserialization:\n1. If data empty, return None.\n2. Split data into list. Create root from list[0].\n3. Initialize queue with root, i = 1.\n4. Loop: pop node. If list[i] != '#', set node.left = TreeNode, enqueue left child. Increment i. Do same for right child. Increment i.\n5. Return root.",
+          "code": "class Codec:\n    def serialize(self, root):\n        # If root is None, return empty string\n        if not root:\n            return \"\"\n        # Initialize queue for level order traversal\n        queue = [root]\n        # List to store serialized values\n        res = []\n        # Loop until queue is empty\n        while queue:\n            # Pop node from queue\n            node = queue.pop(0)\n            # If node exists, add value and append children\n            if node:\n                res.append(str(node.val))\n                queue.append(node.left)\n                queue.append(node.right)\n            # If node is None, append marker\n            else:\n                res.append(\"#\")\n        # Join values with comma\n        return \",\".join(res)\n\n    def deserialize(self, data):\n        # If data is empty, return None\n        if not data:\n            return None\n        # Split string by comma\n        values = data.split(\",\")\n        # Root node\n        root = TreeNode(int(values[0]))\n        # Queue containing nodes to associate children\n        queue = [root]\n        # Index to traverse values\n        i = 1\n        # Loop while queue is not empty and index within bounds\n        while queue and i < len(values):\n            # Pop current node\n            curr = queue.pop(0)\n            # Process left child\n            if values[i] != \"#\":\n                curr.left = TreeNode(int(values[i]))\n                queue.append(curr.left)\n            i += 1\n            # Process right child\n            if i < len(values) and values[i] != \"#\":\n                curr.right = TreeNode(int(values[i]))\n                queue.append(curr.right)\n            i += 1\n        # Return reconstructed root\n        return root",
+          "complexity": {
+            "time": "O(N) for both serialize and deserialize",
+            "space": "O(N) to store values and queue elements"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 4,
+        "desc": "Check if root is None. Let's serialize [1, 2, #, #, #].",
+        "vars": {"root": "TreeNode(1)"}
+      },
+      {
+        "line": 7,
+        "desc": "Initialize queue with root.",
+        "vars": {"queue": "[TreeNode(1)]"}
+      },
+      {
+        "line": 9,
+        "desc": "Initialize result list.",
+        "vars": {"res": "[]"}
+      },
+      {
+        "line": 11,
+        "desc": "Queue is not empty, start BFS loop.",
+        "vars": {}
+      },
+      {
+        "line": 13,
+        "desc": "Pop root node.",
+        "vars": {"node": "TreeNode(1)", "queue": "[]"}
+      },
+      {
+        "line": 16,
+        "desc": "Add root's value to res.",
+        "vars": {"res": "['1']"}
+      },
+      {
+        "line": 17,
+        "desc": "Queue left child (TreeNode(2)).",
+        "vars": {"queue": "[TreeNode(2)]"}
+      },
+      {
+        "line": 18,
+        "desc": "Queue right child (None).",
+        "vars": {"queue": "[TreeNode(2), None]"}
+      },
+      {
+        "line": 11,
+        "desc": "Next loop iteration: pop TreeNode(2).",
+        "vars": {"node": "TreeNode(2)", "queue": "[None]"}
+      },
+      {
+        "line": 16,
+        "desc": "Add '2' to res.",
+        "vars": {"res": "['1', '2']"}
+      },
+      {
+        "line": 18,
+        "desc": "Queue left and right children (both None).",
+        "vars": {"queue": "[None, None, None]"}
+      },
+      {
+        "line": 13,
+        "desc": "Pop None.",
+        "vars": {"node": "None"}
+      },
+      {
+        "line": 21,
+        "desc": "Append '#' for None.",
+        "vars": {"res": "['1', '2', '#']"}
+      },
+      {
+        "line": 23,
+        "desc": "Loop continues until all None elements popped, then joins and returns.",
+        "vars": {"res": "['1', '2', '#', '#', '#']", "return_val": "'1,2,#,#,#'"}
+      }
+    ]
+  },
+  "Morris Inorder Traversal": {
+    "solution": {
+      "title": "Morris Inorder Traversal",
+      "problemStatement": "Given the root of a binary tree, return the inorder traversal of its nodes' values using Morris Inorder Traversal which uses O(1) auxiliary space.",
+      "examples": [
+        {
+          "input": "root = [1,null,2,3]",
+          "output": "[1,3,2]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 100].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Empty tree.",
+        "Single node.",
+        "Skewed tree."
+      ],
+      "followUps": [
+        "How does Morris Traversal modify the tree during traversal, and does it restore it back to its original state?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Standard inorder traversal using recursion or an explicit stack. These approaches require O(H) auxiliary space due to the function call stack or the node stack.",
+          "algorithm": "1. Initialize empty list and stack.\n2. Traverse left to the leaf, pushing nodes onto the stack.\n3. Pop node, visit, and move to its right subtree.\n4. Repeat.",
+          "code": "def inorderTraversal(root):\n    # List to store inorder elements\n    res = []\n    # Stack for iterative traversal\n    stack = []\n    curr = root\n    # Loop until elements or stack is empty\n    while curr or stack:\n        # Reach the leftmost node of the current node\n        while curr:\n            stack.append(curr)\n            curr = curr.left\n        # Current must be None at this point\n        curr = stack.pop()\n        # Add the node value to result\n        res.append(curr.val)\n        # We have visited the node and its left subtree, now visit right subtree\n        curr = curr.right\n    # Return traversal result\n    return res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H) recursion/stack space"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Morris Traversal uses threaded binary trees to traverse without recursion/stack. We find the inorder predecessor of the current node. If its right child is null, we set it to current (create thread) and move left. If its right child points to current, we set it back to null (cut thread), visit current, and move right.",
+          "algorithm": "1. Initialize result list and curr = root.\n2. While curr is not None:\n3. If curr.left is None, visit curr and move curr = curr.right.\n4. Else, find inorder predecessor: pred = curr.left, traverse right until pred.right is None or pred.right == curr.\n5. If pred.right is None, set pred.right = curr, move curr = curr.left.\n6. Else (pred.right is curr), set pred.right = None, visit curr, move curr = curr.right.\n7. Return result.",
+          "code": "def morrisInorder(root):\n    # List to store the result of inorder traversal\n    result = []\n    # Start traversing from the root\n    curr = root\n    # Loop until the current node is None\n    while curr:\n        # If there is no left child\n        if not curr.left:\n            # Visit the current node\n            result.append(curr.val)\n            # Move to the right child\n            curr = curr.right\n        else:\n            # Find the inorder predecessor (rightmost node in left subtree)\n            pred = curr.left\n            while pred.right and pred.right != curr:\n                pred = pred.right\n            # If the predecessor's right is None, create a thread\n            if not pred.right:\n                pred.right = curr\n                curr = curr.left\n            # If thread exists, cut the thread, visit current and move right\n            else:\n                pred.right = None\n                result.append(curr.val)\n                curr = curr.right\n    # Return the inorder traversal list\n    return result",
+          "complexity": {
+            "time": "O(N) since each edge is traversed at most 3 times",
+            "space": "O(1) auxiliary space"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize result list.",
+        "vars": {"result": "[]"}
+      },
+      {
+        "line": 5,
+        "desc": "Set curr to root. Let tree be 2 -> left: 1, right: None.",
+        "vars": {"curr": "TreeNode(2)"}
+      },
+      {
+        "line": 7,
+        "desc": "curr is not None, enter loop.",
+        "vars": {"curr.val": 2}
+      },
+      {
+        "line": 9,
+        "desc": "Check if left child exists. It does (1).",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Find predecessor of 2 (which is 1).",
+        "vars": {"pred": "TreeNode(1)"}
+      },
+      {
+        "line": 17,
+        "desc": "Predecessor's right is None.",
+        "vars": {"pred.right": "null"}
+      },
+      {
+        "line": 20,
+        "desc": "pred.right is None, create thread pointing to curr.",
+        "vars": {"pred.right.val": 2}
+      },
+      {
+        "line": 21,
+        "desc": "Move curr to left child.",
+        "vars": {"curr.val": 1}
+      },
+      {
+        "line": 7,
+        "desc": "Next loop iteration: curr is 1.",
+        "vars": {"curr.val": 1}
+      },
+      {
+        "line": 9,
+        "desc": "Left child of 1 is None.",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "Visit 1, append to result.",
+        "vars": {"result": "[1]"}
+      },
+      {
+        "line": 13,
+        "desc": "Move curr to right. Follows the thread back to 2.",
+        "vars": {"curr.val": 2}
+      },
+      {
+        "line": 7,
+        "desc": "Next loop: curr is 2.",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Find predecessor of 2. It is 1, and its right child is 2.",
+        "vars": {"pred": "TreeNode(1)", "pred.right": "TreeNode(2)"}
+      },
+      {
+        "line": 24,
+        "desc": "pred.right is curr, meaning left subtree already visited.",
+        "vars": {}
+      },
+      {
+        "line": 25,
+        "desc": "Cut the thread (set pred.right to None).",
+        "vars": {"pred.right": "null"}
+      },
+      {
+        "line": 26,
+        "desc": "Visit 2, append to result.",
+        "vars": {"result": "[1, 2]"}
+      },
+      {
+        "line": 27,
+        "desc": "Move curr to right child (None).",
+        "vars": {"curr": "null"}
+      },
+      {
+        "line": 29,
+        "desc": "Loop terminates, return result.",
+        "vars": {"result": "[1, 2]"}
+      }
+    ]
+  },
+  "Morris Preorder Traversal": {
+    "solution": {
+      "title": "Morris Preorder Traversal",
+      "problemStatement": "Given the root of a binary tree, return the preorder traversal of its nodes' values using Morris Preorder Traversal which uses O(1) auxiliary space.",
+      "examples": [
+        {
+          "input": "root = [1,null,2,3]",
+          "output": "[1,2,3]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 100].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Empty tree.",
+        "Single node.",
+        "Skewed tree."
+      ],
+      "followUps": [
+        "Can we perform Morris Postorder Traversal? If yes, what makes it harder than Inorder and Preorder?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Standard preorder traversal using recursion or stack, which uses auxiliary space proportional to the height of the tree.",
+          "algorithm": "1. If root is None, return empty list.\n2. Push root to stack.\n3. While stack not empty: pop node, visit, push right child, then push left child.\n4. Return traversal list.",
+          "code": "def preorderTraversal(root):\n    # Base case: empty tree\n    if not root:\n        return []\n    # Result list and stack starting with root\n    res, stack = [], [root]\n    # Loop until stack is empty\n    while stack:\n        # Pop current node and visit it\n        node = stack.pop()\n        res.append(node.val)\n        # Push right child first so left is processed first\n        if node.right:\n            stack.append(node.right)\n        if node.left:\n            stack.append(node.left)\n    # Return result\n    return res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H) recursion/stack space"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Similar to Morris Inorder Traversal, but we visit/record the node's value when we first create the thread (i.e. when pred.right is None), because in preorder we visit root before left subtree. If pred.right is already pointing to current, we just cut the thread and move to right child.",
+          "algorithm": "1. Initialize result list and curr = root.\n2. While curr is not None:\n3. If curr.left is None, visit curr, move curr = curr.right.\n4. Else, find predecessor: pred = curr.left, traverse right until pred.right is None or pred.right == curr.\n5. If pred.right is None, set pred.right = curr, visit curr, move curr = curr.left.\n6. Else (pred.right == curr), set pred.right = None, move curr = curr.right.\n7. Return result.",
+          "code": "def morrisPreorder(root):\n    # List to store the result of preorder traversal\n    result = []\n    # Start traversing from the root\n    curr = root\n    # Loop until the current node is None\n    while curr:\n        # If there is no left child\n        if not curr.left:\n            # Visit the current node\n            result.append(curr.val)\n            # Move to the right child\n            curr = curr.right\n        else:\n            # Find the inorder predecessor\n            pred = curr.left\n            while pred.right and pred.right != curr:\n                pred = pred.right\n            # If the predecessor's right is None, create a thread and visit root\n            if not pred.right:\n                pred.right = curr\n                result.append(curr.val)\n                curr = curr.left\n            # If thread exists, cut the thread and move right\n            else:\n                pred.right = None\n                curr = curr.right\n    # Return the preorder traversal list\n    return result",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(1) auxiliary space"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize result list.",
+        "vars": {"result": "[]"}
+      },
+      {
+        "line": 5,
+        "desc": "Set curr to root. Let tree be 2 -> left: 1, right: None.",
+        "vars": {"curr": "TreeNode(2)"}
+      },
+      {
+        "line": 7,
+        "desc": "curr is not None, enter loop.",
+        "vars": {"curr.val": 2}
+      },
+      {
+        "line": 9,
+        "desc": "Left child exists.",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Find predecessor of 2.",
+        "vars": {"pred": "TreeNode(1)"}
+      },
+      {
+        "line": 20,
+        "desc": "Create thread: pred.right = curr.",
+        "vars": {"pred.right.val": 2}
+      },
+      {
+        "line": 22,
+        "desc": "Visit current node (2) before moving left.",
+        "vars": {"result": "[2]"}
+      },
+      {
+        "line": 23,
+        "desc": "Move curr to left child.",
+        "vars": {"curr.val": 1}
+      },
+      {
+        "line": 7,
+        "desc": "Next loop: curr is 1.",
+        "vars": {"curr.val": 1}
+      },
+      {
+        "line": 9,
+        "desc": "Left child of 1 is None.",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "Visit 1.",
+        "vars": {"result": "[2, 1]"}
+      },
+      {
+        "line": 13,
+        "desc": "Move curr right (thread back to 2).",
+        "vars": {"curr.val": 2}
+      },
+      {
+        "line": 7,
+        "desc": "Next loop: curr is 2.",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Find predecessor (1) and detect thread to 2.",
+        "vars": {"pred": "TreeNode(1)", "pred.right": "TreeNode(2)"}
+      },
+      {
+        "line": 26,
+        "desc": "Cut the thread (set pred.right to None).",
+        "vars": {"pred.right": "null"}
+      },
+      {
+        "line": 27,
+        "desc": "Move curr to right child (None).",
+        "vars": {"curr": "null"}
+      },
+      {
+        "line": 29,
+        "desc": "Return preorder list.",
+        "vars": {"result": "[2, 1]"}
+      }
+    ]
+  },
+  "Flatten Binary Tree to Linked List": {
+    "solution": {
+      "title": "Flatten Binary Tree to Linked List",
+      "problemStatement": "Given the root of a binary tree, flatten the tree into a 'linked list':\n1. The 'linked list' should use the same TreeNode class where the right child pointer points to the next node in the list and the left child pointer is always null.\n2. The 'linked list' should be in the same order as a pre-order traversal of the binary tree.",
+      "examples": [
+        {
+          "input": "root = [1,2,5,3,4,null,6]",
+          "output": "[1,null,2,null,3,null,4,null,5,null,6]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 2000].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Empty tree.",
+        "Single node.",
+        "Already flattened tree."
+      ],
+      "followUps": [
+        "Can you flatten the tree in-place (with O(1) extra space)?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Perform a standard preorder traversal of the tree, store all node references in a list, then loop through the list and adjust pointers such that each node's left child is None and its right child is the next node in the list.",
+          "algorithm": "1. Do a preorder traversal and collect all nodes in a list `arr`.\n2. For each node in `arr` from index 0 to len(arr)-2, set `node.left = None` and `node.right = arr[i+1]`.\n3. For the last node, set left and right to None.",
+          "code": "def flatten(root):\n    # If root is empty, do nothing\n    if not root:\n        return\n    # List to store nodes in preorder sequence\n    arr = []\n    # Helper function for preorder traversal\n    def preorder(node):\n        if not node:\n            return\n        arr.append(node)\n        preorder(node.left)\n        preorder(node.right)\n    # Run preorder traversal\n    preorder(root)\n    # Re-link the nodes in the list\n    for i in range(len(arr) - 1):\n        arr[i].left = None\n        arr[i].right = arr[i + 1]\n    # Clean up the last node's children pointers\n    arr[-1].left = None\n    arr[-1].right = None",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N) to store node references in array and recursion stack"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Iteratively process nodes. For each node, if it has a left child, find the rightmost node of its left subtree (its preorder predecessor). Connect this rightmost node's right child to the current node's right child. Then, move the entire left subtree to the right, set the left child to null, and move current to its right.",
+          "algorithm": "1. Initialize curr = root.\n2. While curr is not None:\n3. If curr.left is not None, set prev = curr.left.\n4. Traverse prev.right until prev.right is None.\n5. Set prev.right = curr.right.\n6. Set curr.right = curr.left, and curr.left = None.\n7. Move curr = curr.right.\n8. Repeat until curr is None.",
+          "code": "def flatten(root):\n    # Start from the root node\n    curr = root\n    # Loop until current node is None\n    while curr:\n        # If left child exists\n        if curr.left:\n            # Find the rightmost node of the left subtree\n            prev = curr.left\n            while prev.right:\n                prev = prev.right\n            # Connect the rightmost node's right to current's right\n            prev.right = curr.right\n            # Move left subtree to right\n            curr.right = curr.left\n            # Set left child to None\n            curr.left = None\n        # Move to the right child\n        curr = curr.right",
+          "complexity": {
+            "time": "O(N) since each node/edge is processed at most twice",
+            "space": "O(1) auxiliary space"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Set curr to root. Let tree be 1 -> left: 2, right: 5.",
+        "vars": {"curr": "TreeNode(1)"}
+      },
+      {
+        "line": 5,
+        "desc": "curr is not None, enter loop.",
+        "vars": {"curr.val": 1}
+      },
+      {
+        "line": 7,
+        "desc": "Check if left child exists. It does (2).",
+        "vars": {}
+      },
+      {
+        "line": 9,
+        "desc": "Find predecessor in left subtree. Start with prev = curr.left.",
+        "vars": {"prev": "TreeNode(2)"}
+      },
+      {
+        "line": 10,
+        "desc": "prev.right is None, loop ends.",
+        "vars": {}
+      },
+      {
+        "line": 13,
+        "desc": "Connect predecessor's right to current's right (node 5).",
+        "vars": {"prev.right.val": 5}
+      },
+      {
+        "line": 15,
+        "desc": "Move left subtree to right of current.",
+        "vars": {"curr.right.val": 2}
+      },
+      {
+        "line": 17,
+        "desc": "Set left child of current to None.",
+        "vars": {"curr.left": "null"}
+      },
+      {
+        "line": 19,
+        "desc": "Move curr to its right child (node 2).",
+        "vars": {"curr.val": 2}
+      },
+      {
+        "line": 5,
+        "desc": "Next loop iteration: curr is 2.",
+        "vars": {}
+      }
+    ]
+  },
+  "Floor in BST": {
+    "solution": {
+      "title": "Floor in BST",
+      "problemStatement": "Given a Binary Search Tree (BST) and a key, find the floor of the key in BST.\n\nThe floor value is the greatest value in the BST that is smaller than or equal to the key. If no such value exists, return -1.",
+      "examples": [
+        {
+          "input": "root = [8,2,12,1,4,9,14], key = 5",
+          "output": "4",
+          "explanation": "The greatest value in BST which is <= 5 is 4."
+        }
+      ],
+      "constraints": [
+        "1 <= Number of nodes <= 10^5",
+        "1 <= Node.val, key <= 10^6"
+      ],
+      "edgeCases": [
+        "Key is smaller than the smallest element in BST (returns -1).",
+        "Key exists in BST (returns key).",
+        "Empty BST."
+      ],
+      "followUps": [
+        "Can you solve this recursively? What is the maximum recursion depth?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Perform a standard inorder traversal of the BST to extract all node values in a sorted list. Then, search for the floor of the key in the sorted list by either linear scan or binary search.",
+          "algorithm": "1. Do inorder traversal, saving node values to a list `vals`.\n2. Initialize floor_val = -1.\n3. Loop through `vals`. If val <= key, update floor_val = val.\n4. Return floor_val.",
+          "code": "def findFloor(root, key):\n    # List to store BST elements in sorted order\n    vals = []\n    # Helper function for inorder traversal\n    def inorder(node):\n        if not node:\n            return\n        inorder(node.left)\n        vals.append(node.val)\n        inorder(node.right)\n    # Collect all elements\n    inorder(root)\n    # Find floor value\n    floor_val = -1\n    for val in vals:\n        if val <= key:\n            floor_val = val\n        else:\n            break\n    # Return the floor value found\n    return floor_val",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N) to store tree nodes"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Leverage BST properties to traverse. At each step, if node value matches key, node value is the floor. If key is smaller than node value, the floor must reside in the left subtree. If key is larger, the current node is a potential floor candidate, and we check the right subtree to find a closer (larger) value.",
+          "algorithm": "1. Initialize floor = -1, curr = root.\n2. While curr is not None:\n3. If curr.val == key, return key.\n4. If key < curr.val, move left (curr = curr.left).\n5. Else, update floor = curr.val, move right (curr = curr.right).\n6. Return floor.",
+          "code": "def findFloor(root, key):\n    # Initialize floor value to -1\n    floor = -1\n    # Pointer to traverse the BST\n    curr = root\n    # Loop until we reach a leaf node\n    while curr:\n        # If node value equals key, it is the floor\n        if curr.val == key:\n            return curr.val\n        # If key is smaller, floor must be in left subtree\n        elif key < curr.val:\n            curr = curr.left\n        # If key is larger, current node is a candidate floor\n        else:\n            floor = curr.val\n            # Move to right subtree to search for a larger candidate\n            curr = curr.right\n    # Return the floor value\n    return floor",
+          "complexity": {
+            "time": "O(H) where H is the height of the BST",
+            "space": "O(1) auxiliary space"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize floor to -1.",
+        "vars": {"floor": -1}
+      },
+      {
+        "line": 5,
+        "desc": "Set curr to root. BST has root 8, left child 4, right child 12. key is 5.",
+        "vars": {"curr": "TreeNode(8)"}
+      },
+      {
+        "line": 7,
+        "desc": "curr is not None, enter loop.",
+        "vars": {}
+      },
+      {
+        "line": 9,
+        "desc": "Compare curr.val (8) and key (5). 8 == 5 is False.",
+        "vars": {}
+      },
+      {
+        "line": 12,
+        "desc": "key < curr.val (5 < 8) is True. Floor must be in left subtree.",
+        "vars": {}
+      },
+      {
+        "line": 13,
+        "desc": "Move curr to left child.",
+        "vars": {"curr": "TreeNode(4)"}
+      },
+      {
+        "line": 7,
+        "desc": "Next loop: curr is 4.",
+        "vars": {}
+      },
+      {
+        "line": 12,
+        "desc": "key < curr.val (5 < 4) is False.",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Current node (4) is a candidate floor. Update floor to 4.",
+        "vars": {"floor": 4}
+      },
+      {
+        "line": 18,
+        "desc": "Move curr to right child of 4 (None) to search for better candidate.",
+        "vars": {"curr": "null"}
+      },
+      {
+        "line": 7,
+        "desc": "curr is None, loop terminates.",
+        "vars": {}
+      },
+      {
+        "line": 20,
+        "desc": "Return final floor value.",
+        "vars": {"floor": 4}
+      }
+    ]
+  },
+  "Ceil in BST": {
+    "solution": {
+      "title": "Ceil in BST",
+      "problemStatement": "Given a Binary Search Tree (BST) and a key, find the ceil of the key in BST.\n\nThe ceil value is the smallest value in the BST that is greater than or equal to the key. If no such value exists, return -1.",
+      "examples": [
+        {
+          "input": "root = [8,2,12,1,4,9,14], key = 5",
+          "output": "8",
+          "explanation": "The smallest value in BST which is >= 5 is 8."
+        }
+      ],
+      "constraints": [
+        "1 <= Number of nodes <= 10^5",
+        "1 <= Node.val, key <= 10^6"
+      ],
+      "edgeCases": [
+        "Key is larger than the largest element in BST (returns -1).",
+        "Key exists in BST (returns key).",
+        "Empty BST."
+      ],
+      "followUps": [
+        "How would you perform ceil if the keys in the BST are floating-point numbers?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Extract all values from the BST into a sorted list using inorder traversal, then scan or binary search for the first value that is >= key.",
+          "algorithm": "1. Do inorder traversal, saving node values to a list `vals`.\n2. Initialize ceil_val = -1.\n3. Loop through `vals`. If val >= key, update ceil_val = val and break.\n4. Return ceil_val.",
+          "code": "def findCeil(root, key):\n    # List to store BST elements in sorted order\n    vals = []\n    # Helper function for inorder traversal\n    def inorder(node):\n        if not node:\n            return\n        inorder(node.left)\n        vals.append(node.val)\n        inorder(node.right)\n    # Collect all elements\n    inorder(root)\n    # Find ceil value\n    ceil_val = -1\n    for val in vals:\n        if val >= key:\n            ceil_val = val\n            break\n    # Return the ceil value found\n    return ceil_val",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Traverse the BST using BST properties. If node value matches key, key is the ceil. If node value is smaller than key, ceil must reside in the right subtree. If node value is larger than key, current node is a potential ceil candidate, and we check the left subtree to see if there is a closer (smaller) value.",
+          "algorithm": "1. Initialize ceil = -1, curr = root.\n2. While curr is not None:\n3. If curr.val == key, return key.\n4. If key > curr.val, move right (curr = curr.right).\n5. Else, update ceil = curr.val, move left (curr = curr.left).\n6. Return ceil.",
+          "code": "def findCeil(root, key):\n    # Initialize ceil value to -1\n    ceil = -1\n    # Pointer to traverse the BST\n    curr = root\n    # Loop until we reach a leaf node\n    while curr:\n        # If node value equals key, it is the ceil\n        if curr.val == key:\n            return curr.val\n        # If key is larger, ceil must be in right subtree\n        elif key > curr.val:\n            curr = curr.right\n        # If key is smaller, current node is a candidate ceil\n        else:\n            ceil = curr.val\n            # Move to left subtree to search for a smaller candidate\n            curr = curr.left\n    # Return the ceil value\n    return ceil",
+          "complexity": {
+            "time": "O(H) where H is BST height",
+            "space": "O(1) auxiliary space"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Initialize ceil to -1.",
+        "vars": {"ceil": -1}
+      },
+      {
+        "line": 5,
+        "desc": "Set curr to root. BST has root 8, left child 4, right child 12. key is 5.",
+        "vars": {"curr": "TreeNode(8)"}
+      },
+      {
+        "line": 7,
+        "desc": "curr is not None, enter loop.",
+        "vars": {}
+      },
+      {
+        "line": 12,
+        "desc": "key > curr.val (5 > 8) is False.",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Current node (8) is a candidate ceil. Update ceil to 8.",
+        "vars": {"ceil": 8}
+      },
+      {
+        "line": 18,
+        "desc": "Move curr to left child to search for a closer candidate.",
+        "vars": {"curr": "TreeNode(4)"}
+      },
+      {
+        "line": 7,
+        "desc": "Next loop: curr is 4.",
+        "vars": {}
+      },
+      {
+        "line": 12,
+        "desc": "key > curr.val (5 > 4) is True. Ceil must be in right subtree.",
+        "vars": {}
+      },
+      {
+        "line": 13,
+        "desc": "Move curr right (to None).",
+        "vars": {"curr": "null"}
+      },
+      {
+        "line": 7,
+        "desc": "curr is None, loop terminates.",
+        "vars": {}
+      },
+      {
+        "line": 20,
+        "desc": "Return final ceil value.",
+        "vars": {"ceil": 8}
+      }
+    ]
+  },
+  "Insert Node in BST": {
+    "solution": {
+      "title": "Insert Node in BST",
+      "problemStatement": "Given the root of a binary search tree and a value to insert, insert the value into the BST and return the root of the modified BST. It is guaranteed that the new value does not exist in the original BST.",
+      "examples": [
+        {
+          "input": "root = [4,2,7,1,3], val = 5",
+          "output": "[4,2,7,1,3,5]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 10^4].",
+        "-10^8 <= Node.val <= 10^8",
+        "val does not exist in the BST."
+      ],
+      "edgeCases": [
+        "Empty BST (returns TreeNode(val)).",
+        "Inserting as a left child of a leaf node.",
+        "Inserting as a right child of a leaf node."
+      ],
+      "followUps": [
+        "Can you insert a node into BST recursively in O(H) space?",
+        "Can we keep the BST balanced after insertions?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Insert recursively. The recursive implementation is simple, but it consumes O(H) auxiliary space on the call stack, which is non-optimal compared to the iterative O(1) space approach.",
+          "algorithm": "1. If root is None, return a new TreeNode with val.\n2. If val < root.val, recursively set root.left = insertIntoBST(root.left, val).\n3. Else, recursively set root.right = insertIntoBST(root.right, val).\n4. Return root.",
+          "code": "def insertIntoBST(root, val):\n    # If root is None, return new node\n    if not root:\n        return TreeNode(val)\n    # Recurse on left or right subtree\n    if val < root.val:\n        root.left = insertIntoBST(root.left, val)\n    else:\n        root.right = insertIntoBST(root.right, val)\n    # Return root\n    return root",
+          "complexity": {
+            "time": "O(H)",
+            "space": "O(H) recursion stack space"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Iteratively traverse down the tree. At each step, go left if the val is smaller than current node, and go right if it is larger. When the direction we want to go is empty (None), we insert the new node at that spot and stop.",
+          "algorithm": "1. If root is None, return new TreeNode.\n2. Initialize curr = root.\n3. Loop:\n4. If val < curr.val: if curr.left is None, set curr.left = TreeNode(val) and break; else curr = curr.left.\n5. Else (val > curr.val): if curr.right is None, set curr.right = TreeNode(val) and break; else curr = curr.right.\n6. Return root.",
+          "code": "def insertIntoBST(root, val):\n    # If root is None, return new node\n    if not root:\n        return TreeNode(val)\n    # Pointer to traverse the BST\n    curr = root\n    # Loop to find the insertion point\n    while True:\n        # If value is smaller than current node\n        if val < curr.val:\n            # If left child exists, move left\n            if curr.left:\n                curr = curr.left\n            # If left child is None, insert here\n            else:\n                curr.left = TreeNode(val)\n                break\n        # If value is larger than current node\n        else:\n            # If right child exists, move right\n            if curr.right:\n                curr = curr.right\n            # If right child is None, insert here\n            else:\n                curr.right = TreeNode(val)\n                break\n    # Return the root of BST\n    return root",
+          "complexity": {
+            "time": "O(H) where H is the height of BST",
+            "space": "O(1) auxiliary space"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Check if root is None. It is not.",
+        "vars": {"root.val": 4}
+      },
+      {
+        "line": 6,
+        "desc": "Set curr to root. val to insert is 5.",
+        "vars": {"curr.val": 4, "val": 5}
+      },
+      {
+        "line": 10,
+        "desc": "Compare val (5) and curr.val (4). 5 < 4 is False.",
+        "vars": {}
+      },
+      {
+        "line": 21,
+        "desc": "Check if right child of 4 exists. It does (7).",
+        "vars": {"curr.right.val": 7}
+      },
+      {
+        "line": 22,
+        "desc": "Move curr to right child.",
+        "vars": {"curr.val": 7}
+      },
+      {
+        "line": 10,
+        "desc": "Compare val (5) and curr.val (7). 5 < 7 is True.",
+        "vars": {}
+      },
+      {
+        "line": 12,
+        "desc": "Check if left child of 7 exists. It is None.",
+        "vars": {"curr.left": "null"}
+      },
+      {
+        "line": 16,
+        "desc": "Left child is None, insert new TreeNode(5) here.",
+        "vars": {"curr.left.val": 5}
+      },
+      {
+        "line": 17,
+        "desc": "Break loop.",
+        "vars": {}
+      },
+      {
+        "line": 28,
+        "desc": "Return root of BST.",
+        "vars": {"root.val": 4}
+      }
+    ]
+  },
+  "Delete Node in BST": {
+    "solution": {
+      "title": "Delete Node in BST",
+      "problemStatement": "Given a root node reference of a BST and a key, delete the node with the given key in the BST. Return the root node reference (possibly updated) of the BST.\n\nBasically, the deletion can be divided into two stages:\n1. Search for a node to remove.\n2. If the node is found, delete the node.",
+      "examples": [
+        {
+          "input": "root = [5,3,6,2,4,null,7], key = 3",
+          "output": "[5,4,6,2,null,null,7]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 10^4].",
+        "-10^5 <= Node.val <= 10^5",
+        "Each node has a unique value.",
+        "key is an integer."
+      ],
+      "edgeCases": [
+        "Key not present in BST.",
+        "Node to delete has 0 children (leaf).",
+        "Node to delete has 1 child.",
+        "Node to delete has 2 children.",
+        "Deleting the root node."
+      ],
+      "followUps": [
+        "Can you implement this by replacing the node with its inorder predecessor instead of successor?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Reconstruct the BST without the deleted node. For example, convert the BST to a sorted array, remove the target value, and rebuild a balanced BST from the sorted array. This takes O(N) time and space.",
+          "algorithm": "1. Traverse tree inorder to build sorted array.\n2. Filter out key from array.\n3. Recursively build BST from subarray: root is mid element, left is left subarray, right is right subarray.\n4. Return root.",
+          "code": "def deleteNode(root, key):\n    # Collect all elements inorder\n    vals = []\n    def inorder(node):\n        if not node:\n            return\n        inorder(node.left)\n        vals.append(node.val)\n        inorder(node.right)\n    inorder(root)\n    # Filter out target key\n    vals = [v for v in vals if v != key]\n    # Helper to construct BST\n    def build(start, end):\n        if start > end:\n            return None\n        mid = (start + end) // 2\n        node = TreeNode(vals[mid])\n        node.left = build(start, mid - 1)\n        node.right = build(mid + 1, end)\n        return node\n    return build(0, len(vals) - 1)",
+          "complexity": {
+            "time": "O(N) to traverse and rebuild",
+            "space": "O(N) for array storage and recursion stack"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Standard BST deletion algorithm. Find the target node recursively. If the node has 0 or 1 child, return the child (or null). If it has 2 children, find its inorder successor (minimum value in right subtree), copy its value to the current node, and then recursively delete that successor node from the right subtree.",
+          "algorithm": "1. If root is None, return None.\n2. If key < root.val, root.left = deleteNode(root.left, key).\n3. If key > root.val, root.right = deleteNode(root.right, key).\n4. If key == root.val:\n   a. If left child is None, return right child.\n   b. If right child is None, return left child.\n   c. Otherwise, find inorder successor: temp = root.right, traverse temp.left until None.\n   d. root.val = temp.val.\n   e. root.right = deleteNode(root.right, temp.val).\n5. Return root.",
+          "code": "def deleteNode(root, key):\n    # Base case: if root is None, key not found\n    if not root:\n        return None\n    # Search for the node to delete\n    if key < root.val:\n        root.left = deleteNode(root.left, key)\n    elif key > root.val:\n        root.right = deleteNode(root.right, key)\n    # Target node found\n    else:\n        # Case 1 & 2: Node has 0 or 1 child\n        if not root.left:\n            return root.right\n        elif not root.right:\n            return root.left\n        # Case 3: Node has 2 children\n        # Find inorder successor (minimum in right subtree)\n        temp = root.right\n        while temp.left:\n            temp = temp.left\n        # Copy successor's value to current node\n        root.val = temp.val\n        # Delete successor node\n        root.right = deleteNode(root.right, temp.val)\n    # Return root\n    return root",
+          "complexity": {
+            "time": "O(H) where H is the height of BST",
+            "space": "O(H) for recursive call stack"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Check if root is None. It is not.",
+        "vars": {"root.val": 5}
+      },
+      {
+        "line": 6,
+        "desc": "Compare key (3) and root.val (5). 3 < 5 is True.",
+        "vars": {}
+      },
+      {
+        "line": 7,
+        "desc": "Recursively call deleteNode on root.left (TreeNode(3)).",
+        "vars": {}
+      },
+      {
+        "line": 3,
+        "desc": "Within deleteNode(3, 3), check if root is None. It is not.",
+        "vars": {"root.val": 3}
+      },
+      {
+        "line": 6,
+        "desc": "Compare key (3) and root.val (3). 3 < 3 is False.",
+        "vars": {}
+      },
+      {
+        "line": 8,
+        "desc": "Compare key (3) and root.val (3). 3 > 3 is False.",
+        "vars": {}
+      },
+      {
+        "line": 13,
+        "desc": "Target found. Check root.left (TreeNode(2)). It exists.",
+        "vars": {"root.left.val": 2}
+      },
+      {
+        "line": 15,
+        "desc": "Check root.right (TreeNode(4)). It exists.",
+        "vars": {"root.right.val": 4}
+      },
+      {
+        "line": 19,
+        "desc": "Find inorder successor. Start temp = root.right (4).",
+        "vars": {"temp.val": 4}
+      },
+      {
+        "line": 20,
+        "desc": "temp.left is None, loop terminates.",
+        "vars": {}
+      },
+      {
+        "line": 23,
+        "desc": "Copy successor value (4) to current node. Node value becomes 4.",
+        "vars": {"root.val": 4}
+      },
+      {
+        "line": 25,
+        "desc": "Delete successor value (4) from right subtree.",
+        "vars": {}
+      },
+      {
+        "line": 27,
+        "desc": "Return updated root (val 4) to caller.",
+        "vars": {"root.val": 4}
+      }
+    ]
+  }
+}

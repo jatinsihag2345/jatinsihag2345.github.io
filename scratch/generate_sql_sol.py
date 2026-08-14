@@ -1,0 +1,525 @@
+import json
+
+data = {
+  "Project Employees I": {
+    "title": "Project Employees I",
+    "problemStatement": "Write a solution to report the average experience years of all the employees for each project, rounded to 2 decimal places.",
+    "schema": "CREATE TABLE Project (\n    project_id INT,\n    employee_id INT,\n    PRIMARY KEY (project_id, employee_id)\n);\nCREATE TABLE Employee (\n    employee_id INT PRIMARY KEY,\n    name VARCHAR(30),\n    experience_years INT\n);",
+    "exampleData": [
+      {
+        "tableName": "Project",
+        "headers": ["project_id", "employee_id"],
+        "rows": [[1, 1], [1, 2], [1, 3], [2, 1], [2, 4]]
+      },
+      {
+        "tableName": "Employee",
+        "headers": ["employee_id", "name", "experience_years"],
+        "rows": [[1, "Khaled", 3], [2, "Ali", 2], [3, "John", 1], [4, "Doe", 2]]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "ProjectEmployees1Output",
+      "headers": ["project_id", "average_years"],
+      "rows": [[1, 2.00], [2, 2.50]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT \n    p.project_id, \n    ROUND(AVG(e.experience_years), 2) AS average_years\nFROM Project p\nLEFT JOIN Employee e ON p.employee_id = e.employee_id\nGROUP BY p.project_id;",
+        "explanation": "Join the Project table with the Employee table on employee_id to retrieve the experience years of each employee. Then group the records by project_id and compute the average of experience_years, rounding it to 2 decimal places using the ROUND function."
+      }
+    ],
+    "edgeCases": [
+      "Projects with no corresponding employees in the Employee table (returns NULL for experience years unless handled)",
+      "All employees in a project having NULL experience years (ROUND(AVG(...)) will result in NULL)"
+    ]
+  },
+  "Percentage of Users Attended a Contest": {
+    "title": "Percentage of Users Attended a Contest",
+    "problemStatement": "Write a solution to find the percentage of the users registered in each contest rounded to two decimal places. Return the result table ordered by percentage in descending order. In case of a tie, order it by contest_id in ascending order.",
+    "schema": "CREATE TABLE Users (\n    user_id INT PRIMARY KEY,\n    user_name VARCHAR(20)\n);\nCREATE TABLE Register (\n    contest_id INT,\n    user_id INT,\n    PRIMARY KEY (contest_id, user_id)\n);",
+    "exampleData": [
+      {
+        "tableName": "Users",
+        "headers": ["user_id", "user_name"],
+        "rows": [[6, "Alice"], [2, "Bob"], [7, "Alex"]]
+      },
+      {
+        "tableName": "Register",
+        "headers": ["contest_id", "user_id"],
+        "rows": [[215, 6], [209, 2], [208, 2], [210, 6], [208, 6], [210, 7], [209, 7], [209, 6], [215, 7], [208, 7], [210, 2], [207, 2]]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "ContestPercentageOutput",
+      "headers": ["contest_id", "percentage"],
+      "rows": [[208, 100.00], [209, 100.00], [210, 100.00], [215, 66.67], [207, 33.33]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT \n    contest_id, \n    ROUND(COUNT(user_id) * 100.0 / (SELECT COUNT(*) FROM Users), 2) AS percentage\nFROM Register\nGROUP BY contest_id\nORDER BY percentage DESC, contest_id ASC;",
+        "explanation": "Group by contest_id to find the number of registrations for each contest. Divide this number by the total number of users (fetched via a subquery from the Users table) and multiply by 100.0. Round the resulting percentage to 2 decimal places and sort by percentage descending, then by contest_id ascending."
+      }
+    ],
+    "edgeCases": [
+      "Users registered in contests who are not present in the Users table (unlikely under FK constraints, but division would be off if so)",
+      "Some users registered in zero contests (they will not appear in the contest list, which is correct)"
+    ]
+  },
+  "Queries Quality and Percentage": {
+    "title": "Queries Quality and Percentage",
+    "problemStatement": "Write a solution to find each query_name, the quality, and the poor_query_percentage.\n\n- quality is the average of the ratio between query rating and its position.\n- poor_query_percentage is the percentage of all queries for this query name with rating < 3.\n\nBoth quality and poor_query_percentage should be rounded to 2 decimal places.",
+    "schema": "CREATE TABLE Queries (\n    query_name VARCHAR(30),\n    result VARCHAR(50),\n    position INT,\n    rating INT\n);",
+    "exampleData": [
+      {
+        "tableName": "Queries",
+        "headers": ["query_name", "result", "position", "rating"],
+        "rows": [
+          ["Dog", "Golden Retriever", 1, 5],
+          ["Dog", "German Shepherd", 2, 5],
+          ["Dog", "Mule", 200, 1],
+          ["Cat", "Shirazi", 5, 2],
+          ["Cat", "Siamese", 3, 3],
+          ["Cat", "Sphynx", 7, 4]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "QueriesQualityOutput",
+      "headers": ["query_name", "quality", "poor_query_percentage"],
+      "rows": [
+        ["Dog", 2.50, 33.33],
+        ["Cat", 0.66, 33.33]
+      ]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT \n    query_name,\n    ROUND(AVG(rating * 1.0 / position), 2) AS quality,\n    ROUND(SUM(CASE WHEN rating < 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS poor_query_percentage\nFROM Queries\nWHERE query_name IS NOT NULL\nGROUP BY query_name;",
+        "explanation": "Group by query_name (filtering out NULLs). For quality, calculate the average of (rating / position) by converting to decimal (multiplying by 1.0) and rounding to 2 decimal places. For poor_query_percentage, count the number of queries with a rating < 3 using SUM(CASE WHEN...), divide by the total query count for that group, multiply by 100.0, and round to 2 decimal places."
+      }
+    ],
+    "edgeCases": [
+      "query_name is NULL (the where filter ignores these)",
+      "Queries with high position numbers causing small ratios",
+      "0% or 100% poor queries for a query name"
+    ]
+  },
+  "Monthly Transactions I": {
+    "title": "Monthly Transactions I",
+    "problemStatement": "Write a solution to find for each month and country, the number of transactions and their total amount, the number of approved transactions and their total amount.",
+    "schema": "CREATE TABLE Transactions (\n    id INT PRIMARY KEY,\n    country VARCHAR(4),\n    state VARCHAR(10),\n    amount INT,\n    trans_date DATE\n);",
+    "exampleData": [
+      {
+        "tableName": "Transactions",
+        "headers": ["id", "country", "state", "amount", "trans_date"],
+        "rows": [
+          [121, "US", "approved", 1000, "2018-12-18"],
+          [122, "US", "declined", 2000, "2018-12-18"],
+          [123, "US", "approved", 2000, "2019-01-01"],
+          [124, "DE", "approved", 2000, "2019-01-07"]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "MonthlyTransactionsOutput",
+      "headers": ["month", "country", "trans_count", "approved_count", "trans_total_amount", "approved_total_amount"],
+      "rows": [
+        ["2018-12", "US", 2, 1, 3000, 1000],
+        ["2019-01", "US", 1, 1, 2000, 2000],
+        ["2019-01", "DE", 1, 1, 2000, 2000]
+      ]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT \n    DATE_FORMAT(trans_date, '%Y-%m') AS month,\n    country,\n    COUNT(id) AS trans_count,\n    SUM(CASE WHEN state = 'approved' THEN 1 ELSE 0 END) AS approved_count,\n    SUM(amount) AS trans_total_amount,\n    SUM(CASE WHEN state = 'approved' THEN amount ELSE 0 END) AS approved_total_amount\nFROM Transactions\nGROUP BY month, country;",
+        "explanation": "Use DATE_FORMAT to extract year and month ('%Y-%m') from trans_date. Group by this formatted month and country. Count all transactions using COUNT(id), and use conditional SUM (CASE WHEN state = 'approved' THEN ...) to get approved transaction count and their total amount. Standard SUM(amount) gets the total amount."
+      }
+    ],
+    "edgeCases": [
+      "No approved transactions in a month/country group (the count and amount must evaluate to 0 instead of NULL)",
+      "country is NULL (grouping handles NULL values properly)"
+    ]
+  },
+  "Immediate Food Delivery II": {
+    "title": "Immediate Food Delivery II",
+    "problemStatement": "If the customer's preferred delivery date is the same as the order date, then the order is called immediate; otherwise, it is called scheduled.\n\nThe first order of a customer is the order with the earliest order date. It is guaranteed that each customer has exactly one first order.\n\nWrite a solution to find the percentage of immediate orders in the first orders of all customers, rounded to 2 decimal places.",
+    "schema": "CREATE TABLE Delivery (\n    delivery_id INT PRIMARY KEY,\n    customer_id INT,\n    order_date DATE,\n    customer_pref_delivery_date DATE\n);",
+    "exampleData": [
+      {
+        "tableName": "Delivery",
+        "headers": ["delivery_id", "customer_id", "order_date", "customer_pref_delivery_date"],
+        "rows": [
+          [1, 1, "2019-08-01", "2019-08-02"],
+          [2, 2, "2019-08-02", "2019-08-02"],
+          [3, 1, "2019-08-11", "2019-08-12"],
+          [4, 3, "2019-08-24", "2019-08-24"],
+          [5, 3, "2019-08-21", "2019-08-22"],
+          [6, 2, "2019-08-11", "2019-08-13"],
+          [7, 4, "2019-08-09", "2019-08-09"],
+          [8, 4, "2019-08-09", "2019-08-09"]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "ImmediateDelivery2Output",
+      "headers": ["immediate_percentage"],
+      "rows": [[50.00]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT \n    ROUND(SUM(CASE WHEN order_date = customer_pref_delivery_date THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS immediate_percentage\nFROM Delivery\nWHERE (customer_id, order_date) IN (\n    SELECT customer_id, MIN(order_date)\n    FROM Delivery\n    GROUP BY customer_id\n);",
+        "explanation": "Find the first order date for each customer by grouping by customer_id and selecting MIN(order_date) in a subquery. Filter the Delivery table to only contain these first orders, and then calculate the percentage of immediate orders where order_date equals customer_pref_delivery_date."
+      }
+    ],
+    "edgeCases": [
+      "Customers who have multiple orders on the same first date (the problem statement guarantees exactly one first order, or both have the same status)",
+      "All first orders are immediate (100.00%) or all are scheduled (0.00%)"
+    ]
+  },
+  "Game Play Analysis IV": {
+    "title": "Game Play Analysis IV",
+    "problemStatement": "Write a solution to report the fraction of players that logged in again on the day after the day they first logged in, rounded to 2 decimal places. In other words, you need to count the number of players that logged in for at least two consecutive days starting from their first login date, then divide that number by the total number of players.",
+    "schema": "CREATE TABLE Activity (\n    player_id INT,\n    device_id INT,\n    event_date DATE,\n    games_played INT,\n    PRIMARY KEY (player_id, event_date)\n);",
+    "exampleData": [
+      {
+        "tableName": "Activity",
+        "headers": ["player_id", "device_id", "event_date", "games_played"],
+        "rows": [
+          [1, 2, "2016-03-01", 5],
+          [1, 2, "2016-03-02", 6],
+          [2, 3, "2017-06-25", 1],
+          [3, 1, "2016-03-02", 0],
+          [3, 4, "2018-07-03", 5]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "GameplayAnalysis4Output",
+      "headers": ["fraction"],
+      "rows": [[0.33]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "WITH FirstLogin AS (\n    SELECT player_id, MIN(event_date) AS first_date\n    FROM Activity\n    GROUP BY player_id\n)\nSELECT \n    ROUND(COUNT(DISTINCT a.player_id) * 1.0 / (SELECT COUNT(DISTINCT player_id) FROM Activity), 2) AS fraction\nFROM FirstLogin f\nJOIN Activity a ON f.player_id = a.player_id \n    AND a.event_date = DATE_ADD(f.first_date, INTERVAL 1 DAY);",
+        "explanation": "Create a Common Table Expression (CTE) to get the first login date (MIN(event_date)) for each player. Inner join this CTE with the Activity table where the event_date is exactly one day after the first login date. Count the unique players matching this condition and divide by the total number of distinct players in the Activity table, rounding to 2 decimal places."
+      }
+    ],
+    "edgeCases": [
+      "A player logged in consecutively on other days but not on the day after their first login",
+      "Total number of players is 1"
+    ]
+  },
+  "Number of Unique Subjects Taught by Each Teacher": {
+    "title": "Number of Unique Subjects Taught by Each Teacher",
+    "problemStatement": "Write a solution to calculate the number of unique subjects each teacher teaches in the university.",
+    "schema": "CREATE TABLE Teacher (\n    teacher_id INT,\n    subject_id INT,\n    dept_id INT,\n    PRIMARY KEY (teacher_id, subject_id)\n);",
+    "exampleData": [
+      {
+        "tableName": "Teacher",
+        "headers": ["teacher_id", "subject_id", "dept_id"],
+        "rows": [
+          [1, 2, 3],
+          [1, 2, 4],
+          [1, 3, 3],
+          [2, 1, 1],
+          [2, 2, 1],
+          [2, 3, 1],
+          [2, 4, 1]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "TeacherUniqueSubjectsOutput",
+      "headers": ["teacher_id", "cnt"],
+      "rows": [[1, 2], [2, 4]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT \n    teacher_id, \n    COUNT(DISTINCT subject_id) AS cnt\nFROM Teacher\nGROUP BY teacher_id;",
+        "explanation": "Group by teacher_id and use COUNT(DISTINCT subject_id) to calculate the number of unique subjects taught by each teacher."
+      }
+    ],
+    "edgeCases": [
+      "A teacher teaches the same subject across different departments (distinct ensures it is counted only once)"
+    ]
+  },
+  "User Activity for the Past 30 Days I": {
+    "title": "User Activity for the Past 30 Days I",
+    "problemStatement": "Write a solution to find the daily active user count for a period of 30 days ending 2019-07-27 inclusively. A user was active on fields of activity if they made at least one activity on that day.",
+    "schema": "CREATE TABLE Activity (\n    user_id INT,\n    session_id INT,\n    activity_date DATE,\n    activity_type ENUM('open_session', 'end_session', 'scroll_down', 'send_message')\n);",
+    "exampleData": [
+      {
+        "tableName": "Activity",
+        "headers": ["user_id", "session_id", "activity_date", "activity_type"],
+        "rows": [
+          [1, 1, "2019-07-20", "open_session"],
+          [1, 1, "2019-07-20", "scroll_down"],
+          [1, 1, "2019-07-20", "end_session"],
+          [2, 4, "2019-07-20", "open_session"],
+          [2, 4, "2019-07-21", "send_message"],
+          [2, 4, "2019-07-21", "end_session"],
+          [3, 2, "2019-07-21", "open_session"],
+          [3, 2, "2019-07-21", "send_message"],
+          [3, 5, "2019-07-21", "end_session"],
+          [4, 3, "2019-06-25", "open_session"],
+          [4, 3, "2019-06-25", "end_session"]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "ActiveUsers30DaysOutput",
+      "headers": ["day", "active_users"],
+      "rows": [["2019-07-20", 2], ["2019-07-21", 2]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT \n    activity_date AS day, \n    COUNT(DISTINCT user_id) AS active_users\nFROM Activity\nWHERE activity_date BETWEEN '2019-06-28' AND '2019-07-27'\nGROUP BY activity_date;",
+        "explanation": "Filter the rows to include only those within the 30-day window ending on 2019-07-27 (inclusive, starting from 2019-06-28). Group the records by activity_date and count the distinct user_ids for each day."
+      }
+    ],
+    "edgeCases": [
+      "Dates outside the 30-day window (must be filtered out)",
+      "Users performing multiple activities on the same day (must be counted only once)"
+    ]
+  },
+  "Product Sales Analysis III": {
+    "title": "Product Sales Analysis III",
+    "problemStatement": "Write a solution to select the product id, year, quantity, and price for the first year of every product sold.",
+    "schema": "CREATE TABLE Sales (\n    sale_id INT,\n    product_id INT,\n    year INT,\n    quantity INT,\n    price INT,\n    PRIMARY KEY (sale_id, product_id, year)\n);\nCREATE TABLE Product (\n    product_id INT PRIMARY KEY,\n    product_name VARCHAR(10)\n);",
+    "exampleData": [
+      {
+        "tableName": "Sales",
+        "headers": ["sale_id", "product_id", "year", "quantity", "price"],
+        "rows": [
+          [1, 100, 2008, 10, 5000],
+          [2, 100, 2009, 12, 5000],
+          [7, 200, 2011, 15, 9000]
+        ]
+      },
+      {
+        "tableName": "Product",
+        "headers": ["product_id", "product_name"],
+        "rows": [[100, "Nokia"], [200, "Apple"], [300, "Samsung"]]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "ProductSales3Output",
+      "headers": ["product_id", "first_year", "quantity", "price"],
+      "rows": [[100, 2008, 10, 5000], [200, 2011, 15, 9000]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT \n    product_id, \n    year AS first_year, \n    quantity, \n    price\nFROM Sales\nWHERE (product_id, year) IN (\n    SELECT product_id, MIN(year)\n    FROM Sales\n    GROUP BY product_id\n);",
+        "explanation": "Identify the first year of sales for each product by grouping the Sales table by product_id and taking MIN(year) in a subquery. Then, select the details from the Sales table where the product_id and year match the result of the subquery."
+      }
+    ],
+    "edgeCases": [
+      "Products with multiple transactions in their first year (this query correctly returns all of them)",
+      "Products that have never been sold (they will not appear in the Sales table, so they won't be returned)"
+    ]
+  },
+  "Classes More Than 5 Students": {
+    "title": "Classes More Than 5 Students",
+    "problemStatement": "Write a solution to find all the classes that have at least five students.",
+    "schema": "CREATE TABLE Courses (\n    student VARCHAR(255),\n    class VARCHAR(255),\n    PRIMARY KEY (student, class)\n);",
+    "exampleData": [
+      {
+        "tableName": "Courses",
+        "headers": ["student", "class"],
+        "rows": [
+          ["A", "Math"], ["B", "English"], ["C", "Math"], ["D", "Biology"],
+          ["E", "Math"], ["F", "Computer"], ["G", "Math"], ["H", "Math"], ["I", "Math"]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "ClassesMoreThan5StudentsOutput",
+      "headers": ["class"],
+      "rows": [["Math"]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT class\nFROM Courses\nGROUP BY class\nHAVING COUNT(student) >= 5;",
+        "explanation": "Group the Course table by class, count the number of students in each class using COUNT(student), and filter for classes with a count >= 5 in the HAVING clause."
+      }
+    ],
+    "edgeCases": [
+      "Classes with exactly 5 students (should be included)",
+      "No classes matching the filter (returns empty result set)"
+    ]
+  },
+  "Find Followers Count": {
+    "title": "Find Followers Count",
+    "problemStatement": "Write a solution that will, for each user, return the number of followers. Return the result table ordered by user_id in ascending order.",
+    "schema": "CREATE TABLE Followers (\n    user_id INT,\n    follower_id INT,\n    PRIMARY KEY (user_id, follower_id)\n);",
+    "exampleData": [
+      {
+        "tableName": "Followers",
+        "headers": ["user_id", "follower_id"],
+        "rows": [[0, 1], [1, 0], [2, 0], [2, 1]]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "FollowersCountOutput",
+      "headers": ["user_id", "followers_count"],
+      "rows": [[0, 1], [1, 1], [2, 2]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT \n    user_id, \n    COUNT(follower_id) AS followers_count\nFROM Followers\nGROUP BY user_id\nORDER BY user_id ASC;",
+        "explanation": "Group the table by user_id, apply the COUNT function on follower_id to get the total number of followers for each user, and order the results by user_id ascending."
+      }
+    ],
+    "edgeCases": [
+      "Users with 0 followers (they will not be present in the Followers table)"
+    ]
+  },
+  "Biggest Single Number": {
+    "title": "Biggest Single Number",
+    "problemStatement": "A single number is a number that appeared only once in the MyNumbers table.\n\nFind the largest single number. If there is no such number, report null.",
+    "schema": "CREATE TABLE MyNumbers (\n    num INT\n);",
+    "exampleData": [
+      {
+        "tableName": "MyNumbers",
+        "headers": ["num"],
+        "rows": [[8], [8], [3], [3], [1], [4], [5], [6]]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "BiggestSingleNumberOutput",
+      "headers": ["num"],
+      "rows": [[6]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT MAX(num) AS num\nFROM (\n    SELECT num\n    FROM MyNumbers\n    GROUP BY num\n    HAVING COUNT(num) = 1\n) AS unique_nums;",
+        "explanation": "Group the table by num and find numbers with COUNT(num) = 1 in the subquery. In the outer query, select the MAX(num) from this filtered set. If no numbers meet the condition, MAX returns NULL."
+      }
+    ],
+    "edgeCases": [
+      "The table is empty or all numbers appear at least twice (the subquery is empty, and the outer query returns a single row containing NULL)"
+    ]
+  },
+  "Customers Who Bought All Products": {
+    "title": "Customers Who Bought All Products",
+    "problemStatement": "Write a solution to report the customer ids from the Customer table that bought all the products in the Product table.",
+    "schema": "CREATE TABLE Customer (\n    customer_id INT,\n    product_key INT\n);\nCREATE TABLE Product (\n    product_key INT PRIMARY KEY\n);",
+    "exampleData": [
+      {
+        "tableName": "Customer",
+        "headers": ["customer_id", "product_key"],
+        "rows": [[1, 5], [2, 6], [3, 5], [3, 6], [1, 6]]
+      },
+      {
+        "tableName": "Product",
+        "headers": ["product_key"],
+        "rows": [[5], [6]]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "CustomersBoughtAllProductsOutput",
+      "headers": ["customer_id"],
+      "rows": [[1], [3]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT customer_id\nFROM Customer\nGROUP BY customer_id\nHAVING COUNT(DISTINCT product_key) = (SELECT COUNT(*) FROM Product);",
+        "explanation": "Group the Customer table by customer_id. Count the unique products each customer has bought using COUNT(DISTINCT product_key). Compare this count in the HAVING clause with the total number of products from the Product table using a subquery."
+      }
+    ],
+    "edgeCases": [
+      "Customers who bought the same product multiple times (handled by COUNT(DISTINCT ...))",
+      "Empty Product table"
+    ]
+  },
+  "The Number of Employees Which Report to Each Employee": {
+    "title": "The Number of Employees Which Report to Each Employee",
+    "problemStatement": "Write a solution to report the ids and the names of all managers, the number of employees who report directly to them, and the average age of the reports rounded to the nearest integer. Return the result table ordered by employee_id.",
+    "schema": "CREATE TABLE Employees (\n    employee_id INT PRIMARY KEY,\n    name VARCHAR(20),\n    reports_to INT,\n    age INT\n);",
+    "exampleData": [
+      {
+        "tableName": "Employees",
+        "headers": ["employee_id", "name", "reports_to", "age"],
+        "rows": [
+          [9, "Hercy", None, 43],
+          [6, "Alice", 9, 41],
+          [4, "Bob", 9, 36],
+          [1, "Daniel", 9, 44],
+          [2, "Mock", 9, 33],
+          [8, "John", 4, 29],
+          [11, "Jacks", 8, 18],
+          [12, "Meir", 8, 40]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "EmployeesReportCountOutput",
+      "headers": ["employee_id", "name", "reports_count", "average_age"],
+      "rows": [[4, "Bob", 1, 29], [8, "John", 2, 29], [9, "Hercy", 4, 39]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT \n    m.employee_id,\n    m.name,\n    COUNT(e.employee_id) AS reports_count,\n    ROUND(AVG(e.age)) AS average_age\nFROM Employees m\nJOIN Employees e ON m.employee_id = e.reports_to\nGROUP BY m.employee_id, m.name\nORDER BY m.employee_id;",
+        "explanation": "Perform an inner self-join on the Employees table where a manager's employee_id matches an employee's reports_to. Group the results by the manager's employee_id and name. Use COUNT to calculate the number of reports and ROUND(AVG(e.age)) to find the average age of their reports rounded to the nearest integer. Sort the result by employee_id."
+      }
+    ],
+    "edgeCases": [
+      "Employees who do not have any reports (automatically filtered out due to the INNER JOIN)",
+      "Floating point rounding behavior for reports' average age"
+    ]
+  },
+  "Primary Department for Each Employee": {
+    "title": "Primary Department for Each Employee",
+    "problemStatement": "Employees can belong to multiple departments. When the employee joins other departments, they need to decide which department is their primary department. Note that when an employee belongs to only one department, their primary column is 'N'.\n\nWrite a solution to report all the employees with their primary department. For employees who belong to one department, report their only department.",
+    "schema": "CREATE TABLE Employee (\n    employee_id INT,\n    department_id INT,\n    primary_flag ENUM('Y', 'N'),\n    PRIMARY KEY (employee_id, department_id)\n);",
+    "exampleData": [
+      {
+        "tableName": "Employee",
+        "headers": ["employee_id", "department_id", "primary_flag"],
+        "rows": [
+          [1, 1, "N"],
+          [2, 1, "N"],
+          [2, 2, "Y"],
+          [3, 3, "N"],
+          [4, 2, "N"],
+          [4, 3, "Y"],
+          [4, 4, "N"]
+        ]
+      }
+    ],
+    "expectedOutput": {
+      "tableName": "PrimaryDepartmentOutput",
+      "headers": ["employee_id", "department_id"],
+      "rows": [[1, 1], [2, 2], [3, 3], [4, 3]]
+    },
+    "solutions": [
+      {
+        "name": "Optimal",
+        "query": "SELECT employee_id, department_id\nFROM Employee\nWHERE primary_flag = 'Y'\nUNION\nSELECT employee_id, department_id\nFROM Employee\nGROUP BY employee_id\nHAVING COUNT(department_id) = 1;",
+        "explanation": "Use UNION to combine two subsets of results: 1) Employees where the primary_flag is explicitly 'Y'. 2) Employees who belong to exactly one department (HAVING COUNT(department_id) = 1), regardless of their primary_flag value."
+      }
+    ],
+    "edgeCases": [
+      "An employee belongs to only one department, which has a primary_flag of 'N' (correctly selected by the second part of the UNION)",
+      "An employee belongs to multiple departments and has one department marked 'Y' (correctly selected by the first part of the UNION)"
+    ]
+  }
+}
+
+with open('/Users/jatinsihag/Documents/DSAAAAAA/scratch/sql_sol_1.json', 'w') as f:
+    json.dump(data, f, indent=2)
+
+print("SUCCESS")

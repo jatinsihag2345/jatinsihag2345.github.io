@@ -1,0 +1,3073 @@
+{
+  "Maximum Depth of Binary Tree": {
+    "solution": {
+      "problemStatement": "Given the root of a binary tree, return its maximum depth. A binary tree's maximum depth is the number of nodes along the longest path from the root node down to the farthest leaf node.",
+      "examples": [
+        {
+          "input": "root = [3,9,20,null,null,15,7]",
+          "output": "3",
+          "explanation": "The maximum depth is along the path 3 -> 20 -> 15 (or 17) which has length 3."
+        },
+        {
+          "input": "root = [1,null,2]",
+          "output": "2"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 10^4].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Empty tree (root is None) should return 0.",
+        "Single node tree should return 1.",
+        "Fully skewed tree (like a linked list) should return the number of nodes."
+      ],
+      "followUps": [
+        "Can you solve this iteratively using both BFS and DFS?",
+        "What is the space complexity of each approach and how can you optimize it?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Traverse the tree level-by-level (BFS) using a queue and count the number of levels.",
+          "algorithm": "1. If the root is None, return 0.\n2. Initialize a queue with the root and a depth counter at 0.\n3. While the queue is not empty, increment the depth.\n4. Loop through the number of nodes currently in the queue (representing one level), pop each, and add their non-null children to the queue.\n5. Return the depth counter.",
+          "code": "def maxDepth(root):\n    # If the root is None, the depth is 0\n    if not root:\n        return 0\n    # Initialize queue with root node\n    queue = [root]\n    # Keep track of depth\n    depth = 0\n    # Process nodes level by level\n    while queue:\n        # Increment depth for each level\n        depth += 1\n        # Track size of current level\n        level_size = len(queue)\n        # Process all nodes in current level\n        for _ in range(level_size):\n            # Pop first node in queue\n            node = queue.pop(0)\n            # If left child exists, append to queue\n            if node.left:\n                queue.append(node.left)\n            # If right child exists, append to queue\n            if node.right:\n                queue.append(node.right)\n    # Return total depth\n    return depth",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use recursion (DFS) to find the height of left and right subtrees. The height of the current node is 1 + max(left_height, right_height).",
+          "algorithm": "1. Base case: If the current node is None, return height 0.\n2. Recursively find the depth of the left subtree.\n3. Recursively find the depth of the right subtree.\n4. Return 1 + max(left_depth, right_depth).",
+          "code": "def maxDepth(root):\n    # Base case: if node is None, its depth is 0\n    if not root:\n        # Return 0 depth for null node\n        return 0\n    # Recursively find the depth of left subtree\n    left_depth = maxDepth(root.left)\n    # Recursively find the depth of right subtree\n    right_depth = maxDepth(root.right)\n    # Maximum depth is 1 plus max of left and right depths\n    return 1 + max(left_depth, right_depth)",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call maxDepth with root (node 3)",
+        "vars": {
+          "root": "3"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Root is not None, bypass base case",
+        "vars": {
+          "root.val": 3
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Recurse into left subtree of 3 (node 9)",
+        "vars": {
+          "root.left": "9"
+        }
+      },
+      {
+        "line": 1,
+        "desc": "Call maxDepth with node 9",
+        "vars": {
+          "root": "9"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Node 9 is not None, bypass basecase",
+        "vars": {
+          "root.val": 9
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Recurse into left subtree of 9 (None)",
+        "vars": {
+          "root.left": "None"
+        }
+      },
+      {
+        "line": 1,
+        "desc": "Call maxDepth with None",
+        "vars": {
+          "root": "None"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Root is None, return 0 depth",
+        "vars": {
+          "root": "None"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "For node 9, left_depth = 0. Recurse into right subtree of 9 (None)",
+        "vars": {
+          "left_depth": 0,
+          "root.right": "None"
+        }
+      },
+      {
+        "line": 1,
+        "desc": "Call maxDepth with None",
+        "vars": {
+          "root": "None"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Root is None, return 0 depth",
+        "vars": {
+          "root": "None"
+        }
+      },
+      {
+        "line": 11,
+        "desc": "For node 9, right_depth = 0. Return 1 + max(0, 0) = 1",
+        "vars": {
+          "left_depth": 0,
+          "right_depth": 0
+        }
+      },
+      {
+        "line": 9,
+        "desc": "For node 3, left_depth = 1. Recurse into right subtree of 3 (node 20)",
+        "vars": {
+          "left_depth": 1,
+          "root.right": "20"
+        }
+      },
+      {
+        "line": 1,
+        "desc": "Call maxDepth with node 20",
+        "vars": {
+          "root": "20"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Node 20 is not None, bypass basecase",
+        "vars": {
+          "root.val": 20
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Recurse into left subtree of 20 (None)",
+        "vars": {
+          "root.left": "None"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Root is None, return 0",
+        "vars": {
+          "root": "None"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "For node 20, left_depth = 0. Recurse into right subtree (None)",
+        "vars": {
+          "left_depth": 0,
+          "root.right": "None"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Root is None, return 0",
+        "vars": {
+          "root": "None"
+        }
+      },
+      {
+        "line": 11,
+        "desc": "For node 20, return 1 + max(0, 0) = 1",
+        "vars": {
+          "left_depth": 0,
+          "right_depth": 0
+        }
+      },
+      {
+        "line": 11,
+        "desc": "For node 3, return 1 + max(1, 1) = 2",
+        "vars": {
+          "left_depth": 1,
+          "right_depth": 1
+        }
+      }
+    ]
+  },
+  "Check if Binary Tree is Balanced": {
+    "solution": {
+      "problemStatement": "Given a binary tree, determine if it is height-balanced. A height-balanced binary tree is defined as a binary tree in which the left and right subtrees of every node differ in height by no more than 1.",
+      "examples": [
+        {
+          "input": "root = [3,9,20,null,null,15,7]",
+          "output": "true",
+          "explanation": "Heights of left and right subtrees of every node differ by at most 1."
+        },
+        {
+          "input": "root = [1,2,2,3,3,null,null,4,4]",
+          "output": "false"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 5000].",
+        "-10^4 <= Node.val <= 10^4"
+      ],
+      "edgeCases": [
+        "Empty tree (root is None) is balanced, returns True.",
+        "Skewed tree will be unbalanced, returns False.",
+        "Single node tree is balanced, returns True."
+      ],
+      "followUps": [
+        "Can you solve this in O(N) time and O(1) auxiliary space (excluding recursion stack)?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "For each node, compute the height of its left and right subtrees. If the absolute difference is greater than 1, it's unbalanced. Recursively check for all children.",
+          "algorithm": "1. Define a helper function to get height of a node.\n2. If root is None, return True.\n3. Compute left height and right height.\n4. Check if abs(left - right) <= 1 and left child is balanced and right child is balanced.",
+          "code": "def isBalanced(root):\n    # Helper function to compute height of a subtree\n    def getHeight(node):\n        if not node:\n            return 0\n        return 1 + max(getHeight(node.left), getHeight(node.right))\n    \n    # If tree is empty, it is balanced\n    if not root:\n        return True\n    # Calculate heights of left and right subtrees\n    left_h = getHeight(root.left)\n    right_h = getHeight(root.right)\n    # Check if current node is balanced and recurse for children\n    if abs(left_h - right_h) > 1:\n        return False\n    return isBalanced(root.left) and isBalanced(root.right)",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(H)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "To avoid redundant height calculations, do a bottom-up post-order DFS. The recursive function returns height if balanced, or -1 if any subtree is unbalanced. As soon as a -1 is received, propagate it up.",
+          "algorithm": "1. Create a helper function check(node) returning subtree height or -1.\n2. If node is None, return height 0.\n3. Check left subtree. If it returns -1, return -1.\n4. Check right subtree. If it returns -1, return -1.\n5. Compare left and right heights. If difference > 1, return -1.\n6. Otherwise, return 1 + max(left_h, right_h).\n7. Root is balanced if check(root) != -1.",
+          "code": "def isBalanced(root):\n    # Helper function returns height if balanced, else -1\n    def check(node):\n        # Base case: empty node has height 0\n        if not node:\n            return 0\n        # Get height of left subtree\n        left_h = check(node.left)\n        # If left subtree is unbalanced, propagate -1 upwards\n        if left_h == -1:\n            return -1\n        # Get height of right subtree\n        right_h = check(node.right)\n        # If right subtree is unbalanced, propagate -1 upwards\n        if right_h == -1:\n            return -1\n        # If heights differ by more than 1, current subtree is unbalanced\n        if abs(left_h - right_h) > 1:\n            return -1\n        # Return actual height of current node\n        return 1 + max(left_h, right_h)\n    \n    # Root is balanced if check does not return -1\n    return check(root) != -1",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call isBalanced with root (node 1, which has left 2 and right None, where 2 has left 3)",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Call check(1)",
+        "vars": {
+          "node": "1"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Node 1 is not None, bypass base case",
+        "vars": {
+          "node.val": 1
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Call check(1.left) -> check(2)",
+        "vars": {
+          "node.left": "2"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Node 2 is not None, bypass base case",
+        "vars": {
+          "node.val": 2
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Call check(2.left) -> check(3)",
+        "vars": {
+          "node.left": "3"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Node 3 is not None, bypass base case",
+        "vars": {
+          "node.val": 3
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Call check(3.left) -> check(None)",
+        "vars": {
+          "node.left": "None"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Node is None, return height 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "For node 3, left_h = 0. Call check(3.right) -> check(None)",
+        "vars": {
+          "left_h": 0,
+          "node.right": "None"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Node is None, return height 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 18,
+        "desc": "For node 3, compare left_h=0, right_h=0. Abs difference <= 1.",
+        "vars": {
+          "left_h": 0,
+          "right_h": 0
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Return height of node 3: 1 + max(0,0) = 1",
+        "vars": {
+          "left_h": 0,
+          "right_h": 0
+        }
+      },
+      {
+        "line": 13,
+        "desc": "For node 2, left_h = 1. Call check(2.right) -> check(None)",
+        "vars": {
+          "left_h": 1,
+          "node.right": "None"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Node is None, return height 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 18,
+        "desc": "For node 2, compare left_h=1, right_h=0. Abs difference <= 1.",
+        "vars": {
+          "left_h": 1,
+          "right_h": 0
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Return height of node 2: 1 + max(1,0) = 2",
+        "vars": {
+          "left_h": 1,
+          "right_h": 0
+        }
+      },
+      {
+        "line": 13,
+        "desc": "For node 1, left_h = 2. Call check(1.right) -> check(None)",
+        "vars": {
+          "left_h": 2,
+          "node.right": "None"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Node is None, return height 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 18,
+        "desc": "For node 1, compare left_h=2, right_h=0. Abs difference is 2 > 1.",
+        "vars": {
+          "left_h": 2,
+          "right_h": 0
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Unbalanced at node 1, return -1",
+        "vars": {
+          "left_h": 2,
+          "right_h": 0
+        }
+      },
+      {
+        "line": 24,
+        "desc": "check(1) returned -1, so return False",
+        "vars": {
+          "check_result": -1
+        }
+      }
+    ]
+  },
+  "Diameter of Binary Tree": {
+    "solution": {
+      "problemStatement": "Given the root of a binary tree, return the length of the diameter of the tree. The diameter of a binary tree is the length of the longest path between any two nodes in a tree. This path may or may not pass through the root. The length of a path between two nodes is represented by the number of edges between them.",
+      "examples": [
+        {
+          "input": "root = [1,2,3,4,5]",
+          "output": "3",
+          "explanation": "3 is the length of the path [4,2,1,3] or [5,2,1,3]."
+        },
+        {
+          "input": "root = [1,2]",
+          "output": "1"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [1, 10^4].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Single node tree: diameter is 0.",
+        "Fully skewed tree: diameter is N - 1.",
+        "Balanced tree where LCA of diameter is not the root."
+      ],
+      "followUps": [
+        "Can you solve this without using a global/helper list state variable for diameter?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "For each node, calculate the height of its left and right subtrees. The path through this node is left_height + right_height. Find the maximum value over all nodes.",
+          "algorithm": "1. Write a helper function height(node).\n2. If root is None, return 0.\n3. Diameter through root is height(root.left) + height(root.right).\n4. Recursively find diameters of left and right subtrees.\n5. Return max of all three.",
+          "code": "def diameterOfBinaryTree(root):\n    # Helper to compute height of a subtree\n    def height(node):\n        if not node:\n            return 0\n        return 1 + max(height(node.left), height(node.right))\n    \n    # Base case: empty node has diameter 0\n    if not root:\n        return 0\n    # Calculate left and right heights\n    left_h = height(root.left)\n    right_h = height(root.right)\n    # Diameter through current root\n    curr_diameter = left_h + right_h\n    # Recurse on left and right subtrees\n    left_diameter = diameterOfBinaryTree(root.left)\n    right_diameter = diameterOfBinaryTree(root.right)\n    # Return maximum of all diameters\n    return max(curr_diameter, left_diameter, right_diameter)",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(H)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Calculate height and update the maximum diameter simultaneously in a bottom-up DFS. The height function returns node height, but also updates a reference tracking `max_diameter = max(max_diameter, left_height + right_height)`.",
+          "algorithm": "1. Initialize max_diameter list with [0].\n2. Define height(node) that returns tree height.\n3. In height(node), recursively find left and right heights.\n4. Update max_diameter[0] with left_h + right_h if it is larger.\n5. Return 1 + max(left_h, right_h).\n6. Call height(root) and return max_diameter[0].",
+          "code": "def diameterOfBinaryTree(root):\n    # Use a list to store maximum diameter found so far\n    max_diameter = [0]\n    \n    # Helper function to compute height and update diameter\n    def height(node):\n        # Base case: height of null is 0\n        if not node:\n            return 0\n        # Recursively find height of left subtree\n        left_h = height(node.left)\n        # Recursively find height of right subtree\n        right_h = height(node.right)\n        # Update max diameter with path passing through current node\n        max_diameter[0] = max(max_diameter[0], left_h + right_h)\n        # Return height of current node\n        return 1 + max(left_h, right_h)\n    \n    # Call height helper on root\n    height(root)\n    # Return the maximum diameter found\n    return max_diameter[0]",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call diameterOfBinaryTree with root = [1, 2, 3]",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Initialize max_diameter list to [0]",
+        "vars": {
+          "max_diameter": [
+            0
+          ]
+        }
+      },
+      {
+        "line": 20,
+        "desc": "Call height(1)",
+        "vars": {
+          "node": "1"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 1 is not None, bypass base case",
+        "vars": {
+          "node.val": 1
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Call height(1.left) -> height(2)",
+        "vars": {
+          "node.left": "2"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 2 is not None, bypass base case",
+        "vars": {
+          "node.val": 2
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Call height(2.left) -> height(None)",
+        "vars": {
+          "node.left": "None"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Node is None, return height 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "For node 2, left_h = 0. Call height(2.right) -> height(None)",
+        "vars": {
+          "left_h": 0,
+          "node.right": "None"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Node is None, return height 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 15,
+        "desc": "For node 2, update max_diameter = max(0, 0 + 0) = 0",
+        "vars": {
+          "left_h": 0,
+          "right_h": 0,
+          "max_diameter": [
+            0
+          ]
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Return height of node 2: 1 + max(0,0) = 1",
+        "vars": {
+          "left_h": 0,
+          "right_h": 0
+        }
+      },
+      {
+        "line": 13,
+        "desc": "For node 1, left_h = 1. Call height(1.right) -> height(3)",
+        "vars": {
+          "left_h": 1,
+          "node.right": "3"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 3 is not None, bypass base case",
+        "vars": {
+          "node.val": 3
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Call height(3.left) -> height(None)",
+        "vars": {
+          "node.left": "None"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Node is None, return 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "For node 3, left_h = 0. Call height(3.right) -> height(None)",
+        "vars": {
+          "left_h": 0,
+          "node.right": "None"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Node is None, return 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 15,
+        "desc": "For node 3, update max_diameter = max(0, 0 + 0) = 0",
+        "vars": {
+          "left_h": 0,
+          "right_h": 0,
+          "max_diameter": [
+            0
+          ]
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Return height of node 3: 1 + max(0,0) = 1",
+        "vars": {
+          "left_h": 0,
+          "right_h": 0
+        }
+      },
+      {
+        "line": 15,
+        "desc": "For node 1, update max_diameter = max(0, 1 + 1) = 2",
+        "vars": {
+          "left_h": 1,
+          "right_h": 1,
+          "max_diameter": [
+            2
+          ]
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Return height of node 1: 1 + max(1,1) = 2",
+        "vars": {
+          "left_h": 1,
+          "right_h": 1
+        }
+      },
+      {
+        "line": 22,
+        "desc": "Return max_diameter[0] which is 2",
+        "vars": {
+          "max_diameter": [
+            2
+          ]
+        }
+      }
+    ]
+  },
+  "Maximum Path Sum in Binary Tree": {
+    "solution": {
+      "problemStatement": "A path in a binary tree is a sequence of nodes where each pair of adjacent nodes in the sequence has an edge connecting them. A node can only appear in the sequence at most once. The path does not need to pass through the root. The path sum of a path is the sum of the node's values in the path. Given the root of a binary tree, return the maximum path sum of any non-empty path.",
+      "examples": [
+        {
+          "input": "root = [1,2,3]",
+          "output": "6",
+          "explanation": "The optimal path is 2 -> 1 -> 3 with path sum 2 + 1 + 3 = 6."
+        },
+        {
+          "input": "root = [-10,9,20,null,null,15,7]",
+          "output": "42",
+          "explanation": "The optimal path is 15 -> 20 -> 7 with path sum 15 + 20 + 7 = 42."
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [1, 3 * 10^4].",
+        "-1000 <= Node.val <= 1000"
+      ],
+      "edgeCases": [
+        "All negative node values: should return the maximum single node value.",
+        "Single node tree: return the node's value.",
+        "Linear skewed tree: path sum can be subset of nodes."
+      ],
+      "followUps": [
+        "Can you return the actual path elements instead of just the sum?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "For each node, compute the maximum branch sum that can extend from its left and right children. Combine these paths with the current node's value. Repeat for every node to find the maximum sum.",
+          "algorithm": "1. Write a helper function max_branch(node) that returns the maximum path sum starting from node going down.\n2. For each node, calculate the sum passing through it: node.val + max(0, max_branch(node.left)) + max(0, max_branch(node.right)).\n3. Recursively call maxPathSum on left and right children.\n4. Return the maximum value found.",
+          "code": "def maxPathSum(root):\n    # Helper to compute max branch sum from a node\n    def max_branch(node):\n        if not node:\n            return 0\n        # Return maximum branch sum (must be non-negative)\n        return max(0, node.val + max(max_branch(node.left), max_branch(node.right)))\n    \n    # Base case\n    if not root:\n        return float('-inf')\n    # Calculate max path sum passing through root\n    left_contrib = max(0, max_branch(root.left))\n    right_contrib = max(0, max_branch(root.right))\n    curr_sum = root.val + left_contrib + right_contrib\n    # Recurse on children\n    left_max = maxPathSum(root.left)\n    right_max = maxPathSum(root.right)\n    # Return maximum of all\n    return max(curr_sum, left_max, right_max)",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(H)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Perform a post-order DFS. The recursive function returns the maximum single path contribution from the node to its parent (ignoring negative paths). While at each node, also compute the complete path sum with the node as the highest point (LCA) and update the global maximum sum.",
+          "algorithm": "1. Initialize max_sum to negative infinity in a list wrapper.\n2. Write helper dfs(node).\n3. If node is None, return 0.\n4. Recursively get max left contribution: left_gain = max(dfs(node.left), 0).\n5. Recursively get max right contribution: right_gain = max(dfs(node.right), 0).\n6. Current path sum is node.val + left_gain + right_gain.\n7. Update max_sum = max(max_sum, current_path_sum).\n8. Return node.val + max(left_gain, right_gain) to parent.",
+          "code": "def maxPathSum(root):\n    # Initialize max path sum to negative infinity\n    max_sum = [float('-inf')]\n    \n    # Helper function to compute max branch contribution\n    def dfs(node):\n        # Base case: if node is None, contribution is 0\n        if not node:\n            return 0\n        # Get max contribution from left child (ignore if negative)\n        left_gain = max(dfs(node.left), 0)\n        # Get max contribution from right child (ignore if negative)\n        right_gain = max(dfs(node.right), 0)\n        # Path sum passing through current node as the LCA/top of path\n        current_path_sum = node.val + left_gain + right_gain\n        # Update overall maximum path sum found so far\n        max_sum[0] = max(max_sum[0], current_path_sum)\n        # Return max gain this node can provide to its parent\n        return node.val + max(left_gain, right_gain)\n    \n    # Start recursion\n    dfs(root)\n    # Return the overall maximum path sum\n    return max_sum[0]",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call maxPathSum with root = [-10, 9, 20] (where 20 has no children for this sub-trace)",
+        "vars": {
+          "root": "-10"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Initialize max_sum = [-inf]",
+        "vars": {
+          "max_sum": [
+            -Infinity
+          ]
+        }
+      },
+      {
+        "line": 22,
+        "desc": "Call dfs(-10)",
+        "vars": {
+          "node": "-10"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node is not None, bypass basecase",
+        "vars": {
+          "node.val": -10
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Call dfs(-10.left) -> dfs(9)",
+        "vars": {
+          "node.left": "9"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 9 is not None",
+        "vars": {
+          "node.val": 9
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Call dfs(9.left) -> dfs(None)",
+        "vars": {
+          "node.left": "None"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "None returns 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "For node 9, left_gain = 0. Call dfs(9.right) -> dfs(None)",
+        "vars": {
+          "left_gain": 0,
+          "node.right": "None"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "None returns 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 15,
+        "desc": "For node 9, current_path_sum = 9 + 0 + 0 = 9",
+        "vars": {
+          "node.val": 9,
+          "left_gain": 0,
+          "right_gain": 0
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Update max_sum = max(-inf, 9) = 9",
+        "vars": {
+          "max_sum": [
+            9
+          ]
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Return node 9 gain: 9 + max(0,0) = 9",
+        "vars": {
+          "left_gain": 0,
+          "right_gain": 0
+        }
+      },
+      {
+        "line": 11,
+        "desc": "For node -10, left_gain = max(9, 0) = 9. Call dfs(-10.right) -> dfs(20)",
+        "vars": {
+          "left_gain": 9,
+          "node.right": "20"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 20 is not None",
+        "vars": {
+          "node.val": 20
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Call dfs(20.left) -> dfs(None)",
+        "vars": {
+          "node.left": "None"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "None returns 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 13,
+        "desc": "For node 20, left_gain = 0. Call dfs(20.right) -> dfs(None)",
+        "vars": {
+          "left_gain": 0,
+          "node.right": "None"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "None returns 0",
+        "vars": {
+          "node": "None"
+        }
+      },
+      {
+        "line": 15,
+        "desc": "For node 20, current_path_sum = 20 + 0 + 0 = 20",
+        "vars": {
+          "node.val": 20,
+          "left_gain": 0,
+          "right_gain": 0
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Update max_sum = max(9, 20) = 20",
+        "vars": {
+          "max_sum": [
+            20
+          ]
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Return node 20 gain: 20 + max(0,0) = 20",
+        "vars": {
+          "left_gain": 0,
+          "right_gain": 0
+        }
+      },
+      {
+        "line": 13,
+        "desc": "For node -10, right_gain = max(20, 0) = 20.",
+        "vars": {
+          "right_gain": 20
+        }
+      },
+      {
+        "line": 15,
+        "desc": "For node -10, current_path_sum = -10 + 9 + 20 = 19",
+        "vars": {
+          "node.val": -10,
+          "left_gain": 9,
+          "right_gain": 20
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Update max_sum = max(20, 19) = 20",
+        "vars": {
+          "max_sum": [
+            20
+          ]
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Return node -10 gain: -10 + max(9, 20) = 10",
+        "vars": {
+          "left_gain": 9,
+          "right_gain": 20
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Return final max path sum = 20",
+        "vars": {
+          "max_sum": [
+            20
+          ]
+        }
+      }
+    ]
+  },
+  "Check Identical Trees": {
+    "solution": {
+      "problemStatement": "Given the roots of two binary trees p and q, write a function to check if they are the same or not. Two binary trees are considered the same if they are structurally identical, and the nodes have the same value.",
+      "examples": [
+        {
+          "input": "p = [1,2,3], q = [1,2,3]",
+          "output": "true"
+        },
+        {
+          "input": "p = [1,2], q = [1,null,2]",
+          "output": "false"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in both trees is in the range [0, 100].",
+        "-10^4 <= Node.val <= 10^4"
+      ],
+      "edgeCases": [
+        "Both trees are empty (returns True).",
+        "One tree is empty and the other is not (returns False).",
+        "Identical structure but different node values (returns False)."
+      ],
+      "followUps": [
+        "Can you solve this iteratively using BFS or DFS?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Record the traversal arrays (e.g. pre-order and in-order, representing None for empty branches) for both trees and compare the lists.",
+          "algorithm": "1. Define a helper function to get preorder traversal list including None values.\n2. Get the list for both trees p and q.\n3. Compare the lists. If they are equal, return True, else False.",
+          "code": "def isSameTree(p, q):\n    # Helper to perform preorder traversal with None placeholders\n    def get_preorder(node, path):\n        if not node:\n            path.append(None)\n            return\n        path.append(node.val)\n        get_preorder(node.left, path)\n        get_preorder(node.right, path)\n        \n    p_path, q_path = [], []\n    get_preorder(p, p_path)\n    get_preorder(q, q_path)\n    # Compare traversals\n    return p_path == q_path",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Directly compare the nodes using DFS recursion. If both nodes are null, they are identical. If one is null or values mismatch, they are not. Otherwise, recursively check their left and right subtrees.",
+          "algorithm": "1. If p is None and q is None, return True.\n2. If either is None (but not both), return False.\n3. If p.val != q.val, return False.\n4. Return isSameTree(p.left, q.left) and isSameTree(p.right, q.right).",
+          "code": "def isSameTree(p, q):\n    # If both nodes are null, trees are identical from here\n    if not p and not q:\n        return True\n    # If one node is null and the other is not, they are not identical\n    if not p or not q:\n        return False\n    # If values of current nodes do not match, they are not identical\n    if p.val != q.val:\n        return False\n    # Recursively check left subtrees and right subtrees\n    return isSameTree(p.left, q.left) and isSameTree(p.right, q.right)",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call isSameTree with p = [1, 2], q = [1, null, 2]",
+        "vars": {
+          "p": "1",
+          "q": "1"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "p and q are not both None",
+        "vars": {
+          "p": "1",
+          "q": "1"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Neither p nor q is None",
+        "vars": {
+          "p": "1",
+          "q": "1"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "p.val (1) matches q.val (1)",
+        "vars": {
+          "p.val": 1,
+          "q.val": 1
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Recurse into left children: isSameTree(p.left, q.left) -> isSameTree(2, None)",
+        "vars": {
+          "p.left": "2",
+          "q.left": "None"
+        }
+      },
+      {
+        "line": 1,
+        "desc": "Call isSameTree with p = 2, q = None",
+        "vars": {
+          "p": "2",
+          "q": "None"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "p and q are not both None",
+        "vars": {
+          "p": "2",
+          "q": "None"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "q is None, so return False",
+        "vars": {
+          "p": "2",
+          "q": "None"
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Left child check returned False, return False for root comparison",
+        "vars": {
+          "left_match": false
+        }
+      }
+    ]
+  },
+  "Zig Zag Traversal": {
+    "solution": {
+      "problemStatement": "Given the root of a binary tree, return the zigzag level order traversal of its nodes' values. (i.e., from left to right, then right to left for the next level and alternate between).",
+      "examples": [
+        {
+          "input": "root = [3,9,20,null,null,15,7]",
+          "output": "[[3],[20,9],[15,7]]"
+        },
+        {
+          "input": "root = [1]",
+          "output": "[[1]]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 2000].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Empty tree: return [].",
+        "Single node: return [[val]].",
+        "Tree with only left child nodes."
+      ],
+      "followUps": [
+        "Can you implement this using a single Deque and avoid reversing list elements?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Perform standard BFS level order traversal, collect values of all levels, and then reverse the arrays at odd-indexed levels (1, 3, 5, etc.).",
+          "algorithm": "1. Perform a standard queue-based BFS traversal level by level.\n2. Store each level's values in a list and append to the result.\n3. Loop through the result list; if level index is odd, reverse that list.\n4. Return the result.",
+          "code": "def zigzagLevelOrder(root):\n    if not root:\n        return []\n    queue = [root]\n    result = []\n    while queue:\n        level_size = len(queue)\n        level_nodes = []\n        for _ in range(level_size):\n            curr = queue.pop(0)\n            level_nodes.append(curr.val)\n            if curr.left:\n                queue.append(curr.left)\n            if curr.right:\n                queue.append(curr.right)\n        result.append(level_nodes)\n    # Reverse odd indexed levels\n    for i in range(len(result)):\n        if i % 2 == 1:\n            result[i].reverse()\n    return result",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use a BFS queue. For each level, determine the insertion index of each element beforehand using a direction flag (`left_to_right`). Populate a fixed-size list at each level directly without needing an explicit reverse step.",
+          "algorithm": "1. If root is None, return [].\n2. Initialize queue = [root], result = [], and left_to_right = True.\n3. In a loop, get level_size = len(queue) and create level_nodes array of size level_size.\n4. For each node processed, if left_to_right is True, insert at index i, else at level_size - 1 - i.\n5. Push children to queue, toggle left_to_right, and append level_nodes to result.\n6. Return result.",
+          "code": "def zigzagLevelOrder(root):\n    # If root is null, return empty list\n    if not root:\n        return []\n    # Initialize queue with root node\n    queue = [root]\n    # Result list to store level orders\n    result = []\n    # Flag to indicate direction (True means left to right)\n    left_to_right = True\n    # Continue BFS traversal until queue is empty\n    while queue:\n        # Get the number of nodes in current level\n        level_size = len(queue)\n        # Create a fixed-size list for current level nodes\n        level_nodes = [0] * level_size\n        # Process all nodes of current level\n        for i in range(level_size):\n            # Pop node from front of queue\n            curr = queue.pop(0)\n            # Find correct position to insert current node val\n            index = i if left_to_right else (level_size - 1 - i)\n            # Store value at calculated index\n            level_nodes[index] = curr.val\n            # Add left child to queue if it exists\n            if curr.left:\n                queue.append(curr.left)\n            # Add right child to queue if it exists\n            if curr.right:\n                queue.append(curr.right)\n        # Append current level list to result\n        result.append(level_nodes)\n        # Toggle direction flag for next level\n        left_to_right = not left_to_right\n    # Return final zigzag level traversal\n    return result",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call zigzagLevelOrder with root = [3, 9, 20]",
+        "vars": {
+          "root": "3"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Root is not null, bypass check",
+        "vars": {}
+      },
+      {
+        "line": 6,
+        "desc": "Initialize queue = [3]",
+        "vars": {
+          "queue": [
+            "3"
+          ]
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Initialize result = []",
+        "vars": {
+          "result": []
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Set left_to_right = True",
+        "vars": {
+          "left_to_right": true
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Loop queue. queue is not empty",
+        "vars": {
+          "queue": [
+            "3"
+          ]
+        }
+      },
+      {
+        "line": 14,
+        "desc": "level_size = len(queue) = 1",
+        "vars": {
+          "level_size": 1
+        }
+      },
+      {
+        "line": 16,
+        "desc": "Create level_nodes = [0]",
+        "vars": {
+          "level_nodes": [
+            0
+          ]
+        }
+      },
+      {
+        "line": 18,
+        "desc": "Process index i = 0 in level size 1",
+        "vars": {
+          "i": 0
+        }
+      },
+      {
+        "line": 20,
+        "desc": "Pop front: curr = 3, queue becomes []",
+        "vars": {
+          "curr": "3",
+          "queue": []
+        }
+      },
+      {
+        "line": 22,
+        "desc": "Since left_to_right is True, index = i = 0",
+        "vars": {
+          "index": 0,
+          "left_to_right": true
+        }
+      },
+      {
+        "line": 24,
+        "desc": "level_nodes[0] = 3 -> level_nodes = [3]",
+        "vars": {
+          "level_nodes": [
+            3
+          ]
+        }
+      },
+      {
+        "line": 27,
+        "desc": "Add left child 9 to queue",
+        "vars": {
+          "queue": [
+            "9"
+          ]
+        }
+      },
+      {
+        "line": 30,
+        "desc": "Add right child 20 to queue",
+        "vars": {
+          "queue": [
+            "9",
+            "20"
+          ]
+        }
+      },
+      {
+        "line": 32,
+        "desc": "Append level_nodes to result -> result = [[3]]",
+        "vars": {
+          "result": [
+            [
+              3
+            ]
+          ]
+        }
+      },
+      {
+        "line": 34,
+        "desc": "Toggle left_to_right to False",
+        "vars": {
+          "left_to_right": false
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Next level. queue = [9, 20]",
+        "vars": {
+          "queue": [
+            "9",
+            "20"
+          ]
+        }
+      },
+      {
+        "line": 14,
+        "desc": "level_size = 2",
+        "vars": {
+          "level_size": 2
+        }
+      },
+      {
+        "line": 16,
+        "desc": "Create level_nodes = [0, 0]",
+        "vars": {
+          "level_nodes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "line": 18,
+        "desc": "i = 0",
+        "vars": {
+          "i": 0
+        }
+      },
+      {
+        "line": 20,
+        "desc": "Pop front: curr = 9, queue = [20]",
+        "vars": {
+          "curr": "9",
+          "queue": [
+            "20"
+          ]
+        }
+      },
+      {
+        "line": 22,
+        "desc": "left_to_right is False, index = 2 - 1 - 0 = 1",
+        "vars": {
+          "index": 1
+        }
+      },
+      {
+        "line": 24,
+        "desc": "level_nodes[1] = 9 -> level_nodes = [0, 9]",
+        "vars": {
+          "level_nodes": [
+            0,
+            9
+          ]
+        }
+      },
+      {
+        "line": 18,
+        "desc": "i = 1",
+        "vars": {
+          "i": 1
+        }
+      },
+      {
+        "line": 20,
+        "desc": "Pop front: curr = 20, queue = []",
+        "vars": {
+          "curr": "20",
+          "queue": []
+        }
+      },
+      {
+        "line": 22,
+        "desc": "left_to_right is False, index = 2 - 1 - 1 = 0",
+        "vars": {
+          "index": 0
+        }
+      },
+      {
+        "line": 24,
+        "desc": "level_nodes[0] = 20 -> level_nodes = [20, 9]",
+        "vars": {
+          "level_nodes": [
+            20,
+            9
+          ]
+        }
+      },
+      {
+        "line": 32,
+        "desc": "Append level_nodes to result -> result = [[3], [20, 9]]",
+        "vars": {
+          "result": [
+            [
+              3
+            ],
+            [
+              20,
+              9
+            ]
+          ]
+        }
+      },
+      {
+        "line": 34,
+        "desc": "Toggle left_to_right to True",
+        "vars": {
+          "left_to_right": true
+        }
+      },
+      {
+        "line": 36,
+        "desc": "Queue empty, return result [[3], [20, 9]]",
+        "vars": {
+          "result": [
+            [
+              3
+            ],
+            [
+              20,
+              9
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  "Boundary Traversal": {
+    "solution": {
+      "problemStatement": "Given a Binary Tree, find its Boundary Traversal. The boundary traversal of a binary tree includes: 1. Left boundary nodes (excluding leaf nodes), 2. Leaves (from left to right), 3. Right boundary nodes (excluding leaf nodes, traversed in reverse order) starting from root.",
+      "examples": [
+        {
+          "input": "root = [1,2,3,4,5,6,7]",
+          "output": "[1,2,4,5,6,7,3]"
+        },
+        {
+          "input": "root = [1]",
+          "output": "[1]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [1, 10^5].",
+        "1 <= Node.val <= 10^5"
+      ],
+      "edgeCases": [
+        "Single node tree (should return just the root).",
+        "Left skewed tree.",
+        "Right skewed tree."
+      ],
+      "followUps": [
+        "Can you write a clean non-recursive iterative way to capture all leaf nodes?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Traverse the tree and collect nodes. Check leaf statuses, compile left boundaries and right boundaries separately with helper methods that don't share variables, doing separate passes.",
+          "algorithm": "1. Create isLeaf check.\n2. Left boundary: traverse root.left going left if available else right (skipping leaves).\n3. Leaves: traverse root in-order, if leaf add to list.\n4. Right boundary: traverse root.right going right if available else left (skipping leaves), reverse, and add to list.",
+          "code": "def boundaryTraversal(root):\n    if not root:\n        return []\n    \n    # Check if node is leaf\n    def isLeaf(node):\n        return not node.left and not node.right\n    \n    # Collect left boundary\n    def getLeftBoundary(node, res):\n        curr = node\n        while curr:\n            if not isLeaf(curr):\n                res.append(curr.val)\n            curr = curr.left if curr.left else curr.right\n    \n    # Collect leaf nodes\n    def getLeaves(node, res):\n        if not node:\n            return\n        if isLeaf(node):\n            res.append(node.val)\n            return\n        getLeaves(node.left, res)\n        getLeaves(node.right, res)\n        \n    # Collect right boundary (to be reversed)\n    def getRightBoundary(node, res):\n        curr = node\n        temp = []\n        while curr:\n            if not isLeaf(curr):\n                temp.append(curr.val)\n            curr = curr.right if curr.right else curr.left\n        res.extend(reversed(temp))\n        \n    res = []\n    if not isLeaf(root):\n        res.append(root.val)\n    getLeftBoundary(root.left, res)\n    getLeaves(root, res)\n    getRightBoundary(root.right, res)\n    return res",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "A modular implementation. Run left boundary collector, recursive leaf collector, and right boundary collector with a helper stack to reverse right side. Check root node separately.",
+          "algorithm": "1. If root is None, return [].\n2. Add root to result if root is not leaf.\n3. Add left boundary starting from root.left (traverse down, prioritizing left, skip leaves).\n4. DFS traversal to collect all leaf nodes recursively (left to right).\n5. Add right boundary starting from root.right (traverse down, prioritizing right, skip leaves) and push to temp, reverse and extend.\n6. Return result.",
+          "code": "def boundaryTraversal(root):\n    # Helper to check if a node is a leaf node\n    def is_leaf(node):\n        return not node.left and not node.right\n\n    # Helper to collect left boundary nodes (excluding leaves)\n    def add_left_boundary(node, res):\n        curr = node\n        while curr:\n            # Add node value if it is not a leaf\n            if not is_leaf(curr):\n                res.append(curr.val)\n            # Move left if possible, else move right\n            curr = curr.left if curr.left else curr.right\n\n    # Helper to collect all leaf nodes recursively\n    def add_leaves(node, res):\n        if not node:\n            return\n        # If current node is leaf, add its value\n        if is_leaf(node):\n            res.append(node.val)\n            return\n        # Recurse left\n        add_leaves(node.left, res)\n        # Recurse right\n        add_leaves(node.right, res)\n\n    # Helper to collect right boundary nodes in reverse\n    def add_right_boundary(node, res):\n        curr = node\n        temp = []\n        while curr:\n            # Store node value if it is not a leaf\n            if not is_leaf(curr):\n                temp.append(curr.val)\n            # Move right if possible, else move left\n            curr = curr.right if curr.right else curr.left\n        # Add right boundary nodes to result in reverse order\n        res.extend(reversed(temp))\n\n    # Result list\n    result = []\n    if not root:\n        return result\n    # Add root if it is not a leaf node\n    if not is_leaf(root):\n        result.append(root.val)\n    # 1. Add left boundary nodes\n    add_left_boundary(root.left, result)\n    # 2. Add all leaf nodes\n    add_leaves(root, result)\n    # 3. Add right boundary nodes\n    add_right_boundary(root.right, result)\n    # Return final boundary list\n    return result",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call boundaryTraversal with root = [1, 2, 3] (2 and 3 are leaves)",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 43,
+        "desc": "Initialize result = []",
+        "vars": {
+          "result": []
+        }
+      },
+      {
+        "line": 44,
+        "desc": "Root is not None, bypass check",
+        "vars": {}
+      },
+      {
+        "line": 47,
+        "desc": "Root 1 is not a leaf, append root.val (1)",
+        "vars": {
+          "result": [
+            1
+          ]
+        }
+      },
+      {
+        "line": 50,
+        "desc": "Call add_left_boundary(root.left = 2)",
+        "vars": {
+          "node.left": "2"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "Loop left boundary, curr = 2",
+        "vars": {
+          "curr": "2"
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Node 2 is a leaf, so do not add to left boundary",
+        "vars": {
+          "curr": "2"
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Move curr to left child (None)",
+        "vars": {
+          "curr": "None"
+        }
+      },
+      {
+        "line": 52,
+        "desc": "Call add_leaves(root = 1)",
+        "vars": {
+          "node": "1"
+        }
+      },
+      {
+        "line": 18,
+        "desc": "add_leaves(1) -> 1 is not null",
+        "vars": {}
+      },
+      {
+        "line": 21,
+        "desc": "1 is not leaf, recurse left",
+        "vars": {}
+      },
+      {
+        "line": 25,
+        "desc": "Call add_leaves(2)",
+        "vars": {
+          "node": "2"
+        }
+      },
+      {
+        "line": 21,
+        "desc": "2 is a leaf, add to result",
+        "vars": {
+          "result": [
+            1,
+            2
+          ]
+        }
+      },
+      {
+        "line": 27,
+        "desc": "Recurse right: Call add_leaves(3)",
+        "vars": {
+          "node": "3"
+        }
+      },
+      {
+        "line": 21,
+        "desc": "3 is a leaf, add to result",
+        "vars": {
+          "result": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      {
+        "line": 54,
+        "desc": "Call add_right_boundary(root.right = 3)",
+        "vars": {
+          "node.right": "3"
+        }
+      },
+      {
+        "line": 33,
+        "desc": "Loop right boundary, curr = 3",
+        "vars": {
+          "curr": "3"
+        }
+      },
+      {
+        "line": 35,
+        "desc": "Node 3 is leaf, so do not add to temp",
+        "vars": {
+          "temp": []
+        }
+      },
+      {
+        "line": 38,
+        "desc": "Move curr to right child (None)",
+        "vars": {
+          "curr": "None"
+        }
+      },
+      {
+        "line": 40,
+        "desc": "Extend result with reversed(temp) which is []",
+        "vars": {
+          "result": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      {
+        "line": 56,
+        "desc": "Return final boundary traversal list [1, 2, 3]",
+        "vars": {
+          "result": [
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  "Vertical Order Traversal": {
+    "solution": {
+      "problemStatement": "Given the root of a binary tree, calculate the vertical order traversal of the binary tree. For each node at position (row, col), its left child will be at (row + 1, col - 1) and its right child will be at (row + 1, col + 1). Return the vertical order traversal, sorting nodes by column index from left to right, then by row index from top to bottom, and finally by value if they share the same coordinates.",
+      "examples": [
+        {
+          "input": "root = [3,9,20,null,null,15,7]",
+          "output": "[[9],[3,15],[20],[7]]"
+        },
+        {
+          "input": "root = [1,2,3,4,6,5,7]",
+          "output": "[[4],[2],[1,5,6],[3],[7]]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [1, 1000].",
+        "0 <= Node.val <= 1000"
+      ],
+      "edgeCases": [
+        "Single node tree.",
+        "Nodes overlap at the same coordinate (row, col) (requires sorting by value).",
+        "Left skewed or right skewed tree."
+      ],
+      "followUps": [
+        "Can you solve this in O(N log N) without using a nested map structure?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Traverse the entire tree using DFS, recording the coordinates (col, row, val) of each node into a list. Sort the list by col, then by row, then by val. Group them by col and output.",
+          "algorithm": "1. Run DFS. For each node, append (col, row, node.val) to a global list.\n2. Sort the list.\n3. Iterate through sorted list to group node values with the same column together.\n4. Return the grouped lists.",
+          "code": "def verticalTraversal(root):\n    nodes = []\n    # DFS traversal to collect all nodes with coordinates\n    def dfs(node, row, col):\n        if not node:\n            return\n        nodes.append((col, row, node.val))\n        dfs(node.left, row + 1, col - 1)\n        dfs(node.right, row + 1, col + 1)\n        \n    dfs(root, 0, 0)\n    # Sort nodes: col first, then row, then value\n    nodes.sort()\n    \n    # Group sorted nodes by column\n    result = []\n    curr_col = None\n    curr_group = []\n    for col, row, val in nodes:\n        if col != curr_col:\n            if curr_group:\n                result.append(curr_group)\n            curr_group = [val]\n            curr_col = col\n        else:\n            curr_group.append(val)\n    if curr_group:\n        result.append(curr_group)\n    return result",
+          "complexity": {
+            "time": "O(N log N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use BFS with a queue to store (node, row, col) tuples. Since BFS naturally processes row-by-row, it minimizes the row sorting overhead. Use a hashmap mapping col -> list of (row, val). Finally, sort by columns, and then sort values in each column by row, then by value.",
+          "algorithm": "1. Initialize col_map = defaultdict(list) and queue = deque([(root, 0, 0)]).\n2. While queue is not empty, pop (node, row, col).\n3. If node is not None, append (row, node.val) to col_map[col].\n4. Add (node.left, row+1, col-1) and (node.right, row+1, col+1) to queue.\n5. Sort col_map keys (columns).\n6. For each column, sort the (row, val) pairs, extract values, and append to result.",
+          "code": "from collections import defaultdict, deque\n\ndef verticalTraversal(root):\n    # Dictionary to store columns mapping to lists of (row, val)\n    col_map = defaultdict(list)\n    # Queue storing tuples of (node, row, col)\n    queue = deque([(root, 0, 0)])\n    \n    # Process BFS queue\n    while queue:\n        # Pop front element\n        node, row, col = queue.popleft()\n        if node:\n            # Add node value and row index to respective column\n            col_map[col].append((row, node.val))\n            # Add left child with updated coordinates\n            queue.append((node.left, row + 1, col - 1))\n            # Add right child with updated coordinates\n            queue.append((node.right, row + 1, col + 1))\n            \n    # Result list to store grouped column values\n    result = []\n    # Sort column indices from left to right\n    for col in sorted(col_map.keys()):\n        # Sort node values in same column by row first, then by val\n        sorted_nodes = sorted(col_map[col], key=lambda x: (x[0], x[1]))\n        # Extract only the node values and append to result\n        result.append([val for _, val in sorted_nodes])\n        \n    # Return final vertical order list\n    return result",
+          "complexity": {
+            "time": "O(N log(N/K))",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Call verticalTraversal with root = [1, 2, 3]",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Initialize col_map to empty defaultdict",
+        "vars": {
+          "col_map": {}
+        }
+      },
+      {
+        "line": 7,
+        "desc": "Queue initialized with [(1, 0, 0)]",
+        "vars": {
+          "queue": "[(1, 0, 0)]"
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Loop queue, queue is not empty",
+        "vars": {}
+      },
+      {
+        "line": 12,
+        "desc": "Pop front: node = 1, row = 0, col = 0",
+        "vars": {
+          "node.val": 1,
+          "row": 0,
+          "col": 0
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Append (0, 1) to col_map[0]",
+        "vars": {
+          "col_map": "{0: [(0, 1)]}"
+        }
+      },
+      {
+        "line": 17,
+        "desc": "Queue left child: queue.append((2, 1, -1))",
+        "vars": {
+          "queue": "[(2, 1, -1)]"
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Queue right child: queue.append((3, 1, 1))",
+        "vars": {
+          "queue": "[(2, 1, -1), (3, 1, 1)]"
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Next loop, pop front: node = 2, row = 1, col = -1",
+        "vars": {
+          "node.val": 2,
+          "row": 1,
+          "col": -1
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Append (1, 2) to col_map[-1]",
+        "vars": {
+          "col_map": "{0: [(0, 1)], -1: [(1, 2)]}"
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Next loop, pop front: node = 3, row = 1, col = 1",
+        "vars": {
+          "node.val": 3,
+          "row": 1,
+          "col": 1
+        }
+      },
+      {
+        "line": 15,
+        "desc": "Append (1, 3) to col_map[1]",
+        "vars": {
+          "col_map": "{0: [(0, 1)], -1: [(1, 2)], 1: [(1, 3)]}"
+        }
+      },
+      {
+        "line": 22,
+        "desc": "Queue empty, initialize result = []",
+        "vars": {
+          "result": []
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Loop sorted col_map keys: [-1, 0, 1]. col = -1",
+        "vars": {
+          "col": -1
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Sort values in col -1: sorted_nodes = [(1, 2)]",
+        "vars": {
+          "sorted_nodes": [
+            [
+              1,
+              2
+            ]
+          ]
+        }
+      },
+      {
+        "line": 28,
+        "desc": "Append [2] to result -> result = [[2]]",
+        "vars": {
+          "result": [
+            [
+              2
+            ]
+          ]
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Next col = 0",
+        "vars": {
+          "col": 0
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Sort values in col 0: sorted_nodes = [(0, 1)]",
+        "vars": {
+          "sorted_nodes": [
+            [
+              0,
+              1
+            ]
+          ]
+        }
+      },
+      {
+        "line": 28,
+        "desc": "Append [1] to result -> result = [[2], [1]]",
+        "vars": {
+          "result": [
+            [
+              2
+            ],
+            [
+              1
+            ]
+          ]
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Next col = 1",
+        "vars": {
+          "col": 1
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Sort values in col 1: sorted_nodes = [(1, 3)]",
+        "vars": {
+          "sorted_nodes": [
+            [
+              1,
+              3
+            ]
+          ]
+        }
+      },
+      {
+        "line": 28,
+        "desc": "Append [3] to result -> result = [[2], [1], [3]]",
+        "vars": {
+          "result": [
+            [
+              2
+            ],
+            [
+              1
+            ],
+            [
+              3
+            ]
+          ]
+        }
+      },
+      {
+        "line": 31,
+        "desc": "Return final result [[2], [1], [3]]",
+        "vars": {
+          "result": [
+            [
+              2
+            ],
+            [
+              1
+            ],
+            [
+              3
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  "Top View of Binary Tree": {
+    "solution": {
+      "problemStatement": "Given below is a binary tree. The task is to print the top view of binary tree. Top view of a binary tree is the set of nodes visible when the tree is viewed from the top.",
+      "examples": [
+        {
+          "input": "root = [1,2,3,4,5,6,7]",
+          "output": "[4,2,1,3,7]"
+        },
+        {
+          "input": "root = [10,20,30,40,60,90,100]",
+          "output": "[40,20,10,30,100]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [1, 10^5].",
+        "1 <= Node.val <= 10^5"
+      ],
+      "edgeCases": [
+        "Single node tree (returns [root.val]).",
+        "Skewed tree.",
+        "Nodes that overlap horizontally but one is lower (BFS will naturally process higher node first)."
+      ],
+      "followUps": [
+        "Can you solve this in O(N) time without sorting the keys at the end?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "DFS to collect all coordinates. Store col -> (row, val). If a col is visited again, overwrite only if the row is smaller (closer to top). Sort columns at the end.",
+          "algorithm": "1. Run DFS. Keep track of current row and col.\n2. In map col_map, store col -> (row, val). If col is in col_map, compare row and replace if current row is smaller.\n3. Sort col_map by keys and output values.",
+          "code": "def topView(root):\n    col_map = {}\n    # DFS traversal\n    def dfs(node, row, col):\n        if not node:\n            return\n        # If col not seen, or seen but at a lower depth (row)\n        if col not in col_map or row < col_map[col][0]:\n            col_map[col] = (row, node.val)\n        dfs(node.left, row + 1, col - 1)\n        dfs(node.right, row + 1, col + 1)\n        \n    dfs(root, 0, 0)\n    # Sort columns and extract values\n    return [col_map[c][1] for c in sorted(col_map.keys())]",
+          "complexity": {
+            "time": "O(N log N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use BFS queue processing. BFS processes top levels first, so the first node we see for any column is the topmost node. Store first node seen for each column. Maintain min_col and max_col variables during BFS to construct result in O(N) without sorting.",
+          "algorithm": "1. If root is None, return [].\n2. Initialize col_map = {}, queue = deque([(root, 0)]), min_col = 0, max_col = 0.\n3. While queue is not empty, pop node, col.\n4. If col is not in col_map, set col_map[col] = node.val.\n5. Update min_col = min(min_col, col) and max_col = max(max_col, col).\n6. Push children with modified columns: left child col - 1, right child col + 1.\n7. Return list of values from min_col to max_col.",
+          "code": "from collections import deque\n\ndef topView(root):\n    # Return empty list if root is null\n    if not root:\n        return []\n    # Map to store the first node value seen at each column\n    col_map = {}\n    # Queue containing tuples of (node, col)\n    queue = deque([(root, 0)])\n    # Keep track of minimum and maximum column encountered\n    min_col, max_col = 0, 0\n    # Process BFS queue\n    while queue:\n        # Pop front element from queue\n        node, col = queue.popleft()\n        # If column is visited for the first time, record it\n        if col not in col_map:\n            col_map[col] = node.val\n        # Update min and max columns to avoid sorting keys later\n        min_col = min(min_col, col)\n        max_col = max(max_col, col)\n        # Add left child with col - 1\n        if node.left:\n            queue.append((node.left, col - 1))\n        # Add right child with col + 1\n        if node.right:\n            queue.append((node.right, col + 1))\n    # Build result list using range from min_col to max_col\n    return [col_map[col] for col in range(min_col, max_col + 1)]",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Call topView with root = [1, 2, 3]",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Root is not None, bypass check",
+        "vars": {}
+      },
+      {
+        "line": 8,
+        "desc": "Initialize col_map = {}",
+        "vars": {
+          "col_map": {}
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Initialize queue = [(1, 0)]",
+        "vars": {
+          "queue": "[(1, 0)]"
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Initialize min_col = 0, max_col = 0",
+        "vars": {
+          "min_col": 0,
+          "max_col": 0
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Loop queue, not empty",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Pop front: node = 1, col = 0",
+        "vars": {
+          "node.val": 1,
+          "col": 0
+        }
+      },
+      {
+        "line": 18,
+        "desc": "col 0 is not in col_map. Add col_map[0] = 1",
+        "vars": {
+          "col_map": "{0: 1}"
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Update min_col = min(0, 0) = 0",
+        "vars": {
+          "min_col": 0
+        }
+      },
+      {
+        "line": 22,
+        "desc": "Update max_col = max(0, 0) = 0",
+        "vars": {
+          "max_col": 0
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Add left child 2 to queue with col -1",
+        "vars": {
+          "queue": "[(2, -1)]"
+        }
+      },
+      {
+        "line": 27,
+        "desc": "Add right child 3 to queue with col 1",
+        "vars": {
+          "queue": "[(2, -1), (3, 1)]"
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Next loop, pop front: node = 2, col = -1",
+        "vars": {
+          "node.val": 2,
+          "col": -1
+        }
+      },
+      {
+        "line": 18,
+        "desc": "col -1 not in col_map. Add col_map[-1] = 2",
+        "vars": {
+          "col_map": "{0: 1, -1: 2}"
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Update min_col = min(0, -1) = -1",
+        "vars": {
+          "min_col": -1
+        }
+      },
+      {
+        "line": 22,
+        "desc": "Update max_col = max(0, -1) = 0",
+        "vars": {
+          "max_col": 0
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Next loop, pop front: node = 3, col = 1",
+        "vars": {
+          "node.val": 3,
+          "col": 1
+        }
+      },
+      {
+        "line": 18,
+        "desc": "col 1 not in col_map. Add col_map[1] = 3",
+        "vars": {
+          "col_map": "{0: 1, -1: 2, 1: 3}"
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Update min_col = min(-1, 1) = -1",
+        "vars": {
+          "min_col": -1
+        }
+      },
+      {
+        "line": 22,
+        "desc": "Update max_col = max(0, 1) = 1",
+        "vars": {
+          "max_col": 1
+        }
+      },
+      {
+        "line": 30,
+        "desc": "Queue empty. Range min_col to max_col (-1 to 1). Build result: [col_map[-1], col_map[0], col_map[1]]",
+        "vars": {
+          "result": [
+            2,
+            1,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  "Bottom View of Binary Tree": {
+    "solution": {
+      "problemStatement": "Given a binary tree, return the bottom view of it. The bottom view of a binary tree is the set of nodes visible when the tree is viewed from the bottom.",
+      "examples": [
+        {
+          "input": "root = [1,2,3,4,5,6,7]",
+          "output": "[4,2,6,3,7]"
+        },
+        {
+          "input": "root = [20,8,22,5,3,4,25,null,null,10,14]",
+          "output": "[5,10,4,14,25]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [1, 10^5].",
+        "1 <= Node.val <= 10^5"
+      ],
+      "edgeCases": [
+        "Single node tree (returns [root.val]).",
+        "Left or right skewed tree.",
+        "Two nodes sharing the same horizontal col (BFS processes nodes level-by-level, and for the same level from left to right, so the rightmost node at that level/col overwrites and is correct)."
+      ],
+      "followUps": [
+        "Can you solve this in O(N) time and O(N) space without sorting the columns?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "DFS to collect all node coordinates. Keep a map col -> (row, val). If a col is visited again, overwrite only if current row is greater or equal. Sort columns at the end.",
+          "algorithm": "1. Run DFS. Keep track of current row and col.\n2. In map col_map, store col -> (row, val). If col is in col_map, overwrite if current row is >= stored row.\n3. Sort col_map by keys and output values.",
+          "code": "def bottomView(root):\n    col_map = {}\n    # DFS traversal\n    def dfs(node, row, col):\n        if not node:\n            return\n        # Store or overwrite if row is greater or equal\n        if col not in col_map or row >= col_map[col][0]:\n            col_map[col] = (row, node.val)\n        dfs(node.left, row + 1, col - 1)\n        dfs(node.right, row + 1, col + 1)\n        \n    dfs(root, 0, 0)\n    return [col_map[c][1] for c in sorted(col_map.keys())]",
+          "complexity": {
+            "time": "O(N log N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "BFS level order traversal ensures we process top-to-bottom. Thus, the last node we see for any column must be the bottommost node. Keep a hashmap col -> node.val and overwrite it. Keep track of min_col and max_col to construct result list directly in O(N).",
+          "algorithm": "1. If root is None, return [].\n2. Initialize col_map = {}, queue = deque([(root, 0)]), min_col = 0, max_col = 0.\n3. While queue is not empty, pop node, col.\n4. Overwrite col_map[col] = node.val.\n5. Update min_col = min(min_col, col) and max_col = max(max_col, col).\n6. Push children: left child col - 1, right child col + 1.\n7. Return list of values from min_col to max_col.",
+          "code": "from collections import deque\n\ndef bottomView(root):\n    # Return empty list if root is null\n    if not root:\n        return []\n    # Map to store the last node value seen at each column\n    col_map = {}\n    # Queue containing tuples of (node, col)\n    queue = deque([(root, 0)])\n    # Keep track of minimum and maximum column encountered\n    min_col, max_col = 0, 0\n    # Process BFS queue\n    while queue:\n        # Pop front element from queue\n        node, col = queue.popleft()\n        # Overwrite column map entry with current node value\n        col_map[col] = node.val\n        # Update min and max columns to avoid sorting keys later\n        min_col = min(min_col, col)\n        max_col = max(max_col, col)\n        # Add left child with col - 1\n        if node.left:\n            queue.append((node.left, col - 1))\n        # Add right child with col + 1\n        if node.right:\n            queue.append((node.right, col + 1))\n    # Build result list using range from min_col to max_col\n    return [col_map[col] for col in range(min_col, max_col + 1)]",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 3,
+        "desc": "Call bottomView with root = [1, 2, 3]",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Root is not None, bypass check",
+        "vars": {}
+      },
+      {
+        "line": 8,
+        "desc": "Initialize col_map = {}",
+        "vars": {
+          "col_map": {}
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Initialize queue = [(1, 0)]",
+        "vars": {
+          "queue": "[(1, 0)]"
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Initialize min_col = 0, max_col = 0",
+        "vars": {
+          "min_col": 0,
+          "max_col": 0
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Loop queue, not empty",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Pop front: node = 1, col = 0",
+        "vars": {
+          "node.val": 1,
+          "col": 0
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Overwrite col_map[0] = 1",
+        "vars": {
+          "col_map": "{0: 1}"
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Update min_col = min(0, 0) = 0",
+        "vars": {
+          "min_col": 0
+        }
+      },
+      {
+        "line": 22,
+        "desc": "Update max_col = max(0, 0) = 0",
+        "vars": {
+          "max_col": 0
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Add left child 2 to queue with col -1",
+        "vars": {
+          "queue": "[(2, -1)]"
+        }
+      },
+      {
+        "line": 27,
+        "desc": "Add right child 3 to queue with col 1",
+        "vars": {
+          "queue": "[(2, -1), (3, 1)]"
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Next loop, pop front: node = 2, col = -1",
+        "vars": {
+          "node.val": 2,
+          "col": -1
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Overwrite col_map[-1] = 2",
+        "vars": {
+          "col_map": "{0: 1, -1: 2}"
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Update min_col = min(0, -1) = -1",
+        "vars": {
+          "min_col": -1
+        }
+      },
+      {
+        "line": 22,
+        "desc": "Update max_col = max(0, -1) = 0",
+        "vars": {
+          "max_col": 0
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Next loop, pop front: node = 3, col = 1",
+        "vars": {
+          "node.val": 3,
+          "col": 1
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Overwrite col_map[1] = 3",
+        "vars": {
+          "col_map": "{0: 1, -1: 2, 1: 3}"
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Update min_col = min(-1, 1) = -1",
+        "vars": {
+          "min_col": -1
+        }
+      },
+      {
+        "line": 22,
+        "desc": "Update max_col = max(0, 1) = 1",
+        "vars": {
+          "max_col": 1
+        }
+      },
+      {
+        "line": 30,
+        "desc": "Queue empty. Range -1 to 1. Build result: [col_map[-1], col_map[0], col_map[1]]",
+        "vars": {
+          "result": [
+            2,
+            1,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  "Right View of Binary Tree": {
+    "solution": {
+      "problemStatement": "Given the root of a binary tree, return the right side view of its nodes. That is, the values of the nodes you can see ordered from top to bottom when looking from the right side.",
+      "examples": [
+        {
+          "input": "root = [1,2,3,null,5,null,4]",
+          "output": "[1,3,4]"
+        },
+        {
+          "input": "root = [1,null,3]",
+          "output": "[1,3]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 100].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Empty tree (returns []).",
+        "Left-skewed tree (the left nodes will be visible once right branches terminate).",
+        "Single node tree."
+      ],
+      "followUps": [
+        "Can you solve this both iteratively (BFS) and recursively (DFS)?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Perform BFS level order traversal. For each level, append the last element in that level to the result.",
+          "algorithm": "1. If root is None, return [].\n2. Initialize queue = [root].\n3. Loop while queue is not empty.\n4. Take the level size, and pop elements. If the element is the last in the level, add to result.\n5. Push non-null left and right children to queue.\n6. Return result.",
+          "code": "def rightSideView(root):\n    if not root:\n        return []\n    queue = [root]\n    result = []\n    while queue:\n        level_size = len(queue)\n        for i in range(level_size):\n            curr = queue.pop(0)\n            # If it is the last element of the level, add to result\n            if i == level_size - 1:\n                result.append(curr.val)\n            if curr.left:\n                queue.append(curr.left)\n            if curr.right:\n                queue.append(curr.right)\n    return result",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(W)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use DFS recursion with a Root-Right-Left order. Keep track of the current depth. When visiting a depth for the first time (signaled by depth == len(result)), add the node's value to the result. Recurse right first to ensure rightmost nodes are processed first.",
+          "algorithm": "1. Initialize result = [].\n2. Define helper solve(node, depth).\n3. If node is None, return.\n4. If depth == len(result), result.append(node.val).\n5. Recurse right: solve(node.right, depth + 1).\n6. Recurse left: solve(node.left, depth + 1).\n7. Call solve(root, 0) and return result.",
+          "code": "def rightSideView(root):\n    # Result list to store the right side view\n    result = []\n    \n    # Helper function for recursive DFS traversal (Root-Right-Left)\n    def solve(node, depth):\n        # Base case: if node is null, return\n        if not node:\n            return\n        # If current depth equals length of result, add node val\n        if depth == len(result):\n            result.append(node.val)\n        # Recurse on right subtree first to prioritize rightmost nodes\n        solve(node.right, depth + 1)\n        # Recurse on left subtree\n        solve(node.left, depth + 1)\n        \n    # Start recursion from root at depth 0\n    solve(root, 0)\n    # Return right side view list\n    return result",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call rightSideView with root = [1, 2, 3, null, 5]",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Initialize result = []",
+        "vars": {
+          "result": []
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Call solve(1, 0)",
+        "vars": {
+          "node": "1",
+          "depth": 0
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 1 is not null",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "depth (0) matches len(result) (0). Add 1 to result",
+        "vars": {
+          "result": [
+            1
+          ]
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Recurse right: Call solve(3, 1)",
+        "vars": {
+          "node.right": "3",
+          "depth": 1
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 3 is not null",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "depth (1) matches len(result) (1). Add 3 to result",
+        "vars": {
+          "result": [
+            1,
+            3
+          ]
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Recurse right of 3: Call solve(None, 2)",
+        "vars": {
+          "node.right": "None"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node is null, return",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Recurse left of 3: Call solve(None, 2)",
+        "vars": {
+          "node.left": "None"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node is null, return",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Back at node 1. Recurse left: Call solve(2, 1)",
+        "vars": {
+          "node.left": "2"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 2 is not null",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "depth (1) does not match len(result) (2). Skip adding 2.",
+        "vars": {
+          "result": [
+            1,
+            3
+          ]
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Recurse right of 2: Call solve(5, 2)",
+        "vars": {
+          "node.right": "5"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 5 is not null",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "depth (2) matches len(result) (2). Add 5 to result",
+        "vars": {
+          "result": [
+            1,
+            3,
+            5
+          ]
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Recurse right of 5: solve(None, 3) -> returns",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Recurse left of 5: solve(None, 3) -> returns",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Recurse left of 2: solve(None, 2) -> returns",
+        "vars": {}
+      },
+      {
+        "line": 21,
+        "desc": "DFS finished. Return result [1, 3, 5]",
+        "vars": {
+          "result": [
+            1,
+            3,
+            5
+          ]
+        }
+      }
+    ]
+  },
+  "Left View of Binary Tree": {
+    "solution": {
+      "problemStatement": "Given the root of a binary tree, return the left side view of its nodes. That is, the values of the nodes you can see ordered from top to bottom when looking from the left side.",
+      "examples": [
+        {
+          "input": "root = [1,2,3,null,5,null,4]",
+          "output": "[1,2,5]"
+        },
+        {
+          "input": "root = [1,null,3]",
+          "output": "[1,3]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [0, 100].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Empty tree (returns []).",
+        "Right-skewed tree.",
+        "Single node tree."
+      ],
+      "followUps": [
+        "Can you solve this both iteratively (BFS) and recursively (DFS)?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Perform BFS level order traversal. For each level, append the first element in that level to the result.",
+          "algorithm": "1. If root is None, return [].\n2. Initialize queue = [root].\n3. Loop while queue is not empty.\n4. Take the level size, and pop elements. If the element is the first in the level, add to result.\n5. Push non-null left and right children to queue.\n6. Return result.",
+          "code": "def leftSideView(root):\n    if not root:\n        return []\n    queue = [root]\n    result = []\n    while queue:\n        level_size = len(queue)\n        for i in range(level_size):\n            curr = queue.pop(0)\n            # If it is the first element of the level, add to result\n            if i == 0:\n                result.append(curr.val)\n            if curr.left:\n                queue.append(curr.left)\n            if curr.right:\n                queue.append(curr.right)\n    return result",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(W)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use DFS recursion with a Root-Left-Right order. Keep track of the current depth. When visiting a depth for the first time (signaled by depth == len(result)), add the node's value to the result. Recurse left first to ensure leftmost nodes are processed first.",
+          "algorithm": "1. Initialize result = [].\n2. Define helper solve(node, depth).\n3. If node is None, return.\n4. If depth == len(result), result.append(node.val).\n5. Recurse left: solve(node.left, depth + 1).\n6. Recurse right: solve(node.right, depth + 1).\n7. Call solve(root, 0) and return result.",
+          "code": "def leftSideView(root):\n    # Result list to store the left side view\n    result = []\n    \n    # Helper function for recursive DFS traversal (Root-Left-Right)\n    def solve(node, depth):\n        # Base case: if node is null, return\n        if not node:\n            return\n        # If current depth equals length of result, add node val\n        if depth == len(result):\n            result.append(node.val)\n        # Recurse on left subtree first to prioritize leftmost nodes\n        solve(node.left, depth + 1)\n        # Recurse on right subtree\n        solve(node.right, depth + 1)\n        \n    # Start recursion from root at depth 0\n    solve(root, 0)\n    # Return left side view list\n    return result",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call leftSideView with root = [1, 2, 3, null, 5]",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Initialize result = []",
+        "vars": {
+          "result": []
+        }
+      },
+      {
+        "line": 19,
+        "desc": "Call solve(1, 0)",
+        "vars": {
+          "node": "1",
+          "depth": 0
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 1 is not null",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "depth (0) matches len(result) (0). Add 1 to result",
+        "vars": {
+          "result": [
+            1
+          ]
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Recurse left: Call solve(2, 1)",
+        "vars": {
+          "node.left": "2",
+          "depth": 1
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 2 is not null",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "depth (1) matches len(result) (1). Add 2 to result",
+        "vars": {
+          "result": [
+            1,
+            2
+          ]
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Recurse left of 2: Call solve(None, 2)",
+        "vars": {
+          "node.left": "None"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node is null, return",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Recurse right of 2: Call solve(5, 2)",
+        "vars": {
+          "node.right": "5"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 5 is not null",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "depth (2) matches len(result) (2). Add 5 to result",
+        "vars": {
+          "result": [
+            1,
+            2,
+            5
+          ]
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Recurse left of 5: returns",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Recurse right of 5: returns",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Back to node 1. Recurse right: Call solve(3, 1)",
+        "vars": {
+          "node.right": "3"
+        }
+      },
+      {
+        "line": 8,
+        "desc": "Node 3 is not null",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "depth (1) does not match len(result) (3). Skip.",
+        "vars": {
+          "result": [
+            1,
+            2,
+            5
+          ]
+        }
+      },
+      {
+        "line": 14,
+        "desc": "Recurse left of 3: returns",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Recurse right of 3: returns",
+        "vars": {}
+      },
+      {
+        "line": 21,
+        "desc": "DFS finished. Return result [1, 2, 5]",
+        "vars": {
+          "result": [
+            1,
+            2,
+            5
+          ]
+        }
+      }
+    ]
+  },
+  "Symmetric Binary Tree": {
+    "solution": {
+      "problemStatement": "Given the root of a binary tree, check whether it is a mirror of itself (i.e., symmetric around its center).",
+      "examples": [
+        {
+          "input": "root = [1,2,2,3,4,4,3]",
+          "output": "true"
+        },
+        {
+          "input": "root = [1,2,2,null,3,null,3]",
+          "output": "false"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [1, 1000].",
+        "-100 <= Node.val <= 100"
+      ],
+      "edgeCases": [
+        "Single node tree (symmetric).",
+        "Left and right subtrees have identical values but mirror shapes mismatch.",
+        "Asymmetric structure but matching node values."
+      ],
+      "followUps": [
+        "Could you solve it both recursively and iteratively?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Clone the tree, mirror it (by swapping left and right children recursively), and check if the cloned mirror tree is identical to the original tree.",
+          "algorithm": "1. Write helper cloneAndMirror(node) to return a mirrored copy of the tree.\n2. Write helper isIdentical(p, q) to verify if two trees are equal.\n3. Return isIdentical(root, cloneAndMirror(root)).",
+          "code": "def isSymmetric(root):\n    # Helper to clone and mirror the tree\n    def cloneAndMirror(node):\n        if not node:\n            return None\n        new_node = TreeNode(node.val)\n        new_node.left = cloneAndMirror(node.right)\n        new_node.right = cloneAndMirror(node.left)\n        return new_node\n        \n    # Helper to check if two trees are identical\n    def isIdentical(p, q):\n        if not p and not q:\n            return True\n        if not p or not q:\n            return False\n        return p.val == q.val and isIdentical(p.left, q.left) and isIdentical(p.right, q.right)\n        \n    if not root:\n        return True\n    mirrored_root = cloneAndMirror(root)\n    return isIdentical(root, mirrored_root)",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(N)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Two trees are symmetric mirrors if their root values are identical, and the left subtree of one is a mirror of the right subtree of the other (and vice versa). Verify this recursively using a helper isMirror(t1, t2).",
+          "algorithm": "1. If root is None, return True.\n2. Call isMirror(root.left, root.right).\n3. In isMirror(t1, t2):\n   a. If both are null, return True.\n   b. If only one is null, return False.\n   c. Return t1.val == t2.val and isMirror(t1.left, t2.right) and isMirror(t1.right, t2.left).",
+          "code": "def isSymmetric(root):\n    # Helper function to check if two subtrees are mirrors of each other\n    def isMirror(t1, t2):\n        # If both subtrees are null, they are symmetric\n        if not t1 and not t2:\n            return True\n        # If only one is null, they are not symmetric\n        if not t1 or not t2:\n            return False\n        # Check if current values match and their subtrees are mirrored\n        return (t1.val == t2.val and \n                isMirror(t1.left, t2.right) and \n                isMirror(t1.right, t2.left))\n    \n    # If root is null, it is symmetric\n    if not root:\n        return True\n    # Check if left and right subtrees are mirrors of each other\n    return isMirror(root.left, root.right)",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call isSymmetric with root = [1, 2, 2]",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 16,
+        "desc": "Root is not null, skip check",
+        "vars": {}
+      },
+      {
+        "line": 19,
+        "desc": "Call isMirror(root.left = 2, root.right = 2)",
+        "vars": {
+          "t1": "2",
+          "t2": "2"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "t1 and t2 are not both null",
+        "vars": {}
+      },
+      {
+        "line": 8,
+        "desc": "Neither t1 nor t2 is null",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "Check if t1.val (2) == t2.val (2). It matches.",
+        "vars": {
+          "t1.val": 2,
+          "t2.val": 2
+        }
+      },
+      {
+        "line": 12,
+        "desc": "Recurse mirror: isMirror(t1.left = None, t2.right = None)",
+        "vars": {
+          "t1.left": "None",
+          "t2.right": "None"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Both are null, return True",
+        "vars": {}
+      },
+      {
+        "line": 13,
+        "desc": "Recurse mirror: isMirror(t1.right = None, t2.left = None)",
+        "vars": {
+          "t1.right": "None",
+          "t2.left": "None"
+        }
+      },
+      {
+        "line": 6,
+        "desc": "Both are null, return True",
+        "vars": {}
+      },
+      {
+        "line": 11,
+        "desc": "All conditions met for isMirror(2, 2). Return True",
+        "vars": {}
+      },
+      {
+        "line": 19,
+        "desc": "isMirror returned True, so tree is symmetric. Return True",
+        "vars": {
+          "symmetric": true
+        }
+      }
+    ]
+  },
+  "Root to Node Path": {
+    "solution": {
+      "problemStatement": "Given a Binary Tree and a target node value, find the path from the root to the target node. Return the path as a list of integers. If no path exists, return an empty list.",
+      "examples": [
+        {
+          "input": "root = [1,2,3,null,null,4,5], target = 4",
+          "output": "[1,3,4]"
+        },
+        {
+          "input": "root = [1,2,3], target = 5",
+          "output": "[]"
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [1, 10^5].",
+        "1 <= Node.val <= 10^5"
+      ],
+      "edgeCases": [
+        "Target node is the root itself.",
+        "Target node is not present in the tree (returns []).",
+        "Tree has duplicate values (returns first found path)."
+      ],
+      "followUps": [
+        "Can you write a variation of this to find the path between any two nodes in a binary tree?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Generate all possible root-to-node paths in the tree using DFS. Then search through the generated paths to find the one ending with the target node.",
+          "algorithm": "1. Run DFS starting from root.\n2. Accumulate current path list, creating copies along the way.\n3. Store all paths in a global list.\n4. Search the global list for the path ending with target and return it. If none, return [].",
+          "code": "def solve(root, target):\n    all_paths = []\n    # DFS to find all paths\n    def dfs(node, path):\n        if not node:\n            return\n        curr_path = path + [node.val]\n        all_paths.append(curr_path)\n        dfs(node.left, curr_path)\n        dfs(node.right, curr_path)\n        \n    dfs(root, [])\n    # Search for path ending with target\n    for p in all_paths:\n        if p[-1] == target:\n            return p\n    return []",
+          "complexity": {
+            "time": "O(N^2)",
+            "space": "O(N^2)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Use recursive backtracking. We traverse down the tree, appending each visited node to our path list. If the current node is the target, we return True. If it's not, we recurse left and right. If both return False, we pop the current node from the path list (backtrack) and return False.",
+          "algorithm": "1. Initialize result = [].\n2. Define get_path(node, target_val, path) returning boolean.\n3. If node is None, return False.\n4. Append node.val to path.\n5. If node.val == target_val, return True.\n6. If get_path(node.left, target_val, path) is True, return True.\n7. If get_path(node.right, target_val, path) is True, return True.\n8. Pop node.val from path and return False.",
+          "code": "def solve(root, target):\n    # Helper function to find path using backtracking\n    def get_path(node, target_val, path):\n        # Base case: if node is null, path does not exist\n        if not node:\n            return False\n        # Add current node val to path list\n        path.append(node.val)\n        # If target node is found, return True\n        if node.val == target_val:\n            return True\n        # Recurse on left subtree; if path found, return True\n        if get_path(node.left, target_val, path):\n            return True\n        # Recurse on right subtree; if path found, return True\n        if get_path(node.right, target_val, path):\n            return True\n        # Backtrack: remove current node val from path if not found in subtrees\n        path.pop()\n        # Return False indicating target is not in this path\n        return False\n\n    # List to store root to node path\n    result = []\n    # Call helper starting from root\n    get_path(root, target, result)\n    # Return path or empty list if target not found\n    return result",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call solve with root = [1, 2, 3], target = 3",
+        "vars": {
+          "target": 3
+        }
+      },
+      {
+        "line": 24,
+        "desc": "Initialize result = []",
+        "vars": {
+          "result": []
+        }
+      },
+      {
+        "line": 26,
+        "desc": "Call get_path(1, 3, result)",
+        "vars": {
+          "node": "1",
+          "target_val": 3,
+          "path": []
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Node 1 is not null",
+        "vars": {}
+      },
+      {
+        "line": 8,
+        "desc": "Append 1 to path -> path = [1]",
+        "vars": {
+          "path": [
+            1
+          ]
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Node value 1 is not target 3",
+        "vars": {}
+      },
+      {
+        "line": 13,
+        "desc": "Recurse left: Call get_path(2, 3, path)",
+        "vars": {
+          "node.left": "2"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Node 2 is not null",
+        "vars": {}
+      },
+      {
+        "line": 8,
+        "desc": "Append 2 to path -> path = [1, 2]",
+        "vars": {
+          "path": [
+            1,
+            2
+          ]
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Node value 2 is not target 3",
+        "vars": {}
+      },
+      {
+        "line": 13,
+        "desc": "Recurse left of 2: get_path(None, 3, path) -> returns False",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Recurse right of 2: get_path(None, 3, path) -> returns False",
+        "vars": {}
+      },
+      {
+        "line": 19,
+        "desc": "Backtrack from 2: pop last element -> path = [1]",
+        "vars": {
+          "path": [
+            1
+          ]
+        }
+      },
+      {
+        "line": 21,
+        "desc": "Return False for node 2 search",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Back at node 1. Recurse right: Call get_path(3, 3, path)",
+        "vars": {
+          "node.right": "3"
+        }
+      },
+      {
+        "line": 5,
+        "desc": "Node 3 is not null",
+        "vars": {}
+      },
+      {
+        "line": 8,
+        "desc": "Append 3 to path -> path = [1, 3]",
+        "vars": {
+          "path": [
+            1,
+            3
+          ]
+        }
+      },
+      {
+        "line": 10,
+        "desc": "Node value 3 equals target 3. Return True",
+        "vars": {}
+      },
+      {
+        "line": 16,
+        "desc": "Right child check for node 1 returned True. Return True",
+        "vars": {}
+      },
+      {
+        "line": 28,
+        "desc": "Helper finished, return result [1, 3]",
+        "vars": {
+          "result": [
+            1,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  "Lowest Common Ancestor in Binary Tree": {
+    "solution": {
+      "problemStatement": "Given a binary tree, find the lowest common ancestor (LCA) of two given nodes in the tree. According to the definition of LCA on Wikipedia: The lowest common ancestor is defined between two nodes p and q as the lowest node in T that has both p and q as descendants (where we allow a node to be a descendant of itself).",
+      "examples": [
+        {
+          "input": "root = [3,5,1,6,2,0,8,null,null,7,4], p = 5, q = 1",
+          "output": "3",
+          "explanation": "The LCA of nodes 5 and 1 is 3."
+        },
+        {
+          "input": "root = [3,5,1,6,2,0,8,null,null,7,4], p = 5, q = 4",
+          "output": "5",
+          "explanation": "The LCA of nodes 5 and 4 is 5, since a node can be a descendant of itself."
+        }
+      ],
+      "constraints": [
+        "The number of nodes in the tree is in the range [2, 10^5].",
+        "-10^9 <= Node.val <= 10^9",
+        "All Node.val are unique.",
+        "p and q will exist in the tree."
+      ],
+      "edgeCases": [
+        "p or q is the root itself.",
+        "p is the parent of q (LCA should be p).",
+        "p and q are at the opposite extreme bottom ends of the tree."
+      ],
+      "followUps": [
+        "Can you solve this if the binary tree nodes have parent pointers?"
+      ],
+      "approaches": [
+        {
+          "name": "Brute Force",
+          "intuition": "Find the paths from root to p and root to q using the 'Root to Node Path' algorithm. Then walk both paths simultaneously from the beginning; the last node that is common to both paths is the LCA.",
+          "algorithm": "1. Write helper path finding function.\n2. Find path for p and q.\n3. Loop through both lists and return the last node that matches in both.",
+          "code": "def lowestCommonAncestor(root, p, q):\n    # Find paths for p and q\n    def get_path(node, target, path):\n        if not node:\n            return False\n        path.append(node)\n        if node == target:\n            return True\n        if get_path(node.left, target, path) or get_path(node.right, target, path):\n            return True\n        path.pop()\n        return False\n        \n    path_p, path_q = [], []\n    get_path(root, p, path_p)\n    get_path(root, q, path_q)\n    \n    # Compare paths to find LCA\n    lca = None\n    for node_p, node_q in zip(path_p, path_q):\n        if node_p == node_q:\n            lca = node_p\n        else:\n            break\n    return lca",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        },
+        {
+          "name": "Optimal",
+          "intuition": "Perform a recursive post-order traversal. If the current node is null, or matches p or q, we return the current node. Otherwise, we recursively find LCA in left and right subtrees. If both return non-null, it means p is in one subtree and q in the other, so the current node is the LCA. If only one is non-null, we return that non-null node.",
+          "algorithm": "1. Base case: If root is None, or root matches p, or root matches q, return root.\n2. Recursively find LCA in root.left: left = lowestCommonAncestor(root.left, p, q).\n3. Recursively find LCA in root.right: right = lowestCommonAncestor(root.right, p, q).\n4. If left is not None and right is not None, return root.\n5. Otherwise, return left if left is not None else right.",
+          "code": "def lowestCommonAncestor(root, p, q):\n    # Base case: if root is null or matches either target node p or q\n    if not root or root == p or root == q:\n        # Return current node (propagates match upwards)\n        return root\n    # Recurse on left subtree\n    left = lowestCommonAncestor(root.left, p, q)\n    # Recurse on right subtree\n    right = lowestCommonAncestor(root.right, p, q)\n    # If both left and right are non-null, current node is LCA\n    if left and right:\n        return root\n    # Otherwise return whichever subtree search returned non-null\n    return left if left else right",
+          "complexity": {
+            "time": "O(N)",
+            "space": "O(H)"
+          }
+        }
+      ]
+    },
+    "trace": [
+      {
+        "line": 1,
+        "desc": "Call lowestCommonAncestor with root = [3, 5, 1], p = 5, q = 1",
+        "vars": {
+          "root": "3",
+          "p": "5",
+          "q": "1"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Root 3 is not None, and does not match p (5) or q (1)",
+        "vars": {}
+      },
+      {
+        "line": 7,
+        "desc": "Recurse left: Call lowestCommonAncestor(root.left = 5, p = 5, q = 1)",
+        "vars": {
+          "root.left": "5"
+        }
+      },
+      {
+        "line": 1,
+        "desc": "Call lowestCommonAncestor with root = 5",
+        "vars": {
+          "root": "5"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Root 5 matches p (5). Return node 5.",
+        "vars": {
+          "root": "5"
+        }
+      },
+      {
+        "line": 7,
+        "desc": "For root 3, left = 5. Recurse right: Call lowestCommonAncestor(root.right = 1, p = 5, q = 1)",
+        "vars": {
+          "root.right": "1",
+          "left": "5"
+        }
+      },
+      {
+        "line": 1,
+        "desc": "Call lowestCommonAncestor with root = 1",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 3,
+        "desc": "Root 1 matches q (1). Return node 1.",
+        "vars": {
+          "root": "1"
+        }
+      },
+      {
+        "line": 9,
+        "desc": "For root 3, left = 5 and right = 1.",
+        "vars": {
+          "left": "5",
+          "right": "1"
+        }
+      },
+      {
+        "line": 11,
+        "desc": "Since both left (5) and right (1) are non-null, LCA is root 3. Return root 3.",
+        "vars": {
+          "result": "3"
+        }
+      }
+    ]
+  }
+}

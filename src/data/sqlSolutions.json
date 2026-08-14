@@ -1,0 +1,4447 @@
+{
+ "Recyclable and Low Fat Products": {
+  "title": "Recyclable and Low Fat Products",
+  "problemStatement": "Find the ids of products that are both low fat and recyclable.",
+  "schema": "Create table If Not Exists Products (product_id int, low_fats ENUM('Y', 'N'), recyclable ENUM('Y', 'N'))",
+  "exampleData": [
+   {
+    "tableName": "Products",
+    "headers": [
+     "product_id",
+     "low_fats",
+     "recyclable"
+    ],
+    "rows": [
+     [
+      0,
+      "Y",
+      "N"
+     ],
+     [
+      1,
+      "Y",
+      "Y"
+     ],
+     [
+      2,
+      "N",
+      "Y"
+     ],
+     [
+      3,
+      "Y",
+      "Y"
+     ],
+     [
+      4,
+      "N",
+      "N"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "product_id"
+   ],
+   "rows": [
+    [
+     1
+    ],
+    [
+     3
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT product_id FROM Products WHERE low_fats = 'Y' AND recyclable = 'Y';",
+    "explanation": "Filters the Products table to return only those product IDs where both the low_fats and recyclable columns contain the value 'Y'."
+   }
+  ],
+  "edgeCases": [
+   "No products are both low fat and recyclable.",
+   "All products are both low fat and recyclable.",
+   "The table is empty."
+  ]
+ },
+ "Find Customer Referee": {
+  "title": "Find Customer Referee",
+  "problemStatement": "Find the names of the customer that are not referred by the customer with id = 2.",
+  "schema": "Create table If Not Exists Customer (id int, name varchar(25), referee_id int)",
+  "exampleData": [
+   {
+    "tableName": "Customer",
+    "headers": [
+     "id",
+     "name",
+     "referee_id"
+    ],
+    "rows": [
+     [
+      1,
+      "Will",
+      null
+     ],
+     [
+      2,
+      "Jane",
+      null
+     ],
+     [
+      3,
+      "Alex",
+      2
+     ],
+     [
+      4,
+      "Bill",
+      null
+     ],
+     [
+      5,
+      "Zack",
+      1
+     ],
+     [
+      6,
+      "Mark",
+      2
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "name"
+   ],
+   "rows": [
+    [
+     "Will"
+    ],
+    [
+     "Jane"
+    ],
+    [
+     "Bill"
+    ],
+    [
+     "Zack"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT name FROM Customer WHERE referee_id != 2 OR referee_id IS NULL;",
+    "explanation": "Selects customer names where the referee_id is not equal to 2. An explicit check for 'IS NULL' is required because SQL three-valued logic evaluates comparisons with NULL (such as referee_id != 2) as UNKNOWN, which excludes NULLs from the result."
+   }
+  ],
+  "edgeCases": [
+   "All customers have a referee_id equal to 2 (should return empty output).",
+   "The referee_id values are all NULL (should return all customers).",
+   "The referee_id is NULL for some customers and non-null (excluding 2) for others."
+  ]
+ },
+ "Big Countries": {
+  "title": "Big Countries",
+  "problemStatement": "A country is big if it has an area of at least 3 million sq km, or it has a population of at least 25 million. Find the name, population, and area of the big countries.",
+  "schema": "Create table If Not Exists World (name varchar(50), continent varchar(50), area int, population int, gdp bigint)",
+  "exampleData": [
+   {
+    "tableName": "World",
+    "headers": [
+     "name",
+     "continent",
+     "area",
+     "population",
+     "gdp"
+    ],
+    "rows": [
+     [
+      "Afghanistan",
+      "Asia",
+      652230,
+      25500100,
+      20343000000
+     ],
+     [
+      "Albania",
+      "Europe",
+      28748,
+      2831741,
+      12960000000
+     ],
+     [
+      "Algeria",
+      "Africa",
+      2381741,
+      37100000,
+      188681000000
+     ],
+     [
+      "Andorra",
+      "Europe",
+      468,
+      78115,
+      3712000000
+     ],
+     [
+      "Angola",
+      "Africa",
+      1246700,
+      20609294,
+      100990000000
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "name",
+    "population",
+    "area"
+   ],
+   "rows": [
+    [
+     "Afghanistan",
+     25500100,
+     652230
+    ],
+    [
+     "Algeria",
+     37100000,
+     2381741
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal (OR)",
+    "query": "SELECT name, population, area FROM World WHERE area >= 3000000 OR population >= 25000000;",
+    "explanation": "Selects name, population, and area where either the area condition or the population condition is satisfied."
+   },
+   {
+    "name": "Better (UNION)",
+    "query": "SELECT name, population, area FROM World WHERE area >= 3000000\nUNION\nSELECT name, population, area FROM World WHERE population >= 25000000;",
+    "explanation": "Uses UNION to merge results of two queries. This is often faster because SQL engines can leverage individual indexes on the 'area' and 'population' columns, whereas an OR query can force a full-table scan."
+   }
+  ],
+  "edgeCases": [
+   "Countries matching only one criteria.",
+   "Countries matching both criteria.",
+   "Countries matching neither criteria."
+  ]
+ },
+ "Article Views I": {
+  "title": "Article Views I",
+  "problemStatement": "Find all the authors that viewed at least one of their own articles. Return the result table sorted by id in ascending order.",
+  "schema": "Create table If Not Exists Views (article_id int, author_id int, viewer_id int, view_date date)",
+  "exampleData": [
+   {
+    "tableName": "Views",
+    "headers": [
+     "article_id",
+     "author_id",
+     "viewer_id",
+     "view_date"
+    ],
+    "rows": [
+     [
+      1,
+      3,
+      5,
+      "2019-08-01"
+     ],
+     [
+      1,
+      3,
+      6,
+      "2019-08-02"
+     ],
+     [
+      2,
+      7,
+      7,
+      "2019-08-01"
+     ],
+     [
+      2,
+      7,
+      6,
+      "2019-08-02"
+     ],
+     [
+      4,
+      7,
+      1,
+      "2019-07-22"
+     ],
+     [
+      3,
+      4,
+      4,
+      "2019-07-21"
+     ],
+     [
+      3,
+      4,
+      4,
+      "2019-07-21"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "id"
+   ],
+   "rows": [
+    [
+     4
+    ],
+    [
+     7
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT DISTINCT author_id AS id FROM Views WHERE author_id = viewer_id ORDER BY id ASC;",
+    "explanation": "Filters rows where the viewer and the author are the same person. DISTINCT is used to remove duplicates when an author views their own article multiple times. Results are ordered by id in ascending order."
+   }
+  ],
+  "edgeCases": [
+   "Authors viewing their own articles multiple times (handled by DISTINCT).",
+   "No authors viewed their own articles.",
+   "The table is empty."
+  ]
+ },
+ "Invalid Tweets": {
+  "title": "Invalid Tweets",
+  "problemStatement": "Find the IDs of the invalid tweets. A tweet is invalid if the number of characters used in the content of the tweet is strictly greater than 15.",
+  "schema": "Create table If Not Exists Tweets (tweet_id int, content varchar(50))",
+  "exampleData": [
+   {
+    "tableName": "Tweets",
+    "headers": [
+     "tweet_id",
+     "content"
+    ],
+    "rows": [
+     [
+      1,
+      "Vote for JEEves"
+     ],
+     [
+      2,
+      "Let us make America great again!"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "tweet_id"
+   ],
+   "rows": [
+    [
+     2
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT tweet_id FROM Tweets WHERE CHAR_LENGTH(content) > 15;",
+    "explanation": "Uses CHAR_LENGTH() to count characters in the tweet content and filters for tweets with lengths strictly greater than 15. Note that CHAR_LENGTH() is preferred over LENGTH() because LENGTH() returns the length in bytes, which can differ for multi-byte characters."
+   }
+  ],
+  "edgeCases": [
+   "Tweets with content length exactly 15 (should not be included).",
+   "Tweets with empty content (length 0).",
+   "Content containing multi-byte characters like emojis or non-English script."
+  ]
+ },
+ "Product Sales Analysis I": {
+  "title": "Product Sales Analysis I",
+  "problemStatement": "Reports the product_name, year, and price for each sale_id in the Sales table.",
+  "schema": "Create table If Not Exists Sales (sale_id int, product_id int, year int, quantity int, price int)\nCreate table If Not Exists Product (product_id int, product_name varchar(10))",
+  "exampleData": [
+   {
+    "tableName": "Sales",
+    "headers": [
+     "sale_id",
+     "product_id",
+     "year",
+     "quantity",
+     "price"
+    ],
+    "rows": [
+     [
+      1,
+      100,
+      2008,
+      10,
+      5000
+     ],
+     [
+      2,
+      100,
+      2009,
+      12,
+      5000
+     ],
+     [
+      7,
+      200,
+      2011,
+      15,
+      9000
+     ]
+    ]
+   },
+   {
+    "tableName": "Product",
+    "headers": [
+     "product_id",
+     "product_name"
+    ],
+    "rows": [
+     [
+      100,
+      "Nokia"
+     ],
+     [
+      200,
+      "Apple"
+     ],
+     [
+      300,
+      "Samsung"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "product_name",
+    "year",
+    "price"
+   ],
+   "rows": [
+    [
+     "Nokia",
+     2008,
+     5000
+    ],
+    [
+     "Nokia",
+     2009,
+     5000
+    ],
+    [
+     "Apple",
+     2011,
+     9000
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT p.product_name, s.year, s.price FROM Sales s INNER JOIN Product p ON s.product_id = p.product_id;",
+    "explanation": "Joins the Sales table and Product table on the common field product_id to fetch the name of the product sold, the year of sale, and the price of the sale."
+   }
+  ],
+  "edgeCases": [
+   "Products that exist in the Product table but have no matching entries in the Sales table (handled by INNER JOIN which omits them).",
+   "Multiple sales of the same product in the same year or in different years."
+  ]
+ },
+ "Customer Who Visited but Did Not Make Any Transactions": {
+  "title": "Customer Who Visited but Did Not Make Any Transactions",
+  "problemStatement": "Find the IDs of the users who visited without making any transactions and the number of times they made these types of visits.",
+  "schema": "Create table If Not Exists Visits (visit_id int, customer_id int)\nCreate table If Not Exists Transactions (transaction_id int, visit_id int, amount int)",
+  "exampleData": [
+   {
+    "tableName": "Visits",
+    "headers": [
+     "visit_id",
+     "customer_id"
+    ],
+    "rows": [
+     [
+      1,
+      23
+     ],
+     [
+      2,
+      9
+     ],
+     [
+      4,
+      30
+     ],
+     [
+      5,
+      54
+     ],
+     [
+      6,
+      96
+     ],
+     [
+      7,
+      54
+     ],
+     [
+      8,
+      54
+     ]
+    ]
+   },
+   {
+    "tableName": "Transactions",
+    "headers": [
+     "transaction_id",
+     "visit_id",
+     "amount"
+    ],
+    "rows": [
+     [
+      2,
+      5,
+      310
+     ],
+     [
+      3,
+      5,
+      300
+     ],
+     [
+      9,
+      5,
+      200
+     ],
+     [
+      12,
+      1,
+      910
+     ],
+     [
+      13,
+      2,
+      970
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "customer_id",
+    "count_no_trans"
+   ],
+   "rows": [
+    [
+     54,
+     2
+    ],
+    [
+     30,
+     1
+    ],
+    [
+     96,
+     1
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal (LEFT JOIN)",
+    "query": "SELECT v.customer_id, COUNT(v.visit_id) AS count_no_trans FROM Visits v LEFT JOIN Transactions t ON v.visit_id = t.visit_id WHERE t.transaction_id IS NULL GROUP BY v.customer_id;",
+    "explanation": "Executes a LEFT JOIN between Visits and Transactions on visit_id. If a customer visited but made no transactions, all transaction columns will be NULL. We filter for these cases using 'WHERE t.transaction_id IS NULL', group the results by customer_id, and count the occurrences."
+   },
+   {
+    "name": "Alternative (NOT IN)",
+    "query": "SELECT customer_id, COUNT(visit_id) AS count_no_trans FROM Visits WHERE visit_id NOT IN (SELECT DISTINCT visit_id FROM Transactions) GROUP BY customer_id;",
+    "explanation": "Selects customer_ids and count of visits where the visit_id is not present in the Transactions table."
+   }
+  ],
+  "edgeCases": [
+   "Multiple transactions made in a single visit (the LEFT JOIN approach ensures we count only visits without any transaction).",
+   "All customers made transactions (should return empty output).",
+   "No customer made transactions."
+  ]
+ },
+ "Rising Temperature": {
+  "title": "Rising Temperature",
+  "problemStatement": "Find all dates' Id with higher temperatures compared to its previous dates (yesterday).",
+  "schema": "Create table If Not Exists Weather (id int, recordDate date, temperature int)",
+  "exampleData": [
+   {
+    "tableName": "Weather",
+    "headers": [
+     "id",
+     "recordDate",
+     "temperature"
+    ],
+    "rows": [
+     [
+      1,
+      "2015-01-01",
+      10
+     ],
+     [
+      2,
+      "2015-01-02",
+      25
+     ],
+     [
+      3,
+      "2015-01-03",
+      20
+     ],
+     [
+      4,
+      "2015-01-04",
+      30
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "id"
+   ],
+   "rows": [
+    [
+     2
+    ],
+    [
+     4
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT w1.id FROM Weather w1 JOIN Weather w2 ON DATEDIFF(w1.recordDate, w2.recordDate) = 1 WHERE w1.temperature > w2.temperature;",
+    "explanation": "Self-joins the Weather table to compare each day (w1) with the day immediately preceding it (w2, where DATEDIFF(w1.recordDate, w2.recordDate) = 1). The WHERE condition filters for days where w1's temperature is strictly greater than w2's temperature."
+   }
+  ],
+  "edgeCases": [
+   "Non-consecutive dates in the database (e.g. gaps of a few days - DATEDIFF condition handles this and returns only consecutive day rises).",
+   "Equal temperatures on consecutive days (should not be included).",
+   "Temperature rises but dates are out of order in the database (handled properly by the join condition)."
+  ]
+ },
+ "Average Time of Process per Machine": {
+  "title": "Average Time of Process per Machine",
+  "problemStatement": "Find the average time each machine takes to complete a process. The average time is calculated by the total time to complete every process on the machine divided by the number of processes. Round processing_time to 3 decimal places.",
+  "schema": "Create table If Not Exists Activity (machine_id int, process_id int, activity_type ENUM('start', 'end'), timestamp float)",
+  "exampleData": [
+   {
+    "tableName": "Activity",
+    "headers": [
+     "machine_id",
+     "process_id",
+     "activity_type",
+     "timestamp"
+    ],
+    "rows": [
+     [
+      0,
+      0,
+      "start",
+      0.712
+     ],
+     [
+      0,
+      0,
+      "end",
+      1.52
+     ],
+     [
+      0,
+      1,
+      "start",
+      3.14
+     ],
+     [
+      0,
+      1,
+      "end",
+      4.12
+     ],
+     [
+      1,
+      0,
+      "start",
+      0.558
+     ],
+     [
+      1,
+      0,
+      "end",
+      1.55
+     ],
+     [
+      1,
+      1,
+      "start",
+      0.43
+     ],
+     [
+      1,
+      1,
+      "end",
+      1.42
+     ],
+     [
+      2,
+      0,
+      "start",
+      4.1
+     ],
+     [
+      2,
+      0,
+      "end",
+      4.512
+     ],
+     [
+      2,
+      1,
+      "start",
+      2.5
+     ],
+     [
+      2,
+      1,
+      "end",
+      5
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "machine_id",
+    "processing_time"
+   ],
+   "rows": [
+    [
+     0,
+     0.894
+    ],
+    [
+     1,
+     0.992
+    ],
+    [
+     2,
+     1.456
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal (Self Join)",
+    "query": "SELECT a1.machine_id, ROUND(AVG(a2.timestamp - a1.timestamp), 3) AS processing_time FROM Activity a1 JOIN Activity a2 ON a1.machine_id = a2.machine_id AND a1.process_id = a2.process_id AND a1.activity_type = 'start' AND a2.activity_type = 'end' GROUP BY a1.machine_id;",
+    "explanation": "Self-joins the Activity table on machine_id and process_id to match the 'start' activity row (a1) with the 'end' activity row (a2). Calculates the difference between their timestamps and takes the average per machine, rounded to 3 decimal places."
+   },
+   {
+    "name": "Better (Conditional Aggregation)",
+    "query": "SELECT machine_id, ROUND(SUM(CASE WHEN activity_type = 'end' THEN timestamp ELSE -timestamp END) / COUNT(DISTINCT process_id), 3) AS processing_time FROM Activity GROUP BY machine_id;",
+    "explanation": "Sums the timestamps by adding 'end' activity timestamps and subtracting 'start' activity timestamps, then divides the sum by the count of distinct process IDs for each machine."
+   }
+  ],
+  "edgeCases": [
+   "Varying number of processes per machine.",
+   "Timestamps with high precision float values (handled by ROUND)."
+  ]
+ },
+ "Employee Bonus": {
+  "title": "Employee Bonus",
+  "problemStatement": "Report the name and bonus amount of each employee with a bonus less than 1000.",
+  "schema": "Create table If Not Exists Employee (empId int, name varchar(255), supervisor int, salary int)\nCreate table If Not Exists Bonus (empId int, bonus int)",
+  "exampleData": [
+   {
+    "tableName": "Employee",
+    "headers": [
+     "empId",
+     "name",
+     "supervisor",
+     "salary"
+    ],
+    "rows": [
+     [
+      3,
+      "Brad",
+      null,
+      4000
+     ],
+     [
+      1,
+      "John",
+      3,
+      1000
+     ],
+     [
+      2,
+      "Dan",
+      3,
+      2000
+     ],
+     [
+      4,
+      "Thomas",
+      3,
+      4000
+     ]
+    ]
+   },
+   {
+    "tableName": "Bonus",
+    "headers": [
+     "empId",
+     "bonus"
+    ],
+    "rows": [
+     [
+      2,
+      500
+     ],
+     [
+      4,
+      2000
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "name",
+    "bonus"
+   ],
+   "rows": [
+    [
+     "Brad",
+     null
+    ],
+    [
+     "John",
+     null
+    ],
+    [
+     "Dan",
+     500
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT e.name, b.bonus FROM Employee e LEFT JOIN Bonus b ON e.empId = b.empId WHERE b.bonus < 1000 OR b.bonus IS NULL;",
+    "explanation": "Performs a LEFT JOIN to keep all employees regardless of whether they have a bonus record. The WHERE filter keeps only records where the bonus is strictly less than 1000, or where the bonus is NULL (meaning they received no bonus)."
+   }
+  ],
+  "edgeCases": [
+   "Employees who do not have a record in the Bonus table (their bonus is NULL, which must be included).",
+   "Employees with a bonus of exactly 1000 (should be excluded).",
+   "All employees have bonuses >= 1000."
+  ]
+ },
+ "Students and Examinations": {
+  "title": "Students and Examinations",
+  "problemStatement": "Find the number of times each student attended each exam. Return the result table ordered by student_id and subject_name.",
+  "schema": "Create table If Not Exists Students (student_id int, student_name varchar(20))\nCreate table If Not Exists Subjects (subject_name varchar(20))\nCreate table If Not Exists Examinations (student_id int, subject_name varchar(20))",
+  "exampleData": [
+   {
+    "tableName": "Students",
+    "headers": [
+     "student_id",
+     "student_name"
+    ],
+    "rows": [
+     [
+      1,
+      "Alice"
+     ],
+     [
+      2,
+      "Bob"
+     ],
+     [
+      13,
+      "John"
+     ],
+     [
+      6,
+      "Alex"
+     ]
+    ]
+   },
+   {
+    "tableName": "Subjects",
+    "headers": [
+     "subject_name"
+    ],
+    "rows": [
+     [
+      "Math"
+     ],
+     [
+      "Physics"
+     ],
+     [
+      "Programming"
+     ]
+    ]
+   },
+   {
+    "tableName": "Examinations",
+    "headers": [
+     "student_id",
+     "subject_name"
+    ],
+    "rows": [
+     [
+      1,
+      "Math"
+     ],
+     [
+      1,
+      "Physics"
+     ],
+     [
+      1,
+      "Programming"
+     ],
+     [
+      2,
+      "Programming"
+     ],
+     [
+      1,
+      "Physics"
+     ],
+     [
+      1,
+      "Math"
+     ],
+     [
+      13,
+      "Math"
+     ],
+     [
+      13,
+      "Programming"
+     ],
+     [
+      13,
+      "Physics"
+     ],
+     [
+      2,
+      "Math"
+     ],
+     [
+      1,
+      "Math"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "student_id",
+    "student_name",
+    "subject_name",
+    "attended_exams"
+   ],
+   "rows": [
+    [
+     1,
+     "Alice",
+     "Math",
+     3
+    ],
+    [
+     1,
+     "Alice",
+     "Physics",
+     2
+    ],
+    [
+     1,
+     "Alice",
+     "Programming",
+     1
+    ],
+    [
+     2,
+     "Bob",
+     "Math",
+     1
+    ],
+    [
+     2,
+     "Bob",
+     "Physics",
+     0
+    ],
+    [
+     2,
+     "Bob",
+     "Programming",
+     1
+    ],
+    [
+     6,
+     "Alex",
+     "Math",
+     0
+    ],
+    [
+     6,
+     "Alex",
+     "Physics",
+     0
+    ],
+    [
+     6,
+     "Alex",
+     "Programming",
+     0
+    ],
+    [
+     13,
+     "John",
+     "Math",
+     1
+    ],
+    [
+     13,
+     "John",
+     "Physics",
+     1
+    ],
+    [
+     13,
+     "John",
+     "Programming",
+     1
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal (CROSS JOIN + LEFT JOIN)",
+    "query": "SELECT s.student_id, s.student_name, sub.subject_name, COUNT(e.subject_name) AS attended_exams FROM Students s CROSS JOIN Subjects sub LEFT JOIN Examinations e ON s.student_id = e.student_id AND sub.subject_name = e.subject_name GROUP BY s.student_id, s.student_name, sub.subject_name ORDER BY s.student_id, sub.subject_name;",
+    "explanation": "Generates a full grid of all student-subject pairs using a CROSS JOIN. Then, LEFT JOINs the Examinations table to count actual exams attended for each pair. Grouping by student and subject and counting e.subject_name ensures that pairs with no exams correctly display a count of 0."
+   }
+  ],
+  "edgeCases": [
+   "Students who have not attended any exams (attended_exams should show 0 for all subjects).",
+   "Subjects that no student has taken.",
+   "Ensuring proper ordering of output by student_id and subject_name."
+  ]
+ },
+ "Managers with at Least 5 Direct Reports": {
+  "title": "Managers with at Least 5 Direct Reports",
+  "problemStatement": "Find the managers with at least five direct reports.",
+  "schema": "Create table If Not Exists Employee (id int, name varchar(255), department varchar(255), managerId int)",
+  "exampleData": [
+   {
+    "tableName": "Employee",
+    "headers": [
+     "id",
+     "name",
+     "department",
+     "managerId"
+    ],
+    "rows": [
+     [
+      101,
+      "John",
+      "A",
+      null
+     ],
+     [
+      102,
+      "Dan",
+      "A",
+      101
+     ],
+     [
+      103,
+      "James",
+      "A",
+      101
+     ],
+     [
+      104,
+      "Amy",
+      "A",
+      101
+     ],
+     [
+      105,
+      "Anne",
+      "A",
+      101
+     ],
+     [
+      106,
+      "Ron",
+      "B",
+      101
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "name"
+   ],
+   "rows": [
+    [
+     "John"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal (Subquery IN)",
+    "query": "SELECT name FROM Employee WHERE id IN (SELECT managerId FROM Employee GROUP BY managerId HAVING COUNT(id) >= 5);",
+    "explanation": "Selects employee names whose IDs are in the list of managerIds that have 5 or more reports. The subquery groups the Employee table by managerId and counts the reports."
+   },
+   {
+    "name": "Alternative (Self Join)",
+    "query": "SELECT e1.name FROM Employee e1 JOIN Employee e2 ON e1.id = e2.managerId GROUP BY e1.id, e1.name HAVING COUNT(e2.id) >= 5;",
+    "explanation": "Self-joins the Employee table to match managers (e1) with their subordinates (e2). Groups by the manager's ID and name, and filters using HAVING COUNT(e2.id) >= 5."
+   }
+  ],
+  "edgeCases": [
+   "A manager has exactly 5 direct reports.",
+   "A manager has fewer than 5 direct reports (should not be included).",
+   "An employee is their own manager (if cycle exists, but standard constraint avoids this)."
+  ]
+ },
+ "Confirmation Rate": {
+  "title": "Confirmation Rate",
+  "problemStatement": "Find the confirmation rate of each user. The confirmation rate is the number of 'confirmed' messages divided by the total number of requested confirmation messages. Users with no requests should have a rate of 0. Round to 2 decimal places.",
+  "schema": "Create table If Not Exists Signups (user_id int, time_stamp datetime)\nCreate table If Not Exists Confirmations (user_id int, time_stamp datetime, action ENUM('confirmed', 'timeout'))",
+  "exampleData": [
+   {
+    "tableName": "Signups",
+    "headers": [
+     "user_id",
+     "time_stamp"
+    ],
+    "rows": [
+     [
+      3,
+      "2020-03-21 10:16:13"
+     ],
+     [
+      7,
+      "2020-01-04 13:57:59"
+     ],
+     [
+      2,
+      "2020-07-29 23:09:44"
+     ],
+     [
+      6,
+      "2020-12-09 10:39:37"
+     ]
+    ]
+   },
+   {
+    "tableName": "Confirmations",
+    "headers": [
+     "user_id",
+     "time_stamp",
+     "action"
+    ],
+    "rows": [
+     [
+      3,
+      "2021-01-06 03:30:46",
+      "timeout"
+     ],
+     [
+      3,
+      "2021-07-15 22:00:00",
+      "timeout"
+     ],
+     [
+      7,
+      "2021-06-12 11:57:29",
+      "confirmed"
+     ],
+     [
+      7,
+      "2021-06-13 12:58:28",
+      "confirmed"
+     ],
+     [
+      7,
+      "2021-06-14 13:59:27",
+      "confirmed"
+     ],
+     [
+      2,
+      "2021-01-22 00:00:00",
+      "confirmed"
+     ],
+     [
+      2,
+      "2021-02-28 23:59:59",
+      "timeout"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "user_id",
+    "confirmation_rate"
+   ],
+   "rows": [
+    [
+     3,
+     0
+    ],
+    [
+     7,
+     1
+    ],
+    [
+     2,
+     0.5
+    ],
+    [
+     6,
+     0
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT s.user_id, ROUND(IFNULL(AVG(c.action = 'confirmed'), 0), 2) AS confirmation_rate FROM Signups s LEFT JOIN Confirmations c ON s.user_id = c.user_id GROUP BY s.user_id;",
+    "explanation": "Uses a LEFT JOIN to ensure all registered users are represented. The conditional expression `c.action = 'confirmed'` evaluates to 1 for confirmed requests and 0 for timeouts. The AVG function computes the confirmation rate. IFNULL sets the rate to 0 for users with no confirmation requests, and ROUND limits the result to 2 decimal places."
+   }
+  ],
+  "edgeCases": [
+   "User has signed up but has zero confirmation requests (handled by IFNULL to return 0.00).",
+   "User has only 'timeout' actions (rate is 0.00).",
+   "User has only 'confirmed' actions (rate is 1.00)."
+  ]
+ },
+ "Not Boring Movies": {
+  "title": "Not Boring Movies",
+  "problemStatement": "Find movies with an odd numbered ID and a description that is not 'boring'. Return the result table ordered by rating in descending order.",
+  "schema": "Create table If Not Exists Cinema (id int, movie varchar(255), description varchar(255), rating float)",
+  "exampleData": [
+   {
+    "tableName": "Cinema",
+    "headers": [
+     "id",
+     "movie",
+     "description",
+     "rating"
+    ],
+    "rows": [
+     [
+      1,
+      "War",
+      "great 3D",
+      8.9
+     ],
+     [
+      2,
+      "Science",
+      "fiction",
+      8.5
+     ],
+     [
+      3,
+      "irish",
+      "boring",
+      6.2
+     ],
+     [
+      4,
+      "Ice song",
+      "Fantacy",
+      8.6
+     ],
+     [
+      5,
+      "House card",
+      "Interesting",
+      9.1
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "id",
+    "movie",
+    "description",
+    "rating"
+   ],
+   "rows": [
+    [
+     5,
+     "House card",
+     "Interesting",
+     9.1
+    ],
+    [
+     1,
+     "War",
+     "great 3D",
+     8.9
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT id, movie, description, rating FROM Cinema WHERE id % 2 = 1 AND description != 'boring' ORDER BY rating DESC;",
+    "explanation": "Selects all fields where the id is odd (evaluated using modulo operator `id % 2 = 1`) and the description is not 'boring'. Finally, orders the records by rating in descending order."
+   }
+  ],
+  "edgeCases": [
+   "Movies with even IDs and non-boring descriptions (should be excluded).",
+   "Movies with odd IDs and boring descriptions (should be excluded).",
+   "All movies are boring or have even IDs (should return empty result)."
+  ]
+ },
+ "Average Selling Price": {
+  "title": "Average Selling Price",
+  "problemStatement": "Find the average selling price for each product. average_price should be rounded to 2 decimal places. If a product does not have any sales, its average selling price is 0.",
+  "schema": "Create table If Not Exists Prices (product_id int, start_date date, end_date date, price int)\nCreate table If Not Exists UnitsSold (product_id int, purchase_date date, units int)",
+  "exampleData": [
+   {
+    "tableName": "Prices",
+    "headers": [
+     "product_id",
+     "start_date",
+     "end_date",
+     "price"
+    ],
+    "rows": [
+     [
+      1,
+      "2019-02-17",
+      "2019-02-28",
+      5
+     ],
+     [
+      1,
+      "2019-03-01",
+      "2019-03-22",
+      20
+     ],
+     [
+      2,
+      "2019-02-01",
+      "2019-02-20",
+      15
+     ],
+     [
+      2,
+      "2019-02-21",
+      "2019-03-31",
+      30
+     ],
+     [
+      3,
+      "2019-02-21",
+      "2019-03-31",
+      30
+     ]
+    ]
+   },
+   {
+    "tableName": "UnitsSold",
+    "headers": [
+     "product_id",
+     "purchase_date",
+     "units"
+    ],
+    "rows": [
+     [
+      1,
+      "2019-02-25",
+      100
+     ],
+     [
+      1,
+      "2019-03-01",
+      15
+     ],
+     [
+      2,
+      "2019-02-10",
+      200
+     ],
+     [
+      2,
+      "2019-03-22",
+      30
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Output",
+   "headers": [
+    "product_id",
+    "average_price"
+   ],
+   "rows": [
+    [
+     1,
+     6.96
+    ],
+    [
+     2,
+     16.96
+    ],
+    [
+     3,
+     0
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal (LEFT JOIN + SUM)",
+    "query": "SELECT p.product_id, ROUND(IFNULL(SUM(u.units * p.price) / SUM(u.units), 0), 2) AS average_price FROM Prices p LEFT JOIN UnitsSold u ON p.product_id = u.product_id AND u.purchase_date BETWEEN p.start_date AND p.end_date GROUP BY p.product_id;",
+    "explanation": "LEFT JOINs Prices and UnitsSold on the product ID and matches the purchase_date between the product price start and end dates. Groups by product_id to compute the total revenue (SUM of units * price) divided by total units sold. IFNULL handles products with no sales, defaulting their average price to 0, and ROUND formats the output to two decimal places."
+   }
+  ],
+  "edgeCases": [
+   "A product in Prices has no sales records in UnitsSold (should return average_price 0.00).",
+   "The purchase date falls exactly on the start_date or end_date (handled correctly by BETWEEN which is inclusive)."
+  ]
+ },
+ "Project Employees I": {
+  "title": "Project Employees I",
+  "problemStatement": "Write a solution to report the average experience years of all the employees for each project, rounded to 2 decimal places.",
+  "schema": "CREATE TABLE Project (\n    project_id INT,\n    employee_id INT,\n    PRIMARY KEY (project_id, employee_id)\n);\nCREATE TABLE Employee (\n    employee_id INT PRIMARY KEY,\n    name VARCHAR(30),\n    experience_years INT\n);",
+  "exampleData": [
+   {
+    "tableName": "Project",
+    "headers": [
+     "project_id",
+     "employee_id"
+    ],
+    "rows": [
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      2,
+      1
+     ],
+     [
+      2,
+      4
+     ]
+    ]
+   },
+   {
+    "tableName": "Employee",
+    "headers": [
+     "employee_id",
+     "name",
+     "experience_years"
+    ],
+    "rows": [
+     [
+      1,
+      "Khaled",
+      3
+     ],
+     [
+      2,
+      "Ali",
+      2
+     ],
+     [
+      3,
+      "John",
+      1
+     ],
+     [
+      4,
+      "Doe",
+      2
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "ProjectEmployees1Output",
+   "headers": [
+    "project_id",
+    "average_years"
+   ],
+   "rows": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     2.5
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT \n    p.project_id, \n    ROUND(AVG(e.experience_years), 2) AS average_years\nFROM Project p\nLEFT JOIN Employee e ON p.employee_id = e.employee_id\nGROUP BY p.project_id;",
+    "explanation": "Join the Project table with the Employee table on employee_id to retrieve the experience years of each employee. Then group the records by project_id and compute the average of experience_years, rounding it to 2 decimal places using the ROUND function."
+   }
+  ],
+  "edgeCases": [
+   "Projects with no corresponding employees in the Employee table (returns NULL for experience years unless handled)",
+   "All employees in a project having NULL experience years (ROUND(AVG(...)) will result in NULL)"
+  ]
+ },
+ "Percentage of Users Attended a Contest": {
+  "title": "Percentage of Users Attended a Contest",
+  "problemStatement": "Write a solution to find the percentage of the users registered in each contest rounded to two decimal places. Return the result table ordered by percentage in descending order. In case of a tie, order it by contest_id in ascending order.",
+  "schema": "CREATE TABLE Users (\n    user_id INT PRIMARY KEY,\n    user_name VARCHAR(20)\n);\nCREATE TABLE Register (\n    contest_id INT,\n    user_id INT,\n    PRIMARY KEY (contest_id, user_id)\n);",
+  "exampleData": [
+   {
+    "tableName": "Users",
+    "headers": [
+     "user_id",
+     "user_name"
+    ],
+    "rows": [
+     [
+      6,
+      "Alice"
+     ],
+     [
+      2,
+      "Bob"
+     ],
+     [
+      7,
+      "Alex"
+     ]
+    ]
+   },
+   {
+    "tableName": "Register",
+    "headers": [
+     "contest_id",
+     "user_id"
+    ],
+    "rows": [
+     [
+      215,
+      6
+     ],
+     [
+      209,
+      2
+     ],
+     [
+      208,
+      2
+     ],
+     [
+      210,
+      6
+     ],
+     [
+      208,
+      6
+     ],
+     [
+      210,
+      7
+     ],
+     [
+      209,
+      7
+     ],
+     [
+      209,
+      6
+     ],
+     [
+      215,
+      7
+     ],
+     [
+      208,
+      7
+     ],
+     [
+      210,
+      2
+     ],
+     [
+      207,
+      2
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "ContestPercentageOutput",
+   "headers": [
+    "contest_id",
+    "percentage"
+   ],
+   "rows": [
+    [
+     208,
+     100
+    ],
+    [
+     209,
+     100
+    ],
+    [
+     210,
+     100
+    ],
+    [
+     215,
+     66.67
+    ],
+    [
+     207,
+     33.33
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT \n    contest_id, \n    ROUND(COUNT(user_id) * 100.0 / (SELECT COUNT(*) FROM Users), 2) AS percentage\nFROM Register\nGROUP BY contest_id\nORDER BY percentage DESC, contest_id ASC;",
+    "explanation": "Group by contest_id to find the number of registrations for each contest. Divide this number by the total number of users (fetched via a subquery from the Users table) and multiply by 100.0. Round the resulting percentage to 2 decimal places and sort by percentage descending, then by contest_id ascending."
+   }
+  ],
+  "edgeCases": [
+   "Users registered in contests who are not present in the Users table (unlikely under FK constraints, but division would be off if so)",
+   "Some users registered in zero contests (they will not appear in the contest list, which is correct)"
+  ]
+ },
+ "Queries Quality and Percentage": {
+  "title": "Queries Quality and Percentage",
+  "problemStatement": "Write a solution to find each query_name, the quality, and the poor_query_percentage.\n\n- quality is the average of the ratio between query rating and its position.\n- poor_query_percentage is the percentage of all queries for this query name with rating < 3.\n\nBoth quality and poor_query_percentage should be rounded to 2 decimal places.",
+  "schema": "CREATE TABLE Queries (\n    query_name VARCHAR(30),\n    result VARCHAR(50),\n    position INT,\n    rating INT\n);",
+  "exampleData": [
+   {
+    "tableName": "Queries",
+    "headers": [
+     "query_name",
+     "result",
+     "position",
+     "rating"
+    ],
+    "rows": [
+     [
+      "Dog",
+      "Golden Retriever",
+      1,
+      5
+     ],
+     [
+      "Dog",
+      "German Shepherd",
+      2,
+      5
+     ],
+     [
+      "Dog",
+      "Mule",
+      200,
+      1
+     ],
+     [
+      "Cat",
+      "Shirazi",
+      5,
+      2
+     ],
+     [
+      "Cat",
+      "Siamese",
+      3,
+      3
+     ],
+     [
+      "Cat",
+      "Sphynx",
+      7,
+      4
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "QueriesQualityOutput",
+   "headers": [
+    "query_name",
+    "quality",
+    "poor_query_percentage"
+   ],
+   "rows": [
+    [
+     "Dog",
+     2.5,
+     33.33
+    ],
+    [
+     "Cat",
+     0.66,
+     33.33
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT \n    query_name,\n    ROUND(AVG(rating * 1.0 / position), 2) AS quality,\n    ROUND(SUM(CASE WHEN rating < 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS poor_query_percentage\nFROM Queries\nWHERE query_name IS NOT NULL\nGROUP BY query_name;",
+    "explanation": "Group by query_name (filtering out NULLs). For quality, calculate the average of (rating / position) by converting to decimal (multiplying by 1.0) and rounding to 2 decimal places. For poor_query_percentage, count the number of queries with a rating < 3 using SUM(CASE WHEN...), divide by the total query count for that group, multiply by 100.0, and round to 2 decimal places."
+   }
+  ],
+  "edgeCases": [
+   "query_name is NULL (the where filter ignores these)",
+   "Queries with high position numbers causing small ratios",
+   "0% or 100% poor queries for a query name"
+  ]
+ },
+ "Monthly Transactions I": {
+  "title": "Monthly Transactions I",
+  "problemStatement": "Write a solution to find for each month and country, the number of transactions and their total amount, the number of approved transactions and their total amount.",
+  "schema": "CREATE TABLE Transactions (\n    id INT PRIMARY KEY,\n    country VARCHAR(4),\n    state VARCHAR(10),\n    amount INT,\n    trans_date DATE\n);",
+  "exampleData": [
+   {
+    "tableName": "Transactions",
+    "headers": [
+     "id",
+     "country",
+     "state",
+     "amount",
+     "trans_date"
+    ],
+    "rows": [
+     [
+      121,
+      "US",
+      "approved",
+      1000,
+      "2018-12-18"
+     ],
+     [
+      122,
+      "US",
+      "declined",
+      2000,
+      "2018-12-18"
+     ],
+     [
+      123,
+      "US",
+      "approved",
+      2000,
+      "2019-01-01"
+     ],
+     [
+      124,
+      "DE",
+      "approved",
+      2000,
+      "2019-01-07"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "MonthlyTransactionsOutput",
+   "headers": [
+    "month",
+    "country",
+    "trans_count",
+    "approved_count",
+    "trans_total_amount",
+    "approved_total_amount"
+   ],
+   "rows": [
+    [
+     "2018-12",
+     "US",
+     2,
+     1,
+     3000,
+     1000
+    ],
+    [
+     "2019-01",
+     "US",
+     1,
+     1,
+     2000,
+     2000
+    ],
+    [
+     "2019-01",
+     "DE",
+     1,
+     1,
+     2000,
+     2000
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT \n    DATE_FORMAT(trans_date, '%Y-%m') AS month,\n    country,\n    COUNT(id) AS trans_count,\n    SUM(CASE WHEN state = 'approved' THEN 1 ELSE 0 END) AS approved_count,\n    SUM(amount) AS trans_total_amount,\n    SUM(CASE WHEN state = 'approved' THEN amount ELSE 0 END) AS approved_total_amount\nFROM Transactions\nGROUP BY month, country;",
+    "explanation": "Use DATE_FORMAT to extract year and month ('%Y-%m') from trans_date. Group by this formatted month and country. Count all transactions using COUNT(id), and use conditional SUM (CASE WHEN state = 'approved' THEN ...) to get approved transaction count and their total amount. Standard SUM(amount) gets the total amount."
+   }
+  ],
+  "edgeCases": [
+   "No approved transactions in a month/country group (the count and amount must evaluate to 0 instead of NULL)",
+   "country is NULL (grouping handles NULL values properly)"
+  ]
+ },
+ "Immediate Food Delivery II": {
+  "title": "Immediate Food Delivery II",
+  "problemStatement": "If the customer's preferred delivery date is the same as the order date, then the order is called immediate; otherwise, it is called scheduled.\n\nThe first order of a customer is the order with the earliest order date. It is guaranteed that each customer has exactly one first order.\n\nWrite a solution to find the percentage of immediate orders in the first orders of all customers, rounded to 2 decimal places.",
+  "schema": "CREATE TABLE Delivery (\n    delivery_id INT PRIMARY KEY,\n    customer_id INT,\n    order_date DATE,\n    customer_pref_delivery_date DATE\n);",
+  "exampleData": [
+   {
+    "tableName": "Delivery",
+    "headers": [
+     "delivery_id",
+     "customer_id",
+     "order_date",
+     "customer_pref_delivery_date"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      "2019-08-01",
+      "2019-08-02"
+     ],
+     [
+      2,
+      2,
+      "2019-08-02",
+      "2019-08-02"
+     ],
+     [
+      3,
+      1,
+      "2019-08-11",
+      "2019-08-12"
+     ],
+     [
+      4,
+      3,
+      "2019-08-24",
+      "2019-08-24"
+     ],
+     [
+      5,
+      3,
+      "2019-08-21",
+      "2019-08-22"
+     ],
+     [
+      6,
+      2,
+      "2019-08-11",
+      "2019-08-13"
+     ],
+     [
+      7,
+      4,
+      "2019-08-09",
+      "2019-08-09"
+     ],
+     [
+      8,
+      4,
+      "2019-08-09",
+      "2019-08-09"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "ImmediateDelivery2Output",
+   "headers": [
+    "immediate_percentage"
+   ],
+   "rows": [
+    [
+     50
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT \n    ROUND(SUM(CASE WHEN order_date = customer_pref_delivery_date THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS immediate_percentage\nFROM Delivery\nWHERE (customer_id, order_date) IN (\n    SELECT customer_id, MIN(order_date)\n    FROM Delivery\n    GROUP BY customer_id\n);",
+    "explanation": "Find the first order date for each customer by grouping by customer_id and selecting MIN(order_date) in a subquery. Filter the Delivery table to only contain these first orders, and then calculate the percentage of immediate orders where order_date equals customer_pref_delivery_date."
+   }
+  ],
+  "edgeCases": [
+   "Customers who have multiple orders on the same first date (the problem statement guarantees exactly one first order, or both have the same status)",
+   "All first orders are immediate (100.00%) or all are scheduled (0.00%)"
+  ]
+ },
+ "Game Play Analysis IV": {
+  "title": "Game Play Analysis IV",
+  "problemStatement": "Write a solution to report the fraction of players that logged in again on the day after the day they first logged in, rounded to 2 decimal places. In other words, you need to count the number of players that logged in for at least two consecutive days starting from their first login date, then divide that number by the total number of players.",
+  "schema": "CREATE TABLE Activity (\n    player_id INT,\n    device_id INT,\n    event_date DATE,\n    games_played INT,\n    PRIMARY KEY (player_id, event_date)\n);",
+  "exampleData": [
+   {
+    "tableName": "Activity",
+    "headers": [
+     "player_id",
+     "device_id",
+     "event_date",
+     "games_played"
+    ],
+    "rows": [
+     [
+      1,
+      2,
+      "2016-03-01",
+      5
+     ],
+     [
+      1,
+      2,
+      "2016-03-02",
+      6
+     ],
+     [
+      2,
+      3,
+      "2017-06-25",
+      1
+     ],
+     [
+      3,
+      1,
+      "2016-03-02",
+      0
+     ],
+     [
+      3,
+      4,
+      "2018-07-03",
+      5
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "GameplayAnalysis4Output",
+   "headers": [
+    "fraction"
+   ],
+   "rows": [
+    [
+     0.33
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "WITH FirstLogin AS (\n    SELECT player_id, MIN(event_date) AS first_date\n    FROM Activity\n    GROUP BY player_id\n)\nSELECT \n    ROUND(COUNT(DISTINCT a.player_id) * 1.0 / (SELECT COUNT(DISTINCT player_id) FROM Activity), 2) AS fraction\nFROM FirstLogin f\nJOIN Activity a ON f.player_id = a.player_id \n    AND a.event_date = DATE_ADD(f.first_date, INTERVAL 1 DAY);",
+    "explanation": "Create a Common Table Expression (CTE) to get the first login date (MIN(event_date)) for each player. Inner join this CTE with the Activity table where the event_date is exactly one day after the first login date. Count the unique players matching this condition and divide by the total number of distinct players in the Activity table, rounding to 2 decimal places."
+   }
+  ],
+  "edgeCases": [
+   "A player logged in consecutively on other days but not on the day after their first login",
+   "Total number of players is 1"
+  ]
+ },
+ "Number of Unique Subjects Taught by Each Teacher": {
+  "title": "Number of Unique Subjects Taught by Each Teacher",
+  "problemStatement": "Write a solution to calculate the number of unique subjects each teacher teaches in the university.",
+  "schema": "CREATE TABLE Teacher (\n    teacher_id INT,\n    subject_id INT,\n    dept_id INT,\n    PRIMARY KEY (teacher_id, subject_id)\n);",
+  "exampleData": [
+   {
+    "tableName": "Teacher",
+    "headers": [
+     "teacher_id",
+     "subject_id",
+     "dept_id"
+    ],
+    "rows": [
+     [
+      1,
+      2,
+      3
+     ],
+     [
+      1,
+      2,
+      4
+     ],
+     [
+      1,
+      3,
+      3
+     ],
+     [
+      2,
+      1,
+      1
+     ],
+     [
+      2,
+      2,
+      1
+     ],
+     [
+      2,
+      3,
+      1
+     ],
+     [
+      2,
+      4,
+      1
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "TeacherUniqueSubjectsOutput",
+   "headers": [
+    "teacher_id",
+    "cnt"
+   ],
+   "rows": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     4
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT \n    teacher_id, \n    COUNT(DISTINCT subject_id) AS cnt\nFROM Teacher\nGROUP BY teacher_id;",
+    "explanation": "Group by teacher_id and use COUNT(DISTINCT subject_id) to calculate the number of unique subjects taught by each teacher."
+   }
+  ],
+  "edgeCases": [
+   "A teacher teaches the same subject across different departments (distinct ensures it is counted only once)"
+  ]
+ },
+ "User Activity for the Past 30 Days I": {
+  "title": "User Activity for the Past 30 Days I",
+  "problemStatement": "Write a solution to find the daily active user count for a period of 30 days ending 2019-07-27 inclusively. A user was active on fields of activity if they made at least one activity on that day.",
+  "schema": "CREATE TABLE Activity (\n    user_id INT,\n    session_id INT,\n    activity_date DATE,\n    activity_type ENUM('open_session', 'end_session', 'scroll_down', 'send_message')\n);",
+  "exampleData": [
+   {
+    "tableName": "Activity",
+    "headers": [
+     "user_id",
+     "session_id",
+     "activity_date",
+     "activity_type"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      "2019-07-20",
+      "open_session"
+     ],
+     [
+      1,
+      1,
+      "2019-07-20",
+      "scroll_down"
+     ],
+     [
+      1,
+      1,
+      "2019-07-20",
+      "end_session"
+     ],
+     [
+      2,
+      4,
+      "2019-07-20",
+      "open_session"
+     ],
+     [
+      2,
+      4,
+      "2019-07-21",
+      "send_message"
+     ],
+     [
+      2,
+      4,
+      "2019-07-21",
+      "end_session"
+     ],
+     [
+      3,
+      2,
+      "2019-07-21",
+      "open_session"
+     ],
+     [
+      3,
+      2,
+      "2019-07-21",
+      "send_message"
+     ],
+     [
+      3,
+      5,
+      "2019-07-21",
+      "end_session"
+     ],
+     [
+      4,
+      3,
+      "2019-06-25",
+      "open_session"
+     ],
+     [
+      4,
+      3,
+      "2019-06-25",
+      "end_session"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "ActiveUsers30DaysOutput",
+   "headers": [
+    "day",
+    "active_users"
+   ],
+   "rows": [
+    [
+     "2019-07-20",
+     2
+    ],
+    [
+     "2019-07-21",
+     2
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT \n    activity_date AS day, \n    COUNT(DISTINCT user_id) AS active_users\nFROM Activity\nWHERE activity_date BETWEEN '2019-06-28' AND '2019-07-27'\nGROUP BY activity_date;",
+    "explanation": "Filter the rows to include only those within the 30-day window ending on 2019-07-27 (inclusive, starting from 2019-06-28). Group the records by activity_date and count the distinct user_ids for each day."
+   }
+  ],
+  "edgeCases": [
+   "Dates outside the 30-day window (must be filtered out)",
+   "Users performing multiple activities on the same day (must be counted only once)"
+  ]
+ },
+ "Product Sales Analysis III": {
+  "title": "Product Sales Analysis III",
+  "problemStatement": "Write a solution to select the product id, year, quantity, and price for the first year of every product sold.",
+  "schema": "CREATE TABLE Sales (\n    sale_id INT,\n    product_id INT,\n    year INT,\n    quantity INT,\n    price INT,\n    PRIMARY KEY (sale_id, product_id, year)\n);\nCREATE TABLE Product (\n    product_id INT PRIMARY KEY,\n    product_name VARCHAR(10)\n);",
+  "exampleData": [
+   {
+    "tableName": "Sales",
+    "headers": [
+     "sale_id",
+     "product_id",
+     "year",
+     "quantity",
+     "price"
+    ],
+    "rows": [
+     [
+      1,
+      100,
+      2008,
+      10,
+      5000
+     ],
+     [
+      2,
+      100,
+      2009,
+      12,
+      5000
+     ],
+     [
+      7,
+      200,
+      2011,
+      15,
+      9000
+     ]
+    ]
+   },
+   {
+    "tableName": "Product",
+    "headers": [
+     "product_id",
+     "product_name"
+    ],
+    "rows": [
+     [
+      100,
+      "Nokia"
+     ],
+     [
+      200,
+      "Apple"
+     ],
+     [
+      300,
+      "Samsung"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "ProductSales3Output",
+   "headers": [
+    "product_id",
+    "first_year",
+    "quantity",
+    "price"
+   ],
+   "rows": [
+    [
+     100,
+     2008,
+     10,
+     5000
+    ],
+    [
+     200,
+     2011,
+     15,
+     9000
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT \n    product_id, \n    year AS first_year, \n    quantity, \n    price\nFROM Sales\nWHERE (product_id, year) IN (\n    SELECT product_id, MIN(year)\n    FROM Sales\n    GROUP BY product_id\n);",
+    "explanation": "Identify the first year of sales for each product by grouping the Sales table by product_id and taking MIN(year) in a subquery. Then, select the details from the Sales table where the product_id and year match the result of the subquery."
+   }
+  ],
+  "edgeCases": [
+   "Products with multiple transactions in their first year (this query correctly returns all of them)",
+   "Products that have never been sold (they will not appear in the Sales table, so they won't be returned)"
+  ]
+ },
+ "Classes More Than 5 Students": {
+  "title": "Classes More Than 5 Students",
+  "problemStatement": "Write a solution to find all the classes that have at least five students.",
+  "schema": "CREATE TABLE Courses (\n    student VARCHAR(255),\n    class VARCHAR(255),\n    PRIMARY KEY (student, class)\n);",
+  "exampleData": [
+   {
+    "tableName": "Courses",
+    "headers": [
+     "student",
+     "class"
+    ],
+    "rows": [
+     [
+      "A",
+      "Math"
+     ],
+     [
+      "B",
+      "English"
+     ],
+     [
+      "C",
+      "Math"
+     ],
+     [
+      "D",
+      "Biology"
+     ],
+     [
+      "E",
+      "Math"
+     ],
+     [
+      "F",
+      "Computer"
+     ],
+     [
+      "G",
+      "Math"
+     ],
+     [
+      "H",
+      "Math"
+     ],
+     [
+      "I",
+      "Math"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "ClassesMoreThan5StudentsOutput",
+   "headers": [
+    "class"
+   ],
+   "rows": [
+    [
+     "Math"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT class\nFROM Courses\nGROUP BY class\nHAVING COUNT(student) >= 5;",
+    "explanation": "Group the Course table by class, count the number of students in each class using COUNT(student), and filter for classes with a count >= 5 in the HAVING clause."
+   }
+  ],
+  "edgeCases": [
+   "Classes with exactly 5 students (should be included)",
+   "No classes matching the filter (returns empty result set)"
+  ]
+ },
+ "Find Followers Count": {
+  "title": "Find Followers Count",
+  "problemStatement": "Write a solution that will, for each user, return the number of followers. Return the result table ordered by user_id in ascending order.",
+  "schema": "CREATE TABLE Followers (\n    user_id INT,\n    follower_id INT,\n    PRIMARY KEY (user_id, follower_id)\n);",
+  "exampleData": [
+   {
+    "tableName": "Followers",
+    "headers": [
+     "user_id",
+     "follower_id"
+    ],
+    "rows": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      2,
+      1
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "FollowersCountOutput",
+   "headers": [
+    "user_id",
+    "followers_count"
+   ],
+   "rows": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     2
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT \n    user_id, \n    COUNT(follower_id) AS followers_count\nFROM Followers\nGROUP BY user_id\nORDER BY user_id ASC;",
+    "explanation": "Group the table by user_id, apply the COUNT function on follower_id to get the total number of followers for each user, and order the results by user_id ascending."
+   }
+  ],
+  "edgeCases": [
+   "Users with 0 followers (they will not be present in the Followers table)"
+  ]
+ },
+ "Biggest Single Number": {
+  "title": "Biggest Single Number",
+  "problemStatement": "A single number is a number that appeared only once in the MyNumbers table.\n\nFind the largest single number. If there is no such number, report null.",
+  "schema": "CREATE TABLE MyNumbers (\n    num INT\n);",
+  "exampleData": [
+   {
+    "tableName": "MyNumbers",
+    "headers": [
+     "num"
+    ],
+    "rows": [
+     [
+      8
+     ],
+     [
+      8
+     ],
+     [
+      3
+     ],
+     [
+      3
+     ],
+     [
+      1
+     ],
+     [
+      4
+     ],
+     [
+      5
+     ],
+     [
+      6
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "BiggestSingleNumberOutput",
+   "headers": [
+    "num"
+   ],
+   "rows": [
+    [
+     6
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT MAX(num) AS num\nFROM (\n    SELECT num\n    FROM MyNumbers\n    GROUP BY num\n    HAVING COUNT(num) = 1\n) AS unique_nums;",
+    "explanation": "Group the table by num and find numbers with COUNT(num) = 1 in the subquery. In the outer query, select the MAX(num) from this filtered set. If no numbers meet the condition, MAX returns NULL."
+   }
+  ],
+  "edgeCases": [
+   "The table is empty or all numbers appear at least twice (the subquery is empty, and the outer query returns a single row containing NULL)"
+  ]
+ },
+ "Customers Who Bought All Products": {
+  "title": "Customers Who Bought All Products",
+  "problemStatement": "Write a solution to report the customer ids from the Customer table that bought all the products in the Product table.",
+  "schema": "CREATE TABLE Customer (\n    customer_id INT,\n    product_key INT\n);\nCREATE TABLE Product (\n    product_key INT PRIMARY KEY\n);",
+  "exampleData": [
+   {
+    "tableName": "Customer",
+    "headers": [
+     "customer_id",
+     "product_key"
+    ],
+    "rows": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      1,
+      6
+     ]
+    ]
+   },
+   {
+    "tableName": "Product",
+    "headers": [
+     "product_key"
+    ],
+    "rows": [
+     [
+      5
+     ],
+     [
+      6
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "CustomersBoughtAllProductsOutput",
+   "headers": [
+    "customer_id"
+   ],
+   "rows": [
+    [
+     1
+    ],
+    [
+     3
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT customer_id\nFROM Customer\nGROUP BY customer_id\nHAVING COUNT(DISTINCT product_key) = (SELECT COUNT(*) FROM Product);",
+    "explanation": "Group the Customer table by customer_id. Count the unique products each customer has bought using COUNT(DISTINCT product_key). Compare this count in the HAVING clause with the total number of products from the Product table using a subquery."
+   }
+  ],
+  "edgeCases": [
+   "Customers who bought the same product multiple times (handled by COUNT(DISTINCT ...))",
+   "Empty Product table"
+  ]
+ },
+ "The Number of Employees Which Report to Each Employee": {
+  "title": "The Number of Employees Which Report to Each Employee",
+  "problemStatement": "Write a solution to report the ids and the names of all managers, the number of employees who report directly to them, and the average age of the reports rounded to the nearest integer. Return the result table ordered by employee_id.",
+  "schema": "CREATE TABLE Employees (\n    employee_id INT PRIMARY KEY,\n    name VARCHAR(20),\n    reports_to INT,\n    age INT\n);",
+  "exampleData": [
+   {
+    "tableName": "Employees",
+    "headers": [
+     "employee_id",
+     "name",
+     "reports_to",
+     "age"
+    ],
+    "rows": [
+     [
+      9,
+      "Hercy",
+      null,
+      43
+     ],
+     [
+      6,
+      "Alice",
+      9,
+      41
+     ],
+     [
+      4,
+      "Bob",
+      9,
+      36
+     ],
+     [
+      1,
+      "Daniel",
+      9,
+      44
+     ],
+     [
+      2,
+      "Mock",
+      9,
+      33
+     ],
+     [
+      8,
+      "John",
+      4,
+      29
+     ],
+     [
+      11,
+      "Jacks",
+      8,
+      18
+     ],
+     [
+      12,
+      "Meir",
+      8,
+      40
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "EmployeesReportCountOutput",
+   "headers": [
+    "employee_id",
+    "name",
+    "reports_count",
+    "average_age"
+   ],
+   "rows": [
+    [
+     4,
+     "Bob",
+     1,
+     29
+    ],
+    [
+     8,
+     "John",
+     2,
+     29
+    ],
+    [
+     9,
+     "Hercy",
+     4,
+     39
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT \n    m.employee_id,\n    m.name,\n    COUNT(e.employee_id) AS reports_count,\n    ROUND(AVG(e.age)) AS average_age\nFROM Employees m\nJOIN Employees e ON m.employee_id = e.reports_to\nGROUP BY m.employee_id, m.name\nORDER BY m.employee_id;",
+    "explanation": "Perform an inner self-join on the Employees table where a manager's employee_id matches an employee's reports_to. Group the results by the manager's employee_id and name. Use COUNT to calculate the number of reports and ROUND(AVG(e.age)) to find the average age of their reports rounded to the nearest integer. Sort the result by employee_id."
+   }
+  ],
+  "edgeCases": [
+   "Employees who do not have any reports (automatically filtered out due to the INNER JOIN)",
+   "Floating point rounding behavior for reports' average age"
+  ]
+ },
+ "Primary Department for Each Employee": {
+  "title": "Primary Department for Each Employee",
+  "problemStatement": "Employees can belong to multiple departments. When the employee joins other departments, they need to decide which department is their primary department. Note that when an employee belongs to only one department, their primary column is 'N'.\n\nWrite a solution to report all the employees with their primary department. For employees who belong to one department, report their only department.",
+  "schema": "CREATE TABLE Employee (\n    employee_id INT,\n    department_id INT,\n    primary_flag ENUM('Y', 'N'),\n    PRIMARY KEY (employee_id, department_id)\n);",
+  "exampleData": [
+   {
+    "tableName": "Employee",
+    "headers": [
+     "employee_id",
+     "department_id",
+     "primary_flag"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      "N"
+     ],
+     [
+      2,
+      1,
+      "N"
+     ],
+     [
+      2,
+      2,
+      "Y"
+     ],
+     [
+      3,
+      3,
+      "N"
+     ],
+     [
+      4,
+      2,
+      "N"
+     ],
+     [
+      4,
+      3,
+      "Y"
+     ],
+     [
+      4,
+      4,
+      "N"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "PrimaryDepartmentOutput",
+   "headers": [
+    "employee_id",
+    "department_id"
+   ],
+   "rows": [
+    [
+     1,
+     1
+    ],
+    [
+     2,
+     2
+    ],
+    [
+     3,
+     3
+    ],
+    [
+     4,
+     3
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Optimal",
+    "query": "SELECT employee_id, department_id\nFROM Employee\nWHERE primary_flag = 'Y'\nUNION\nSELECT employee_id, department_id\nFROM Employee\nGROUP BY employee_id\nHAVING COUNT(department_id) = 1;",
+    "explanation": "Use UNION to combine two subsets of results: 1) Employees where the primary_flag is explicitly 'Y'. 2) Employees who belong to exactly one department (HAVING COUNT(department_id) = 1), regardless of their primary_flag value."
+   }
+  ],
+  "edgeCases": [
+   "An employee belongs to only one department, which has a primary_flag of 'N' (correctly selected by the second part of the UNION)",
+   "An employee belongs to multiple departments and has one department marked 'Y' (correctly selected by the first part of the UNION)"
+  ]
+ },
+ "Triangle Judgement": {
+  "title": "Triangle Judgement",
+  "problemStatement": "Report for every three line segments whether they can form a triangle.\nA triangle is valid if the sum of any two sides is strictly greater than the third side:\n- x + y > z\n- x + z > y\n- y + z > x",
+  "schema": "CREATE TABLE Triangle (\n    x INT,\n    y INT,\n    z INT,\n    PRIMARY KEY (x, y, z)\n);",
+  "exampleData": [
+   {
+    "tableName": "Triangle",
+    "headers": [
+     "x",
+     "y",
+     "z"
+    ],
+    "rows": [
+     [
+      13,
+      15,
+      30
+     ],
+     [
+      10,
+      20,
+      15
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "x",
+    "y",
+    "z",
+    "triangle"
+   ],
+   "rows": [
+    [
+     13,
+     15,
+     30,
+     "No"
+    ],
+    [
+     10,
+     20,
+     15,
+     "Yes"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "MySQL CASE Statement",
+    "query": "SELECT x, y, z,\n       CASE\n           WHEN x + y > z AND x + z > y AND y + z > x THEN 'Yes'\n           ELSE 'No'\n       END AS triangle\nFROM Triangle;",
+    "explanation": "A triangle is valid if the sum of any two sides is strictly greater than the third side. We implement this logic using a SQL CASE statement with three conditions connected by AND: `x + y > z`, `x + z > y`, and `y + z > x`. If all three conditions are satisfied, we output 'Yes', otherwise we output 'No'."
+   }
+  ],
+  "edgeCases": [
+   "A side length is 0 or negative: In real geometry, sides must be positive. The mathematical conditions x + y > z, etc., will naturally handle positive non-zero checks unless negative values cancel each other.",
+   "Degenerate triangle where the sum of two sides equals the third (e.g., 10, 10, 20): This does not form a valid triangle and will correctly return 'No' since the inequality is strictly greater than."
+  ]
+ },
+ "Consecutive Numbers": {
+  "title": "Consecutive Numbers",
+  "problemStatement": "Find all numbers that appear at least three times consecutively.\nReturn the result table in any order.",
+  "schema": "CREATE TABLE Logs (\n    id INT PRIMARY KEY,\n    num INT\n);",
+  "exampleData": [
+   {
+    "tableName": "Logs",
+    "headers": [
+     "id",
+     "num"
+    ],
+    "rows": [
+     [
+      1,
+      1
+     ],
+     [
+      2,
+      1
+     ],
+     [
+      3,
+      1
+     ],
+     [
+      4,
+      2
+     ],
+     [
+      5,
+      1
+     ],
+     [
+      6,
+      2
+     ],
+     [
+      7,
+      2
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "ConsecutiveNums"
+   ],
+   "rows": [
+    [
+     1
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Window Functions (LEAD / LAG)",
+    "query": "SELECT DISTINCT num AS ConsecutiveNums\nFROM (\n    SELECT num,\n           LAG(num, 1) OVER (ORDER BY id) AS prev_num,\n           LAG(num, 2) OVER (ORDER BY id) AS prev_prev_num\n    FROM Logs\n) t\nWHERE num = prev_num AND num = prev_prev_num;",
+    "explanation": "Using the LAG window function, we can retrieve the values from the previous row and the row before that, ordered by the `id` column. We then wrap this in a subquery and select only the numbers where both the immediate previous number and the number two rows back are equal to the current number. Using DISTINCT ensures each number is reported at most once."
+   },
+   {
+    "name": "Self-Join on ID Arithmetic",
+    "query": "SELECT DISTINCT l1.num AS ConsecutiveNums\nFROM Logs l1\nJOIN Logs l2 ON l1.id = l2.id - 1\nJOIN Logs l3 ON l1.id = l3.id - 2\nWHERE l1.num = l2.num AND l2.num = l3.num;",
+    "explanation": "This solution joins the Logs table with itself twice. The first join matches a row with the next row (id + 1), and the second join matches it with the row after that (id + 2). The WHERE clause filters for cases where the numbers in all three rows are equal. Note that this assumes no gaps in the auto-incremented ID values."
+   }
+  ],
+  "edgeCases": [
+   "Gaps in ID sequence: If IDs have gaps (e.g. 1, 2, 4), the self-join method on ID math may fail to find consecutive numbers, whereas the window function method will still work correctly because it uses positional order.",
+   "A number appears more than three times consecutively: The use of DISTINCT ensures that the number is returned exactly once.",
+   "Table contains fewer than three rows: Both queries will safely return an empty result set without failing."
+  ]
+ },
+ "Product Price at a Given Date": {
+  "title": "Product Price at a Given Date",
+  "problemStatement": "Write a solution to find the prices of all products on 2019-08-16. Assume the default price of all products before any change is 10.\nReturn the result table in any order.",
+  "schema": "CREATE TABLE Products (\n    product_id INT,\n    new_price INT,\n    change_date DATE,\n    PRIMARY KEY (product_id, change_date)\n);",
+  "exampleData": [
+   {
+    "tableName": "Products",
+    "headers": [
+     "product_id",
+     "new_price",
+     "change_date"
+    ],
+    "rows": [
+     [
+      1,
+      20,
+      "2019-08-14"
+     ],
+     [
+      2,
+      50,
+      "2019-08-14"
+     ],
+     [
+      1,
+      30,
+      "2019-08-15"
+     ],
+     [
+      1,
+      35,
+      "2019-08-16"
+     ],
+     [
+      2,
+      65,
+      "2019-08-17"
+     ],
+     [
+      3,
+      20,
+      "2019-08-18"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "product_id",
+    "price"
+   ],
+   "rows": [
+    [
+     1,
+     35
+    ],
+    [
+     2,
+     50
+    ],
+    [
+     3,
+     10
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "UNION with Subqueries",
+    "query": "SELECT product_id, new_price AS price\nFROM Products\nWHERE (product_id, change_date) IN (\n    SELECT product_id, MAX(change_date)\n    FROM Products\n    WHERE change_date <= '2019-08-16'\n    GROUP BY product_id\n)\nUNION\nSELECT DISTINCT product_id, 10 AS price\nFROM Products\nWHERE product_id NOT IN (\n    SELECT DISTINCT product_id\n    FROM Products\n    WHERE change_date <= '2019-08-16'\n);",
+    "explanation": "The logic is split into two parts combined with UNION:\n1. Products that had at least one price change on or before '2019-08-16'. We find their latest change date using MAX(change_date) grouped by product_id, and extract the corresponding price.\n2. Products whose first price change occurred after '2019-08-16'. These products have no records on or before that date, so their price defaults to 10."
+   },
+   {
+    "name": "Left Join with Subquery",
+    "query": "SELECT DISTINCT p1.product_id, COALESCE(p2.new_price, 10) AS price\nFROM (SELECT DISTINCT product_id FROM Products) p1\nLEFT JOIN Products p2 ON p1.product_id = p2.product_id\n  AND p2.change_date = (\n      SELECT MAX(change_date)\n      FROM Products p3\n      WHERE p3.product_id = p1.product_id AND p3.change_date <= '2019-08-16'\n  );",
+    "explanation": "This alternative performs a LEFT JOIN from all unique product IDs to their latest price record on or before '2019-08-16'. If a product has no such record, the LEFT JOIN returns NULL, which we convert to the default price of 10 using the COALESCE function."
+   }
+  ],
+  "edgeCases": [
+   "Products with no changes before or on 2019-08-16: Should correctly return a default price of 10.",
+   "Multiple changes before the target date: Must correctly pick the latest change (maximum date).",
+   "Changes happening exactly on 2019-08-16: Since the inequality is inclusive (<= '2019-08-16'), these changes must be captured."
+  ]
+ },
+ "Last Person to Fit in the Bus": {
+  "title": "Last Person to Fit in the Bus",
+  "problemStatement": "There is a queue of people waiting to board a bus. However, the bus has a weight limit of 1000 kilograms, so there may be some people who cannot board.\nWrite a solution to find the person_name of the last person that can fit on the bus without exceeding the weight limit. The people board the bus in the order of their turn.",
+  "schema": "CREATE TABLE Queue (\n    person_id INT PRIMARY KEY,\n    person_name VARCHAR(30),\n    weight INT,\n    turn INT UNIQUE\n);",
+  "exampleData": [
+   {
+    "tableName": "Queue",
+    "headers": [
+     "person_id",
+     "person_name",
+     "weight",
+     "turn"
+    ],
+    "rows": [
+     [
+      5,
+      "Alice",
+      250,
+      1
+     ],
+     [
+      4,
+      "Bob",
+      175,
+      5
+     ],
+     [
+      3,
+      "Alex",
+      350,
+      2
+     ],
+     [
+      6,
+      "John Cena",
+      400,
+      3
+     ],
+     [
+      1,
+      "Winston",
+      500,
+      6
+     ],
+     [
+      2,
+      "Marie",
+      200,
+      4
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "person_name"
+   ],
+   "rows": [
+    [
+     "John Cena"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Window Function Cumulative Sum",
+    "query": "WITH CumulativeWeight AS (\n    SELECT person_name, turn,\n           SUM(weight) OVER (ORDER BY turn ASC) AS total_weight\n    FROM Queue\n)\nSELECT person_name\nFROM CumulativeWeight\nWHERE total_weight <= 1000\nORDER BY turn DESC\nLIMIT 1;",
+    "explanation": "Using the SUM() OVER (ORDER BY turn ASC) window function, we calculate the running total weight of passengers boarding in order of their turns. We then filter out rows where the cumulative weight exceeds 1000. Finally, sorting the remaining passengers by their turn descending and using LIMIT 1 gives us the last passenger who successfully fits."
+   },
+   {
+    "name": "Self-Join Cumulative Sum",
+    "query": "SELECT q1.person_name\nFROM Queue q1\nJOIN Queue q2 ON q1.turn >= q2.turn\nGROUP BY q1.person_id, q1.person_name, q1.turn\nHAVING SUM(q2.weight) <= 1000\nORDER BY q1.turn DESC\nLIMIT 1;",
+    "explanation": "For compatibility with older SQL database versions without window function support, we can use a self-join. We join the Queue table with itself on q1.turn >= q2.turn to match each passenger with all passengers who board before or at the same turn. Grouping by q1's attributes, we calculate the SUM of weights from q2. We filter groups with a sum <= 1000, sort by turn descending, and limit to 1."
+   }
+  ],
+  "edgeCases": [
+   "The very first passenger's weight exceeds 1000: The query will return an empty set.",
+   "Cumulative weight equals exactly 1000: The filter '<= 1000' correctly includes this limit.",
+   "All passengers combined do not exceed 1000: The query will return the person with the maximum turn."
+  ]
+ },
+ "Employees Whose Manager Left the Company": {
+  "title": "Employees Whose Manager Left the Company",
+  "problemStatement": "Find the IDs of the employees whose salary is strictly less than $30000 and whose manager left the company. When a manager leaves the company, their information is deleted from the Employees table, but the manager_id column still contains their employee ID.\nReturn the result table ordered by employee_id.",
+  "schema": "CREATE TABLE Employees (\n    employee_id INT PRIMARY KEY,\n    name VARCHAR(30),\n    manager_id INT,\n    salary INT\n);",
+  "exampleData": [
+   {
+    "tableName": "Employees",
+    "headers": [
+     "employee_id",
+     "name",
+     "manager_id",
+     "salary"
+    ],
+    "rows": [
+     [
+      3,
+      "Mila",
+      null,
+      60301
+     ],
+     [
+      12,
+      "Antonella",
+      null,
+      31000
+     ],
+     [
+      13,
+      "Emery",
+      null,
+      67084
+     ],
+     [
+      1,
+      "Kalel",
+      11,
+      21241
+     ],
+     [
+      9,
+      "Mikaela",
+      null,
+      50937
+     ],
+     [
+      11,
+      "Joziah",
+      6,
+      28485
+     ],
+     [
+      7,
+      "Peregrine",
+      11,
+      3000
+     ],
+     [
+      6,
+      "Luis",
+      1,
+      28540
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "employee_id"
+   ],
+   "rows": [
+    [
+     11
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Subquery with NOT IN",
+    "query": "SELECT employee_id\nFROM Employees\nWHERE salary < 30000\n  AND manager_id IS NOT NULL\n  AND manager_id NOT IN (\n      SELECT employee_id\n      FROM Employees\n  )\nORDER BY employee_id;",
+    "explanation": "We filter for employees whose salary is strictly less than 30000 and who have a manager (manager_id IS NOT NULL). To determine if their manager has left, we check that their manager_id is NOT IN the list of currently active employee_ids. Finally, we sort the output by employee_id ascending."
+   }
+  ],
+  "edgeCases": [
+   "Manager ID is NULL: These employees must not be selected since they don't have a manager. The manager_id IS NOT NULL condition ensures this.",
+   "Manager exists but salary is >= 30000: These are excluded by the salary filter.",
+   "All managers are active: The query will return an empty result set."
+  ]
+ },
+ "Exchange Seats": {
+  "title": "Exchange Seats",
+  "problemStatement": "Write a solution to swap the seat id of every two consecutive students. If the number of students is odd, the id of the last student is not swapped.\nReturn the result table ordered by id in ascending order.",
+  "schema": "CREATE TABLE Seat (\n    id INT PRIMARY KEY,\n    student VARCHAR(255)\n);",
+  "exampleData": [
+   {
+    "tableName": "Seat",
+    "headers": [
+     "id",
+     "student"
+    ],
+    "rows": [
+     [
+      1,
+      "Abbot"
+     ],
+     [
+      2,
+      "Doris"
+     ],
+     [
+      3,
+      "Emerson"
+     ],
+     [
+      4,
+      "Green"
+     ],
+     [
+      5,
+      "Jeames"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "id",
+    "student"
+   ],
+   "rows": [
+    [
+     1,
+     "Doris"
+    ],
+    [
+     2,
+     "Abbot"
+    ],
+    [
+     3,
+     "Green"
+    ],
+    [
+     4,
+     "Emerson"
+    ],
+    [
+     5,
+     "Jeames"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "CASE WHEN Statement",
+    "query": "SELECT\n    CASE\n        WHEN id % 2 = 1 AND id = (SELECT MAX(id) FROM Seat) THEN id\n        WHEN id % 2 = 1 THEN id + 1\n        ELSE id - 1\n    END AS id,\n    student\nFROM Seat\nORDER BY id ASC;",
+    "explanation": "We manipulate the ID to swap positions:\n- If the ID is odd and it is the last ID in the table (checked via a subquery), we keep it as is.\n- If the ID is odd but not the last, we add 1 to match it with the next (even) student.\n- If the ID is even, we subtract 1 to match it with the previous (odd) student.\nSorting the query by the newly computed ID puts the students in the swapped order."
+   },
+   {
+    "name": "Window Function LEAD / LAG",
+    "query": "SELECT\n    id,\n    COALESCE(\n        CASE\n            WHEN id % 2 = 1 THEN LEAD(student) OVER (ORDER BY id)\n            ELSE LAG(student) OVER (ORDER BY id)\n        END,\n        student\n    ) AS student\nFROM Seat\nORDER BY id;",
+    "explanation": "Instead of changing the IDs, we can keep the IDs standard and swap the student names. For odd IDs, we retrieve the next student using LEAD. For even IDs, we retrieve the previous student using LAG. If the table has an odd number of rows, the last student's LEAD will return NULL, which we handle by defaulting back to their original name using COALESCE."
+   }
+  ],
+  "edgeCases": [
+   "Odd number of records: The last record should not be swapped. In the CASE WHEN solution, the check 'id = (SELECT MAX(id) FROM Seat)' handles this. In the window function solution, COALESCE handles this.",
+   "Only 1 student: Should return that student unchanged.",
+   "Table is empty: Returns empty result."
+  ]
+ },
+ "Movie Rating": {
+  "title": "Movie Rating",
+  "problemStatement": "Write a solution to:\n- Find the name of the user who has rated the greatest number of movies. In case of a tie, return the lexicographically smaller user name.\n- Find the movie name with the highest average rating in February 2020. In case of a tie, return the lexicographically smaller movie name.",
+  "schema": "CREATE TABLE Movies (\n    movie_id INT PRIMARY KEY,\n    title VARCHAR(30)\n);\nCREATE TABLE Users (\n    user_id INT PRIMARY KEY,\n    name VARCHAR(30)\n);\nCREATE TABLE MovieRating (\n    movie_id INT,\n    user_id INT,\n    rating INT,\n    created_at DATE,\n    PRIMARY KEY (movie_id, user_id)\n);",
+  "exampleData": [
+   {
+    "tableName": "Movies",
+    "headers": [
+     "movie_id",
+     "title"
+    ],
+    "rows": [
+     [
+      1,
+      "Avengers"
+     ],
+     [
+      2,
+      "Frozen 2"
+     ],
+     [
+      3,
+      "Joker"
+     ]
+    ]
+   },
+   {
+    "tableName": "Users",
+    "headers": [
+     "user_id",
+     "name"
+    ],
+    "rows": [
+     [
+      1,
+      "Daniel"
+     ],
+     [
+      2,
+      "Monica"
+     ],
+     [
+      3,
+      "Maria"
+     ],
+     [
+      4,
+      "James"
+     ]
+    ]
+   },
+   {
+    "tableName": "MovieRating",
+    "headers": [
+     "movie_id",
+     "user_id",
+     "rating",
+     "created_at"
+    ],
+    "rows": [
+     [
+      1,
+      1,
+      3,
+      "2020-01-12"
+     ],
+     [
+      1,
+      2,
+      4,
+      "2020-02-11"
+     ],
+     [
+      1,
+      3,
+      2,
+      "2020-02-12"
+     ],
+     [
+      1,
+      4,
+      1,
+      "2020-01-01"
+     ],
+     [
+      2,
+      1,
+      5,
+      "2020-02-17"
+     ],
+     [
+      2,
+      2,
+      2,
+      "2020-02-01"
+     ],
+     [
+      2,
+      3,
+      2,
+      "2020-03-01"
+     ],
+     [
+      3,
+      1,
+      3,
+      "2020-02-22"
+     ],
+     [
+      3,
+      2,
+      4,
+      "2020-02-25"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "results"
+   ],
+   "rows": [
+    [
+     "Daniel"
+    ],
+    [
+     "Frozen 2"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "UNION ALL of Two Subqueries",
+    "query": "(\n    SELECT u.name AS results\n    FROM MovieRating r\n    JOIN Users u ON r.user_id = u.user_id\n    GROUP BY r.user_id, u.name\n    ORDER BY COUNT(r.movie_id) DESC, u.name ASC\n    LIMIT 1\n)\nUNION ALL\n(\n    SELECT m.title AS results\n    FROM MovieRating r\n    JOIN Movies m ON r.movie_id = m.movie_id\n    WHERE r.created_at >= '2020-02-01' AND r.created_at <= '2020-02-29'\n    GROUP BY r.movie_id, m.title\n    ORDER BY AVG(r.rating) DESC, m.title ASC\n    LIMIT 1\n);",
+    "explanation": "The query comprises two distinct subqueries combined with UNION ALL:\n1. The first subquery joins MovieRating and Users, groups by user, counts the total ratings, sorts by count descending and name ascending (lexicographical tie-breaker), and gets the top 1 using LIMIT 1.\n2. The second subquery joins MovieRating and Movies, filters for ratings in Feb 2020, groups by movie, calculates the average rating, sorts by average rating descending and title ascending, and retrieves the top 1 using LIMIT 1.\nUsing UNION ALL is important so that if both subqueries yield the same string, both rows are preserved in the output."
+   }
+  ],
+  "edgeCases": [
+   "Ties in number of reviews or average rating: Solved by sorting alphabetically ascending (u.name ASC / m.title ASC).",
+   "Rating dates: Correctly check that created_at is within February 2020.",
+   "Using UNION ALL instead of UNION: Ensures both parts run independently and two records are output even if the username matches the movie name."
+  ]
+ },
+ "Restaurant Growth": {
+  "title": "Restaurant Growth",
+  "problemStatement": "Compute the moving average of how much the customer paid in a 7 days window (i.e., current day + 6 days before). average_amount should be rounded to two decimal places.\nReturn the result table ordered by visited_on in ascending order.",
+  "schema": "CREATE TABLE Customer (\n    customer_id INT,\n    name VARCHAR(30),\n    visited_on DATE,\n    amount INT,\n    PRIMARY KEY (customer_id, visited_on)\n);",
+  "exampleData": [
+   {
+    "tableName": "Customer",
+    "headers": [
+     "customer_id",
+     "name",
+     "visited_on",
+     "amount"
+    ],
+    "rows": [
+     [
+      1,
+      "Jhon",
+      "2019-01-01",
+      100
+     ],
+     [
+      2,
+      "Daniel",
+      "2019-01-02",
+      110
+     ],
+     [
+      3,
+      "Jade",
+      "2019-01-03",
+      120
+     ],
+     [
+      4,
+      "Khaled",
+      "2019-01-04",
+      130
+     ],
+     [
+      5,
+      "Winston",
+      "2019-01-05",
+      110
+     ],
+     [
+      6,
+      "Elvis",
+      "2019-01-06",
+      140
+     ],
+     [
+      7,
+      "Anna",
+      "2019-01-07",
+      150
+     ],
+     [
+      8,
+      "Maria",
+      "2019-01-08",
+      80
+     ],
+     [
+      9,
+      "Jaze",
+      "2019-01-09",
+      110
+     ],
+     [
+      1,
+      "Jhon",
+      "2019-01-10",
+      130
+     ],
+     [
+      3,
+      "Jade",
+      "2019-01-10",
+      150
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "visited_on",
+    "amount",
+    "average_amount"
+   ],
+   "rows": [
+    [
+     "2019-01-07",
+     860,
+     122.86
+    ],
+    [
+     "2019-01-08",
+     840,
+     120
+    ],
+    [
+     "2019-01-09",
+     840,
+     120
+    ],
+    [
+     "2019-01-10",
+     1010,
+     144.29
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Window Function with ROW_NUMBER",
+    "query": "WITH DailySales AS (\n    SELECT visited_on, SUM(amount) AS amount\n    FROM Customer\n    GROUP BY visited_on\n),\nMovingStats AS (\n    SELECT visited_on,\n           SUM(amount) OVER (ORDER BY visited_on ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS amount,\n           ROUND(AVG(amount) OVER (ORDER BY visited_on ROWS BETWEEN 6 PRECEDING AND CURRENT ROW), 2) AS average_amount,\n           ROW_NUMBER() OVER (ORDER BY visited_on) AS rn\n    FROM DailySales\n)\nSELECT visited_on, amount, average_amount\nFROM MovingStats\nWHERE rn >= 7\nORDER BY visited_on;",
+    "explanation": "First, we group the customer records by visited_on to calculate the sum of amounts for each day. Second, we use window functions to calculate the 7-day moving sum and moving average (using ROWS BETWEEN 6 PRECEDING AND CURRENT ROW). We also compute a row number (rn) ordered by date. Finally, we filter the results to only include rows where rn >= 7, which ensures we only output days that have a full 7-day window."
+   },
+   {
+    "name": "Self-Join using DATEDIFF",
+    "query": "SELECT\n    c1.visited_on,\n    SUM(c2.amount) AS amount,\n    ROUND(SUM(c2.amount) / 7.0, 2) AS average_amount\nFROM (SELECT DISTINCT visited_on FROM Customer) c1\nJOIN Customer c2 ON DATEDIFF(c1.visited_on, c2.visited_on) BETWEEN 0 AND 6\nWHERE c1.visited_on >= (\n    SELECT DATE_ADD(MIN(visited_on), INTERVAL 6 DAY)\n    FROM Customer\n)\nGROUP BY c1.visited_on\nORDER BY c1.visited_on;",
+    "explanation": "This solution joins unique visited dates with all customer records that visited between 0 and 6 days prior to that date. The WHERE clause ensures we only begin generating averages starting from the 7th day of data. We then group by date and aggregate the sum of amounts, dividing by 7 for the average."
+   }
+  ],
+  "edgeCases": [
+   "Multiple visits on the same day: The window function must aggregate the daily amount first (handled in the CTE DailySales).",
+   "Insufficient initial days: Days 1 through 6 do not have 6 preceding days, so they must be excluded.",
+   "Date gaps: The problem statement guarantees at least one customer every day, so we do not need to fill in missing days."
+  ]
+ },
+ "Friend Requests II: Who Has the Most Friends": {
+  "title": "Friend Requests II: Who Has the Most Friends",
+  "problemStatement": "Write a solution to find the people who have the most friends and the most friends number.\nThe test cases are generated so that only one person has the most friends.",
+  "schema": "CREATE TABLE RequestAccepted (\n    requester_id INT NOT NULL,\n    accepter_id INT NOT NULL,\n    accept_date DATE NOT NULL,\n    PRIMARY KEY (requester_id, accepter_id)\n);",
+  "exampleData": [
+   {
+    "tableName": "RequestAccepted",
+    "headers": [
+     "requester_id",
+     "accepter_id",
+     "accept_date"
+    ],
+    "rows": [
+     [
+      1,
+      2,
+      "2016-06-03"
+     ],
+     [
+      1,
+      3,
+      "2016-06-08"
+     ],
+     [
+      2,
+      3,
+      "2016-06-08"
+     ],
+     [
+      3,
+      4,
+      "2016-06-09"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "id",
+    "num"
+   ],
+   "rows": [
+    [
+     3,
+     3
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "UNION ALL Subquery",
+    "query": "SELECT id, COUNT(*) AS num\nFROM (\n    SELECT requester_id AS id FROM RequestAccepted\n    UNION ALL\n    SELECT accepter_id AS id FROM RequestAccepted\n) t\nGROUP BY id\nORDER BY num DESC\nLIMIT 1;",
+    "explanation": "Since a friendship is mutual, a person's total friend count is the sum of times they appear as the requester plus the times they appear as the accepter. We combine the requester_id and accepter_id columns into a single column using UNION ALL. We then group by the user ID, count the occurrences, sort in descending order, and limit the results to the top 1."
+   }
+  ],
+  "edgeCases": [
+   "A user is both requester and accepter across different friendships: UNION ALL correctly lists them multiple times so that all friendships are aggregated.",
+   "No friendships exist: Returns empty."
+  ]
+ },
+ "Investments in 2016": {
+  "title": "Investments in 2016",
+  "problemStatement": "Write a solution to report the sum of all total investment values in 2016 (tiv_2016) for all policyholders who:\n- have the same tiv_2015 value as one or more other policyholders, and\n- are not located in the same city as any other policyholder (i.e., the (lat, lon) attribute pairs must be unique).\nRound tiv_2016 to two decimal places.",
+  "schema": "CREATE TABLE Insurance (\n    pid INT PRIMARY KEY,\n    tiv_2015 DECIMAL(15,2),\n    tiv_2016 DECIMAL(15,2),\n    lat DECIMAL(5,2),\n    lon DECIMAL(5,2)\n);",
+  "exampleData": [
+   {
+    "tableName": "Insurance",
+    "headers": [
+     "pid",
+     "tiv_2015",
+     "tiv_2016",
+     "lat",
+     "lon"
+    ],
+    "rows": [
+     [
+      1,
+      10,
+      5,
+      10,
+      10
+     ],
+     [
+      2,
+      20,
+      20,
+      20,
+      20
+     ],
+     [
+      3,
+      10,
+      30,
+      20,
+      20
+     ],
+     [
+      4,
+      10,
+      40,
+      40,
+      40
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "tiv_2016"
+   ],
+   "rows": [
+    [
+     45
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "IN and NOT IN with GROUP BY",
+    "query": "SELECT ROUND(SUM(tiv_2016), 2) AS tiv_2016\nFROM Insurance\nWHERE tiv_2015 IN (\n    SELECT tiv_2015\n    FROM Insurance\n    GROUP BY tiv_2015\n    HAVING COUNT(*) > 1\n)\nAND (lat, lon) IN (\n    SELECT lat, lon\n    FROM Insurance\n    GROUP BY lat, lon\n    HAVING COUNT(*) = 1\n);",
+    "explanation": "We filter policyholders in the WHERE clause using two conditions:\n1. Their tiv_2015 value is IN the set of tiv_2015 values that appear more than once in the table (COUNT(*) > 1).\n2. Their (lat, lon) location coordinates are IN the set of coordinates that appear exactly once in the table (COUNT(*) = 1).\nFinally, we sum the tiv_2016 values for matching policyholders and round the result to 2 decimal places."
+   }
+  ],
+  "edgeCases": [
+   "No policyholders meet the criteria: The query will return NULL.",
+   "All policyholders have distinct tiv_2015 values: Result will correctly be NULL.",
+   "Duplicate locations: Correctly filtered out via HAVING COUNT(*) = 1."
+  ]
+ },
+ "Department Top Three Salaries": {
+  "title": "Department Top Three Salaries",
+  "problemStatement": "A high earner in a department is an employee who has a salary in the top three unique salaries for that department.\nWrite a solution to find the employees who are high earners in each of the departments.\nReturn the result table in any order.",
+  "schema": "CREATE TABLE Department (\n    id INT PRIMARY KEY,\n    name VARCHAR(30)\n);\nCREATE TABLE Employee (\n    id INT PRIMARY KEY,\n    name VARCHAR(30),\n    salary INT,\n    departmentId INT,\n    FOREIGN KEY (departmentId) REFERENCES Department(id)\n);",
+  "exampleData": [
+   {
+    "tableName": "Department",
+    "headers": [
+     "id",
+     "name"
+    ],
+    "rows": [
+     [
+      1,
+      "IT"
+     ],
+     [
+      2,
+      "Sales"
+     ]
+    ]
+   },
+   {
+    "tableName": "Employee",
+    "headers": [
+     "id",
+     "name",
+     "salary",
+     "departmentId"
+    ],
+    "rows": [
+     [
+      1,
+      "Joe",
+      85000,
+      1
+     ],
+     [
+      2,
+      "Henry",
+      80000,
+      2
+     ],
+     [
+      3,
+      "Sam",
+      60000,
+      2
+     ],
+     [
+      4,
+      "Max",
+      90000,
+      1
+     ],
+     [
+      5,
+      "Janet",
+      69000,
+      1
+     ],
+     [
+      6,
+      "Randy",
+      85000,
+      1
+     ],
+     [
+      7,
+      "Will",
+      70000,
+      1
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "Department",
+    "Employee",
+    "Salary"
+   ],
+   "rows": [
+    [
+     "IT",
+     "Max",
+     90000
+    ],
+    [
+     "IT",
+     "Joe",
+     85000
+    ],
+    [
+     "IT",
+     "Randy",
+     85000
+    ],
+    [
+     "IT",
+     "Will",
+     70000
+    ],
+    [
+     "Sales",
+     "Henry",
+     80000
+    ],
+    [
+     "Sales",
+     "Sam",
+     60000
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "DENSE_RANK Window Function",
+    "query": "WITH RankedSalaries AS (\n    SELECT d.name AS Department,\n           e.name AS Employee,\n           e.salary AS Salary,\n           DENSE_RANK() OVER (PARTITION BY e.departmentId ORDER BY e.salary DESC) AS rnk\n    FROM Employee e\n    JOIN Department d ON e.departmentId = d.id\n)\nSELECT Department, Employee, Salary\nFROM RankedSalaries\nWHERE rnk <= 3;",
+    "explanation": "We join Employee and Department on departmentId. We then rank the salaries within each department using DENSE_RANK() OVER (PARTITION BY departmentId ORDER BY salary DESC). DENSE_RANK is required because we need the top three unique salaries (if multiple employees share the same top salary, they get the same rank, and the next lower salary gets the next consecutive rank). Finally, we select rows where the rank is <= 3."
+   },
+   {
+    "name": "Correlated Subquery",
+    "query": "SELECT d.name AS Department, e1.name AS Employee, e1.salary AS Salary\nFROM Employee e1\nJOIN Department d ON e1.departmentId = d.id\nWHERE 3 > (\n    SELECT COUNT(DISTINCT e2.salary)\n    FROM Employee e2\n    WHERE e2.departmentId = e1.departmentId AND e2.salary > e1.salary\n);",
+    "explanation": "This alternative solution uses a correlated subquery. For each employee e1, we count the number of unique salaries in their department that are strictly greater than e1's salary. If this count is less than 3, it means e1's salary is in the top 3 unique salaries."
+   }
+  ],
+  "edgeCases": [
+   "Ties in salaries: DENSE_RANK assigns the same rank to identical salaries without skipping subsequent rank numbers.",
+   "Fewer than 3 unique salaries in a department: The query correctly returns all employees in that department.",
+   "Departments with no employees: Handled by inner join which drops them."
+  ]
+ },
+ "Fix Names in a Table": {
+  "title": "Fix Names in a Table",
+  "problemStatement": "Write a solution to fix the names so that only the first character is uppercase and the rest are lowercase.\nReturn the result table ordered by user_id.",
+  "schema": "CREATE TABLE Users (\n    user_id INT PRIMARY KEY,\n    name VARCHAR(40)\n);",
+  "exampleData": [
+   {
+    "tableName": "Users",
+    "headers": [
+     "user_id",
+     "name"
+    ],
+    "rows": [
+     [
+      1,
+      "aLice"
+     ],
+     [
+      2,
+      "bOB"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "user_id",
+    "name"
+   ],
+   "rows": [
+    [
+     1,
+     "Alice"
+    ],
+    [
+     2,
+     "Bob"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "String Manipulation (CONCAT, UPPER, SUBSTRING, LOWER)",
+    "query": "SELECT user_id,\n       CONCAT(UPPER(SUBSTRING(name, 1, 1)), LOWER(SUBSTRING(name, 2))) AS name\nFROM Users\nORDER BY user_id;",
+    "explanation": "We extract the first character of the name using SUBSTRING(name, 1, 1) and convert it to uppercase with UPPER(). Then, we extract the remaining characters using SUBSTRING(name, 2) and convert them to lowercase with LOWER(). Finally, we merge these two parts together using CONCAT() and order the result by user_id."
+   }
+  ],
+  "edgeCases": [
+   "Single letter names (e.g., 'a'): SUBSTRING(name, 2) returns an empty string, which handles successfully when concatenated, yielding 'A'.",
+   "Very long names: The logic scales correctly since string functions work dynamically on any string length."
+  ]
+ },
+ "Patients With a Condition": {
+  "title": "Patients With a Condition",
+  "problemStatement": "Write a solution to find the patient_id, patient_name, and conditions of the patients who have Type I Diabetes. Type I Diabetes always starts with DIAB1 prefix.",
+  "schema": "CREATE TABLE Patients (\n    patient_id INT PRIMARY KEY,\n    patient_name VARCHAR(30),\n    conditions VARCHAR(100)\n);",
+  "exampleData": [
+   {
+    "tableName": "Patients",
+    "headers": [
+     "patient_id",
+     "patient_name",
+     "conditions"
+    ],
+    "rows": [
+     [
+      1,
+      "Daniel",
+      "YOB DIAB100 MYOP"
+     ],
+     [
+      2,
+      "Alice",
+      ""
+     ],
+     [
+      3,
+      "Bob",
+      "DIAB100 MYOP"
+     ],
+     [
+      4,
+      "George",
+      "ACNE DIAB100"
+     ],
+     [
+      5,
+      "Alain",
+      "SADYCOPT DIAB201"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "patient_id",
+    "patient_name",
+    "conditions"
+   ],
+   "rows": [
+    [
+     3,
+     "Bob",
+     "DIAB100 MYOP"
+    ],
+    [
+     4,
+     "George",
+     "ACNE DIAB100"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "LIKE Operators with Space boundary",
+    "query": "SELECT patient_id, patient_name, conditions\nFROM Patients\nWHERE conditions LIKE 'DIAB1%' OR conditions LIKE '% DIAB1%';",
+    "explanation": "A patient has Type I Diabetes if 'DIAB1' appears at the start of a condition name. Since a patient's conditions are space-separated:\n1. 'DIAB1%' matches if it is the first or only condition in the list.\n2. '% DIAB1%' matches if it is any subsequent condition (which will be preceded by a space).\nWe use OR to capture both cases. Using '%DIAB1%' by itself would mistakenly match strings like 'SADIAB100' where DIAB1 is not the prefix of the condition."
+   },
+   {
+    "name": "REGEXP matching",
+    "query": "SELECT patient_id, patient_name, conditions\nFROM Patients\nWHERE conditions REGEXP '\\\\bDIAB1';",
+    "explanation": "Using MySQL's REGEXP, we can match the word boundary pattern `\\bDIAB1` (escaped in SQL as `\\\\bDIAB1`) to check if any word in the conditions column begins with the prefix DIAB1."
+   }
+  ],
+  "edgeCases": [
+   "The DIAB1 string appears as a suffix or substring inside another condition (e.g., 'SADIAB100'): These should not be matched. The LIKE conditions ('DIAB1%' and '% DIAB1%') successfully avoid matching these, as does the regex word boundary.",
+   "Multiple conditions list containing DIAB1: Correctly captured.",
+   "Empty or null conditions: Safely filtered out because they don't match the LIKE pattern."
+  ]
+ },
+ "Delete Duplicate Emails": {
+  "title": "Delete Duplicate Emails",
+  "problemStatement": "Write a solution to delete all duplicate email entries in a table named Person, keeping only unique emails based on its smallest id.\nNote that you are writing a DELETE statement, not a SELECT statement.",
+  "schema": "CREATE TABLE Person (\n    id INT PRIMARY KEY,\n    email VARCHAR(255)\n);",
+  "exampleData": [
+   {
+    "tableName": "Person",
+    "headers": [
+     "id",
+     "email"
+    ],
+    "rows": [
+     [
+      1,
+      "john@example.com"
+     ],
+     [
+      2,
+      "bob@example.com"
+     ],
+     [
+      3,
+      "john@example.com"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "id",
+    "email"
+   ],
+   "rows": [
+    [
+     1,
+     "john@example.com"
+    ],
+    [
+     2,
+     "bob@example.com"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Self-Join Delete",
+    "query": "DELETE p1 FROM Person p1\nINNER JOIN Person p2 ON p1.email = p2.email\nWHERE p1.id > p2.id;",
+    "explanation": "We join the Person table with itself on the email column. We then look for records where p1 has a larger id than p2 (p1.id > p2.id). Since they share the same email, this identifies the duplicate rows in p1 that have a larger id. Deleting p1 deletes these duplicates, keeping only the record with the smallest id (since that record will not have a larger id than itself or any duplicate)."
+   }
+  ],
+  "edgeCases": [
+   "No duplicates: The self-join condition p1.id > p2.id is never met, so no rows are deleted.",
+   "Multiple duplicates: Only the one with the absolute smallest ID is retained; all others are deleted."
+  ]
+ },
+ "Group Sold Products By The Date": {
+  "title": "Group Sold Products By The Date",
+  "problemStatement": "Write a solution to find for each date the number of different products sold and their names.\nThe sold products names for each date should be sorted lexicographically and comma-separated.\nReturn the result table ordered by sell_date.",
+  "schema": "CREATE TABLE Activities (\n    sell_date DATE,\n    product VARCHAR(20)\n);",
+  "exampleData": [
+   {
+    "tableName": "Activities",
+    "headers": [
+     "sell_date",
+     "product"
+    ],
+    "rows": [
+     [
+      "2020-05-30",
+      "Headphone"
+     ],
+     [
+      "2020-06-01",
+      "Pencil"
+     ],
+     [
+      "2020-06-02",
+      "Mask"
+     ],
+     [
+      "2020-05-30",
+      "Basket"
+     ],
+     [
+      "2020-06-01",
+      "Book"
+     ],
+     [
+      "2020-06-01",
+      "Pencil"
+     ],
+     [
+      "2020-06-02",
+      "Mask"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "sell_date",
+    "num_sold",
+    "products"
+   ],
+   "rows": [
+    [
+     "2020-05-30",
+     2,
+     "Basket,Headphone"
+    ],
+    [
+     "2020-06-01",
+     2,
+     "Book,Pencil"
+    ],
+    [
+     "2020-06-02",
+     1,
+     "Mask"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "GROUP_CONCAT with DISTINCT and ORDER BY",
+    "query": "SELECT sell_date,\n       COUNT(DISTINCT product) AS num_sold,\n       GROUP_CONCAT(DISTINCT product ORDER BY product ASC SEPARATOR ',') AS products\nFROM Activities\nGROUP BY sell_date\nORDER BY sell_date;",
+    "explanation": "We group the rows by sell_date. To count the number of unique products sold on each date, we use COUNT(DISTINCT product). To create the comma-separated list of unique products sorted lexicographically, we use GROUP_CONCAT(DISTINCT product ORDER BY product ASC SEPARATOR ','). Finally, we order the output rows by sell_date."
+   }
+  ],
+  "edgeCases": [
+   "A product is sold multiple times on the same date: Handled correctly by using DISTINCT in both COUNT and GROUP_CONCAT, avoiding duplicates.",
+   "Order of concatenated products: GROUP_CONCAT's internal ORDER BY product ASC guarantees lexicographical ordering."
+  ]
+ },
+ "List the Products Ordered in a Period": {
+  "title": "List the Products Ordered in a Period",
+  "problemStatement": "Write a solution to get the names of products that have at least 100 units ordered in February 2020 and their total units.",
+  "schema": "CREATE TABLE Products (\n    product_id INT PRIMARY KEY,\n    product_name VARCHAR(255),\n    product_category VARCHAR(255)\n);\n\nCREATE TABLE Orders (\n    product_id INT,\n    order_date DATE,\n    unit INT,\n    FOREIGN KEY (product_id) REFERENCES Products(product_id)\n);",
+  "exampleData": [
+   {
+    "tableName": "Products",
+    "headers": [
+     "product_id",
+     "product_name",
+     "product_category"
+    ],
+    "rows": [
+     [
+      1,
+      "Leetcode Solutions",
+      "Book"
+     ],
+     [
+      2,
+      "Jewels of Stringology",
+      "Book"
+     ],
+     [
+      3,
+      "HP",
+      "Laptop"
+     ],
+     [
+      4,
+      "Lenovo",
+      "Laptop"
+     ],
+     [
+      5,
+      "Leetcode Kit",
+      "T-shirt"
+     ]
+    ]
+   },
+   {
+    "tableName": "Orders",
+    "headers": [
+     "product_id",
+     "order_date",
+     "unit"
+    ],
+    "rows": [
+     [
+      1,
+      "2020-02-05",
+      60
+     ],
+     [
+      1,
+      "2020-02-10",
+      70
+     ],
+     [
+      2,
+      "2020-01-18",
+      30
+     ],
+     [
+      2,
+      "2020-02-11",
+      80
+     ],
+     [
+      3,
+      "2020-02-17",
+      2
+     ],
+     [
+      3,
+      "2020-02-24",
+      3
+     ],
+     [
+      4,
+      "2020-03-01",
+      20
+     ],
+     [
+      5,
+      "2020-02-25",
+      50
+     ],
+     [
+      5,
+      "2020-02-27",
+      50
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "product_name",
+    "unit"
+   ],
+   "rows": [
+    [
+     "Leetcode Solutions",
+     130
+    ],
+    [
+     "Leetcode Kit",
+     100
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "MySQL JOIN with Date Filter & GROUP BY",
+    "query": "SELECT \n    p.product_name, \n    SUM(o.unit) AS unit\nFROM \n    Products p\nJOIN \n    Orders o ON p.product_id = o.product_id\nWHERE \n    o.order_date >= '2020-02-01' AND o.order_date <= '2020-02-29'\nGROUP BY \n    p.product_id, p.product_name\nHAVING \n    SUM(o.unit) >= 100;",
+    "explanation": "First, we filter the `Orders` table to include only records from February 2020. Then we join the `Products` table with the `Orders` table on `product_id` to retrieve the product name. We group the result by `product_id` and `product_name`, aggregate the order units using `SUM()`, and finally filter the aggregated units using a `HAVING` clause to keep only products with at least 100 units ordered."
+   },
+   {
+    "name": "Alternative Date Filtering (DATE_FORMAT)",
+    "query": "SELECT \n    p.product_name, \n    SUM(o.unit) AS unit\nFROM \n    Products p\nJOIN \n    Orders o ON p.product_id = o.product_id\nWHERE \n    DATE_FORMAT(o.order_date, '%Y-%m') = '2020-02'\nGROUP BY \n    p.product_id, p.product_name\nHAVING \n    SUM(o.unit) >= 100;",
+    "explanation": "This solution uses MySQL's `DATE_FORMAT` function to filter for orders placed in February 2020. While convenient, it is generally less optimal than a range-based date filter because it prevents the query optimizer from utilizing indexes on the `order_date` column (making the query non-sargable)."
+   }
+  ],
+  "edgeCases": [
+   "Orders made in February of other years (e.g., 2019 or 2021) must not be counted.",
+   "A product with exactly 100 units in February 2020 should be included in the results (boundary condition `>= 100`).",
+   "Products that have no orders at all in February 2020 should not be included (handled by `INNER JOIN`).",
+   "Orders from the same product on multiple days within February 2020 must be aggregated correctly.",
+   "Leap year considerations (2020 is a leap year, so February has 29 days)."
+  ]
+ },
+ "Find Users With Valid E-Mails": {
+  "title": "Find Users With Valid E-Mails",
+  "problemStatement": "Write a solution to find the users who have valid emails. A valid email has a prefix name and a domain. The prefix name is a string that starts with a letter and can contain letters (upper or lower case), digits, underscores, periods, and/or dashes. The domain must be '@leetcode.com'.",
+  "schema": "CREATE TABLE Users (\n    user_id INT PRIMARY KEY,\n    name VARCHAR(255),\n    mail VARCHAR(255)\n);",
+  "exampleData": [
+   {
+    "tableName": "Users",
+    "headers": [
+     "user_id",
+     "name",
+     "mail"
+    ],
+    "rows": [
+     [
+      1,
+      "Winston",
+      "winston@leetcode.com"
+     ],
+     [
+      2,
+      "Jonathan",
+      "jonathanisgreat"
+     ],
+     [
+      3,
+      "Annabelle",
+      "bella-@leetcode.com"
+     ],
+     [
+      4,
+      "Sally",
+      "sally.come@leetcode.com"
+     ],
+     [
+      5,
+      "Marwan",
+      "quarz#2020@leetcode.com"
+     ],
+     [
+      6,
+      "David",
+      "david69@gmail.com"
+     ],
+     [
+      7,
+      "Shapiro",
+      ".shapo@leetcode.com"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "user_id",
+    "name",
+    "mail"
+   ],
+   "rows": [
+    [
+     1,
+     "Winston",
+     "winston@leetcode.com"
+    ],
+    [
+     3,
+     "Annabelle",
+     "bella-@leetcode.com"
+    ],
+    [
+     4,
+     "Sally",
+     "sally.come@leetcode.com"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "MySQL REGEXP",
+    "query": "SELECT user_id, name, mail\nFROM Users\nWHERE mail REGEXP '^[a-zA-Z][a-zA-Z0-9._-]*@leetcode\\\\.com$';",
+    "explanation": "We use the `REGEXP` operator in MySQL to match the email format. The regex `^[a-zA-Z][a-zA-Z0-9._-]*@leetcode\\\\.com$` ensures that: \n1. `^` matches the beginning of the string.\n2. `[a-zA-Z]` requires the first character to be a letter.\n3. `[a-zA-Z0-9._-]*` matches zero or more characters that are letters, digits, periods, underscores, or dashes (placing the dash at the end of the character class avoids range syntax issues).\n4. `@leetcode\\\\.com$` matches the literal string '@leetcode.com' at the end of the email (the dot is escaped as `\\\\.` because a single dot matches any character in regex, and in SQL strings, we double escape the backslash)."
+   },
+   {
+    "name": "PostgreSQL Regex (using ~)",
+    "query": "SELECT user_id, name, mail\nFROM Users\nWHERE mail ~ '^[a-zA-Z][a-zA-Z0-9._-]*@leetcode\\\\.com$';",
+    "explanation": "In PostgreSQL, the `~` operator is used for case-sensitive regular expression matching. Since PostgreSQL matches case-sensitively by default with `~`, we specify both uppercase and lowercase letters. To escape the period in `@leetcode.com`, we use `\\\\.` in SQL standard strings (or `\\.` depending on configuration)."
+   }
+  ],
+  "edgeCases": [
+   "The prefix starts with a non-letter character (like a number, underscore, period, or dash), which should be rejected.",
+   "The domain contains additional characters or has different domains like `@leetcode.com.cn` or `@gmail.com`.",
+   "The prefix contains invalid characters like `#`, `@`, `%`, etc. (e.g. `quarz#2020@leetcode.com`).",
+   "The domain is capitalized (e.g. `@LeetCode.com`), which should be rejected based on the exact case requirement.",
+   "The email has no prefix (e.g. `@leetcode.com`)."
+  ]
+ },
+ "Replace Employee ID With The Unique Identifier": {
+  "title": "Replace Employee ID With The Unique Identifier",
+  "problemStatement": "You are given two tables. The Employees table lists every employee with an internal id and a name. The EmployeeUNI table maps some (not necessarily all) of those internal ids to a newer unique_id. Your job: show the unique ID of each user. If a user does not have a unique ID (there is no matching row in EmployeeUNI), show null instead. Return the result table in any order. In plain words: for every employee, look up their new unique_id if it exists, and keep the employee in the result either way — never drop an employee just because the mapping is missing. This is the classic use case for a LEFT JOIN: keep every row from the 'main' table (Employees) and attach matching data from the other table when it exists.",
+  "schema": "CREATE TABLE Employees (\n    id INT,\n    name VARCHAR(20),\n    PRIMARY KEY (id)\n);\n\nCREATE TABLE EmployeeUNI (\n    id INT,\n    unique_id INT,\n    PRIMARY KEY (id, unique_id)\n);",
+  "exampleData": [
+   {
+    "tableName": "Employees",
+    "headers": [
+     "id",
+     "name"
+    ],
+    "rows": [
+     [
+      "1",
+      "Alice"
+     ],
+     [
+      "7",
+      "Bob"
+     ],
+     [
+      "11",
+      "Meir"
+     ],
+     [
+      "90",
+      "Winston"
+     ],
+     [
+      "3",
+      "Jonathan"
+     ]
+    ]
+   },
+   {
+    "tableName": "EmployeeUNI",
+    "headers": [
+     "id",
+     "unique_id"
+    ],
+    "rows": [
+     [
+      "3",
+      "1"
+     ],
+     [
+      "11",
+      "2"
+     ],
+     [
+      "90",
+      "3"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "unique_id",
+    "name"
+   ],
+   "rows": [
+    [
+     "null",
+     "Alice"
+    ],
+    [
+     "null",
+     "Bob"
+    ],
+    [
+     "2",
+     "Meir"
+    ],
+    [
+     "3",
+     "Winston"
+    ],
+    [
+     "1",
+     "Jonathan"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "LEFT JOIN (standard approach)",
+    "query": "SELECT eu.unique_id, e.name\nFROM Employees e\nLEFT JOIN EmployeeUNI eu\n    ON e.id = eu.id;",
+    "explanation": "Start from Employees because we must keep EVERY employee in the result. A LEFT JOIN keeps all rows from the left table (Employees) and attaches columns from EmployeeUNI where the ON condition (e.id = eu.id) matches. When an employee has no row in EmployeeUNI (like Alice, id 1, and Bob, id 7), the joined eu.unique_id is automatically NULL — exactly what the problem asks for. If you used an INNER JOIN instead, Alice and Bob would disappear from the output, which is the classic mistake here."
+   },
+   {
+    "name": "Correlated scalar subquery",
+    "query": "SELECT\n    (SELECT eu.unique_id\n     FROM EmployeeUNI eu\n     WHERE eu.id = e.id) AS unique_id,\n    e.name\nFROM Employees e;",
+    "explanation": "For each employee row, the subquery in the SELECT list runs once and looks up that employee's unique_id in EmployeeUNI. A scalar subquery that finds no matching row evaluates to NULL, so employees without a mapping automatically get null — no JOIN keyword needed. This works because id is unique in EmployeeUNI (the subquery can never return more than one row). It reads very naturally ('for each employee, look up their unique id') but on large tables a LEFT JOIN is usually the more efficient, idiomatic choice."
+   }
+  ],
+  "edgeCases": [
+   "Employees with no row in EmployeeUNI (Alice and Bob in the example) must still appear, with unique_id = null — an INNER JOIN would wrongly drop them.",
+   "EmployeeUNI may contain ids that do not exist in Employees; those mappings must NOT create extra rows in the output because we drive the query from the Employees table.",
+   "If EmployeeUNI is completely empty, every employee should still be returned, each with unique_id = null.",
+   "If every employee has a mapping, the LEFT JOIN result is identical to an INNER JOIN result — no NULLs appear, and the row count still equals the number of employees."
+  ]
+ },
+ "Count Salary Categories": {
+  "title": "Count Salary Categories",
+  "problemStatement": "You are given an Accounts table where each row is a bank account with its monthly income. Report the number of bank accounts in each of three salary categories: 'Low Salary' — income strictly less than $20000; 'Average Salary' — income in the inclusive range [$20000, $50000]; 'High Salary' — income strictly greater than $50000. The result table MUST contain all three categories, even if a category has no accounts — in that case its count is 0. Return the result in any order. The tricky part for beginners: a plain GROUP BY over a CASE expression only produces rows for categories that actually occur in the data, so an empty category would silently vanish. You must construct all three category rows yourself (for example with UNION ALL) so that zero-count categories still show up.",
+  "schema": "CREATE TABLE Accounts (\n    account_id INT,\n    income INT,\n    PRIMARY KEY (account_id)\n);",
+  "exampleData": [
+   {
+    "tableName": "Accounts",
+    "headers": [
+     "account_id",
+     "income"
+    ],
+    "rows": [
+     [
+      "3",
+      "108939"
+     ],
+     [
+      "2",
+      "12747"
+     ],
+     [
+      "8",
+      "87709"
+     ],
+     [
+      "6",
+      "91796"
+     ]
+    ]
+   }
+  ],
+  "expectedOutput": {
+   "tableName": "Result",
+   "headers": [
+    "category",
+    "accounts_count"
+   ],
+   "rows": [
+    [
+     "Low Salary",
+     "1"
+    ],
+    [
+     "Average Salary",
+     "0"
+    ],
+    [
+     "High Salary",
+     "3"
+    ]
+   ]
+  },
+  "solutions": [
+   {
+    "name": "Three counts glued with UNION ALL",
+    "query": "SELECT 'Low Salary' AS category,\n       COUNT(*) AS accounts_count\nFROM Accounts\nWHERE income < 20000\n\nUNION ALL\n\nSELECT 'Average Salary' AS category,\n       COUNT(*) AS accounts_count\nFROM Accounts\nWHERE income BETWEEN 20000 AND 50000\n\nUNION ALL\n\nSELECT 'High Salary' AS category,\n       COUNT(*) AS accounts_count\nFROM Accounts\nWHERE income > 50000;",
+    "explanation": "Each of the three SELECTs counts one category and hard-codes its label as a string literal. Because COUNT(*) over an empty filtered set returns 0 (an aggregate with no GROUP BY always produces exactly one row), a category with no accounts still yields a row with 0 — in the example, 'Average Salary' correctly shows 0 even though no account falls in [20000, 50000]. UNION ALL simply stacks the three one-row results; we use UNION ALL rather than UNION because the rows can never be duplicates of each other and skipping the duplicate check is cheaper. BETWEEN is inclusive on both ends, matching the [$20000, $50000] range exactly."
+   },
+   {
+    "name": "CTE category list + LEFT JOIN on labeled accounts",
+    "query": "WITH categories AS (\n    SELECT 'Low Salary' AS category\n    UNION ALL SELECT 'Average Salary'\n    UNION ALL SELECT 'High Salary'\n),\nlabeled AS (\n    SELECT CASE\n               WHEN income < 20000 THEN 'Low Salary'\n               WHEN income > 50000 THEN 'High Salary'\n               ELSE 'Average Salary'\n           END AS category\n    FROM Accounts\n)\nSELECT c.category,\n       COUNT(l.category) AS accounts_count\nFROM categories c\nLEFT JOIN labeled l\n    ON c.category = l.category\nGROUP BY c.category;",
+    "explanation": "First CTE builds a tiny fixed table of the three category names so every category is guaranteed a row in the final result. Second CTE labels every account with its category using a CASE expression (anything not below 20000 and not above 50000 falls into the ELSE, i.e. 'Average Salary' — the inclusive middle range). We then LEFT JOIN the fixed category list to the labeled accounts and GROUP BY category. The key subtlety: COUNT(l.category) counts only non-NULL values, so a category with zero matching accounts counts the unmatched NULL as 0 — using COUNT(*) here would wrongly return 1 for empty categories, because the LEFT JOIN still produces one all-NULL row for them."
+   }
+  ],
+  "edgeCases": [
+   "A category with zero accounts (like 'Average Salary' in the example) must still appear with accounts_count = 0 — a naive GROUP BY over a CASE expression drops it entirely.",
+   "Boundary incomes: exactly 20000 and exactly 50000 both belong to 'Average Salary' because the range is inclusive; the other two categories use strict < and > comparisons.",
+   "If the Accounts table is completely empty, the output must still contain all three category rows, each with accounts_count = 0.",
+   "In the JOIN-based solution, COUNT(*) instead of COUNT(l.category) is a subtle bug: the LEFT JOIN emits one row with NULLs for an empty category, so COUNT(*) would report 1 instead of 0."
+  ]
+ }
+}
