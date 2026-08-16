@@ -160,7 +160,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
     <div>
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '0.25rem' }}>
-          Welcome back, <span className="gradient-text fx-highlight-swipe">Future SDE</span>!
+          {/* Two spans, not two classes on one: .gradient-text clips its gradient TO the
+              glyphs (background-clip: text), so anything else that sets `background` on the
+              same element replaces that gradient and gets clipped to the letters instead.
+              .fx-highlight-swipe did exactly that — its 42%-tall highlighter band became the
+              only paint inside otherwise-transparent glyphs, leaving the name a ghost. The
+              sweep belongs behind the text, so it gets its own element. */}
+          Welcome back,{' '}
+          <span className="fx-highlight-swipe">
+            <span className="gradient-text">Future SDE</span>
+          </span>
+          !
         </h1>
         <p style={{ color: 'hsl(var(--text-secondary))' }}>
           Every problem with a brute force, an optimal, and a step-by-step walkthrough you can play.
