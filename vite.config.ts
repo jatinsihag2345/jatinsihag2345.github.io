@@ -10,11 +10,18 @@ export default defineConfig(({ command }) => ({
   base: command === 'build' ? './' : '/',
   plugins: [
     react(),
-    // Installable, offline-capable build. generateSW writes the service worker;
-    // "prompt" hands update control to the toast in main.tsx instead of swapping
-    // code out from under a learner mid-problem.
+    // Installable, offline-capable build. generateSW writes the service worker.
+    //
+    // "autoUpdate", not "prompt": under prompt the precached bundle keeps being
+    // served until someone notices a toast and clicks it, so a returning visitor
+    // sits on a stale build indefinitely — including one with a bug that has
+    // already been fixed and deployed. That is exactly what happened with the
+    // invisible dashboard heading: the fix was live and the visitor still saw the
+    // break. Correctness of what is on screen beats never reloading unasked; the
+    // toast in main.tsx stays as a courtesy for anyone mid-problem when a new
+    // worker activates.
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       manifest: {
         name: 'Striver SDE Sheet',
         short_name: 'Striver SDE',
