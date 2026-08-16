@@ -74,13 +74,31 @@ export const restoreEntries = (entries: [string, string][]): boolean => {
     const k = localStorage.key(i)!;
     if (APP_KEY.test(k)) snapshot.set(k, localStorage.getItem(k)!);
   }
+  // What we actually managed to write, so the rollback can undo the backup's keys
+  // too — not just the ones we happened to have locally. Without this, a backup key
+  // this browser never held (another profile's `notes-dsa-idx-40`) survives the
+  // rollback and the learner ends up holding their own data plus a slice of someone
+  // else's, while the caller reports "rolled back untouched".
+  const written: string[] = [];
   try {
     snapshot.forEach((_, k) => localStorage.removeItem(k)); // replace, not merge
-    entries.forEach(([k, v]) => localStorage.setItem(k, v));
+    entries.forEach(([k, v]) => {
+      localStorage.setItem(k, v);
+      written.push(k);
+    });
     return true;
   } catch {
-    [...snapshot.keys()].forEach(k => localStorage.removeItem(k));
-    snapshot.forEach((v, k) => localStorage.setItem(k, v));
+    // The rollback itself must never throw: it runs while storage is already full,
+    // and an exception here escapes restoreEntries AND its async caller as an
+    // unhandled rejection — the learner would see no message at all with their data
+    // half-written. Each write is guarded on its own so one key that will not fit
+    // back in cannot cost every key after it.
+    written.forEach(k => {
+      try { localStorage.removeItem(k); } catch { /* nothing useful left to do */ }
+    });
+    snapshot.forEach((v, k) => {
+      try { localStorage.setItem(k, v); } catch { /* keep restoring the rest */ }
+    });
     return false;
   }
 };

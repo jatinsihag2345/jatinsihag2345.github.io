@@ -554,11 +554,30 @@ export const DSAHub: React.FC<DSAHubProps> = ({
                           borderBottom: '1px solid hsl(var(--border-color) / 0.5)'
                         }}
                       >
-                        {/* Checkbox */}
-                        <div 
+                        {/* Checkbox. Given real checkbox semantics rather than wrapped in
+                            a <button>, for two reasons the markup has to respect: the
+                            print sheet hides every button (index.css @media print) and a
+                            printed list must still show which problems are ticked, and
+                            the narrow-screen hit area targets `.question-row >
+                            div:first-child`. role + aria-checked give it the name and
+                            state a bare svg never had; Space/Enter make it operable. */}
+                        <div
+                          role="checkbox"
+                          tabIndex={0}
+                          aria-checked={isSolved}
+                          aria-label={`Solved: ${q.title}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             onToggleSolved(q.id);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === ' ' || e.key === 'Enter') {
+                              // stopPropagation keeps the list's own window-level
+                              // 's'/Enter handler from firing a second toggle.
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onToggleSolved(q.id);
+                            }
                           }}
                           style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         >
@@ -608,8 +627,11 @@ export const DSAHub: React.FC<DSAHubProps> = ({
                           </span>
                         </div>
 
-                        {/* Bookmark */}
-                        <div 
+                        {/* Bookmark. Same split as the Solve cell: the cell stays the
+                            wide click target, the button inside is what assistive tech
+                            reads — an icon-only <button> with no label announces as a
+                            bare "button" twenty times down the list. */}
+                        <div
                           style={{ textAlign: 'right' }}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -617,6 +639,13 @@ export const DSAHub: React.FC<DSAHubProps> = ({
                           }}
                         >
                           <button
+                            type="button"
+                            aria-label={`Bookmark ${q.title}`}
+                            aria-pressed={isBookmarked}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleBookmark(q.id);
+                            }}
                             style={{
                               background: 'none',
                               border: 'none',

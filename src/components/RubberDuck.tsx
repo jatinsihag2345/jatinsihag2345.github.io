@@ -101,6 +101,10 @@ export const RubberDuck: React.FC<RubberDuckProps> = ({ questionId }) => {
   const recRef = useRef<MediaRecorder | null>(null);
   /** Set synchronously so a double-click cannot open a second mic stream. */
   const startingRef = useRef(false);
+  /** Which question's card is actually on screen (null once unmounted). A take is
+   *  deliberately allowed to outlive the question it started on — see start() — so
+   *  when it finishes, only the card it belongs to may show it. */
+  const liveQuestion = useRef<string | null>(questionId);
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
   // Object URLs leak until revoked; one ref tracks the live one across replaces.
@@ -114,6 +118,7 @@ export const RubberDuck: React.FC<RubberDuckProps> = ({ questionId }) => {
 
   // New question → its own rubric scores and its own (possibly absent) memo.
   useEffect(() => {
+    liveQuestion.current = questionId;
     setScores(readScores(`duck-${questionId}`));
     setNote('');
     swapUrl(null);
@@ -147,6 +152,9 @@ export const RubberDuck: React.FC<RubberDuckProps> = ({ questionId }) => {
   // release it — stop everything on unmount, and free the object URL.
   useEffect(
     () => () => {
+      // No card left to paint into: onstop still fires after this, and without the
+      // null it would mint an object URL nobody can revoke.
+      liveQuestion.current = null;
       if (recRef.current && recRef.current.state !== 'inactive') recRef.current.stop();
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     },
@@ -158,7 +166,9 @@ export const RubberDuck: React.FC<RubberDuckProps> = ({ questionId }) => {
     // quick clicks open TWO mic streams, and recRef keeps only the second.
     // The first recorder then runs forever with the tab's mic light on, stoppable
     // by nothing. A synchronous ref is the only thing fast enough to prevent it.
-    if (startingRef.current || recRef.current) return;
+    // Only a LIVE recorder blocks: onstop nulls the ref, and the state check means
+    // even a recorder that died without firing it can't wedge Re-record forever.
+    if (startingRef.current || (recRef.current && recRef.current.state !== 'inactive')) return;
     startingRef.current = true;
     setNote('');
     // The id is captured NOW: if the learner switches questions mid-take, the
@@ -184,14 +194,23 @@ export const RubberDuck: React.FC<RubberDuckProps> = ({ questionId }) => {
         stream.getTracks().forEach(t => t.stop());
         const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
         chunksRef.current = [];
+        // This recorder is spent. Releasing the ref is what re-arms start()'s guard;
+        // holding it would leave Record/Re-record dead for the rest of the session.
+        recRef.current = null;
         setRecording(false);
         if (blob.size === 0) return;
+        // The blob is stored under the question it was spoken about no matter what,
+        // but it may only be SHOWN on that question's card: stop the take after
+        // switching questions and this player belongs to somebody else now.
+        const onScreen = liveQuestion.current === qid;
         // Playback works immediately from memory; persistence is best-effort on
         // top, so a private-mode IndexedDB failure degrades to "this visit only".
-        swapUrl(URL.createObjectURL(blob));
-        putBlob(`duck-${qid}`, blob).catch(() =>
-          setNote('Playable now, but this browser refused to store it — it will be gone after reload.'),
-        );
+        if (onScreen) swapUrl(URL.createObjectURL(blob));
+        putBlob(`duck-${qid}`, blob).catch(() => {
+          if (liveQuestion.current === qid) {
+            setNote('Playable now, but this browser refused to store it — it will be gone after reload.');
+          }
+        });
       };
       recRef.current = rec;
       startedAtRef.current = Date.now();
@@ -201,8 +220,10 @@ export const RubberDuck: React.FC<RubberDuckProps> = ({ questionId }) => {
       // recRef is now set, so the guard above holds on its own from here.
       startingRef.current = false;
     } catch {
-      // Permission denied / no input device. The checklist keeps working — the
-      // exercise is the saying, not the file.
+      // Permission denied / no input device, or rec.start() threw after the ref was
+      // set — either way nothing is recording, so the ref must not stay armed.
+      recRef.current = null;
+      // The checklist keeps working — the exercise is the saying, not the file.
       setNote('Microphone unavailable or permission denied — say it to the room and grade yourself below.');
       startingRef.current = false;
     }

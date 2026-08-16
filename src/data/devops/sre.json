@@ -1,0 +1,368 @@
+{
+  "subject": "SRE & Reliability Engineering",
+  "summary": "Site Reliability Engineering runs production systems by treating reliability as a measured, budgeted engineering property rather than an aspiration. It supplies the vocabulary for setting the right reliability target (SLIs, SLOs, error budgets), the practices for holding it (incident command, blameless postmortems, on-call hygiene, toil reduction), and the patterns that stop a partial failure becoming a total one (backoff with jitter, circuit breakers, load shedding). Interviewers probe it hard because the vocabulary is easy to memorise and the mechanisms are not — the difference shows the moment someone is asked why a burn-rate alert beats a static error-rate threshold, or why three layers of retries turn a slow dependency into an outage.",
+  "sections": [
+    {
+      "title": "1. SLI, SLO and SLA: Three Different Objects",
+      "content": "These three get used interchangeably in conversation, and interviewers listen for exactly that slip. An SLI is a measurement. An SLO is a target on that measurement. An SLA is a contract about that target with money or credits attached.\n\nThe SLI is where the rigour lives. The durable way to define one is as a ratio of good events to valid events, both spelled out precisely: \"responses with status below 500, divided by all requests to /api/checkout, measured at the edge load balancer, synthetic probes excluded\". Every clause is load-bearing — the measurement point decides whether a failure that never reached your servers counts against you, and excluding probes stops a monitoring outage from looking like a product outage.\n\nThe SLO adds a target and a window: 99.9% over a rolling 28 days. Both halves matter, because 99.9% over an hour and over a quarter permit wildly different outages, and a rolling window stops a calendar reset from wiping a bad month clean.\n\nThe SLA is the externally promised number, and it should be deliberately looser than the internal SLO: 99.5% published against 99.9% internal. That gap is the safety margin — your alerting fires and your budget is exhausted well before you owe anyone a refund. If the SLO equals the SLA you have removed all warning from the system.",
+      "code": "# Internal SLO descriptor: the SLI is good_events / valid_events.\nservice: checkout-api\nsli:\n  good:  \"HTTP responses with status < 500\"\n  valid: \"requests to /api/checkout/*, at the edge LB, probes excluded\"\nslo:\n  objective: 0.999    # 99.9% of valid events must be good\n  window:    28d      # rolling, not calendar\n  budget:    0.001    # 0.1% of requests, or 40m19s of outage per 28d\nsla:\n  published: 0.995    # looser than the SLO on purpose\n  remedy:    \"10% monthly credit per 0.5% below target\""
+    },
+    {
+      "title": "2. Choosing SLIs That Actually Track User Pain",
+      "content": "A bad SLI is worse than none, because it produces confident green dashboards during an outage. Three mechanisms cause that.\n\nMeasurement point. Server-side metrics only see requests that arrived. If the load balancer is dropping connections, DNS is stale, or TLS handshakes fail, the surviving traffic looks perfect. Gateway logs are the usual compromise: close enough to the user to catch edge failures, far enough away to stay clean.\n\nAverages. Mean latency hides the tail where users abandon carts. The instinct is to SLO on p99, but percentiles do not aggregate — you cannot average the p99s of ten shards, or of 288 five-minute buckets, and recover the p99 of the day. The robust alternative is to turn latency into a ratio: the fraction of requests served under 300ms. That sums cleanly across shards and time and plugs straight into an error budget.\n\nScope. Keep three to five SLIs per service, aligned to critical user journeys rather than one per endpoint. And split latency by outcome: a dependency failing in 5ms makes your latency SLI look better during an outage unless failures are excluded or counted as infinitely slow.\n\nThe golden signals — latency, traffic, errors, saturation — are a checklist for what to instrument, not a list of things to SLO on. Saturation is a cause, not a symptom.",
+      "code": "# Availability SLI: good / valid, as a ratio\nsum(rate(http_requests_total{job=\"checkout\",code!~\"5..\"}[5m]))\n  / sum(rate(http_requests_total{job=\"checkout\"}[5m]))\n\n# Latency SLI as a RATIO, not a percentile.\n# Requires an le=\"0.3\" bucket to actually exist in the histogram.\nsum(rate(http_request_duration_seconds_bucket{job=\"checkout\",le=\"0.3\"}[5m]))\n  / sum(rate(http_request_duration_seconds_count{job=\"checkout\"}[5m]))"
+    },
+    {
+      "title": "3. Error Budgets: The Arithmetic and the Burn Rate",
+      "content": "The error budget is 1 - SLO made concrete. At 99.9% over 28 days you may spend 0.1% of requests, roughly 40 minutes of total outage. At 99.99% that drops to about 4 minutes — less time than a human needs to read a page and open a laptop, which is why above three nines mitigation must be automated.\n\nExpressing the budget in events rather than minutes scales with traffic: ten minutes of failure at 3am and ten at peak consume very different shares of the budget.\n\nBurn rate is the budget's derivative — the multiple of the sustainable spend rate you are currently running at. A burn rate of 1 exhausts the budget exactly at the end of the window; 14.4 sustained for one hour consumes 2% of a 30-day budget.\n\nThis is why burn-rate alerting beats static thresholds. A fixed \"error rate above 1%\" rule pages at 3am for a low-traffic service where three requests failed, and stays silent for a busy service quietly losing money. Burn rate normalises by both traffic and objective, so severity means the same thing everywhere.\n\nThe standard pattern is multi-window, multi-burn-rate: a long window that establishes significance, paired with a short window roughly one twelfth its length that confirms the problem is still happening, so the page clears once the spike is actually over rather than an hour later.",
+      "code": "# 30-day window. Sustained burn rate 1 exhausts the budget at day 30.\n#  long  short  burn    budget spent    action\n#  1h    5m     14.4x   2%  in 1 hour   page\n#  6h    30m    6x      5%  in 6 hours  page\n#  1d    2h     3x      10% in 1 day    ticket\n#  3d    6h     1x      10% in 3 days   ticket\ngroups:\n  - name: checkout-slo\n    rules:\n      - alert: CheckoutBudgetFastBurn\n        expr: |\n          job:slo_errors_per_request:ratio_rate1h{job=\"checkout\"} > (14.4 * 0.001)\n          and\n          job:slo_errors_per_request:ratio_rate5m{job=\"checkout\"} > (14.4 * 0.001)\n        for: 2m\n        labels:\n          severity: page"
+    },
+    {
+      "title": "4. Error Budget Policy: How a Budget Gates Releases",
+      "content": "A budget with no policy attached is a dashboard nobody looks at. The policy is a short written agreement — signed by engineering, SRE and product before there is an incident to argue about — stating what changes when the budget runs out.\n\nA typical one: while budget remains, ship freely. When it is exhausted, feature releases stop and the team's default work becomes reliability, specifically the fixes named in recent postmortems, until the rolling window recovers. Security patches and risk-reducing changes are always exempt, because blocking them makes things worse. Overrides exist but are deliberately expensive: named approvers, written justification, recorded in the ticket.\n\nEnforcement should be mechanical rather than social. A pipeline step that queries remaining budget and fails the build removes the need for anyone to be the person who says no.\n\nThe symmetric half gets forgotten: an unspent budget is also a signal. Finishing every window at 99.99% against a 99.9% target means you are over-delivering reliability at the cost of velocity, and the response is to release more often or take on deferred migrations.\n\nTwo failure modes worth naming. Using the budget punitively — the moment it is a stick, people stop declaring incidents. And quietly relaxing the SLO to turn the dashboard green, which converts a reliability problem into a measurement problem.",
+      "code": "#!/usr/bin/env bash\n# Pipeline gate: block feature deploys once the budget is gone.\nset -euo pipefail\n\nremaining=$(curl -fsS \"$SLO_API/checkout/budget?window=28d\" \\\n            | jq -r '.remaining_fraction')\n\nif awk \"BEGIN{exit !($remaining <= 0)}\"; then\n  case \"${CHANGE_TYPE:-feature}\" in\n    security|reliability)\n      echo \"budget exhausted; ${CHANGE_TYPE} change allowed by policy\" ;;\n    *)\n      echo \"BLOCKED: error budget exhausted, features frozen.\" >&2\n      exit 1 ;;\n  esac\nfi"
+    },
+    {
+      "title": "5. Toil: What It Is and How It Is Eliminated",
+      "content": "Toil has a specific definition, and interviewers use it to separate people who have read the vocabulary from people who use it. Toil is operational work that is manual, repetitive, automatable, tactical or interrupt-driven, devoid of enduring value, and — the decisive property — scales linearly with the size of the service. Approving a quota request for the hundredth time is toil; writing the system that approves them is not.\n\nLinear scaling is why toil is treated as existential rather than annoying. If operational load grows with traffic, headcount must grow with traffic, and the team eventually spends all its time running the system and none improving it. The usual guardrail is a cap — commonly 50% of time — with the overflow pushed back to the development team, which makes the cost visible to whoever can fix it.\n\nYou cannot cap what you do not measure. Track interrupts, tickets and pages per week, tag them by source, and review monthly; the distribution is almost always dominated by a handful of causes.\n\nElimination is a ladder, and the mistake is jumping to the top rung. Ask first whether the work should exist: a disk that fills weekly is a retention bug, not an automation opportunity. Then reduce frequency, then make it self-service, then automate it as an idempotent, auditable command. Only then consider auto-remediation, which is powerful but hides symptoms — so it needs rate limits, an audit trail, and an alert when it fires unusually often.",
+      "code": "# The ladder applied to \"disk fills, page fires, engineer runs cleanup\":\n#   1. Eliminate  - fix the log retention bug that fills the disk\n#   2. Reduce     - ticket at 70% instead of paging at 95%\n#   3. Self-serve - one idempotent command anyone on call can run\n#   4. Automate   - schedule it, rate-limit it, log every run\ncleanup_old_logs() {\n  local dir=$1 keep_days=${2:-7}\n  find \"$dir\" -type f -name '*.log.gz' -mtime \"+$keep_days\" -print -delete\n}"
+    },
+    {
+      "title": "6. Incident Command: Separating Coordination From Debugging",
+      "content": "Incident command, borrowed from emergency services, solves a cognitive problem. Debugging a live outage consumes all of an engineer's working memory. So does tracking who is doing what, deciding whether to roll back, and telling the business what is happening. One person cannot hold both, and an uncoordinated response produces the same failures every time: five people reading the same dashboard, two making conflicting production changes, and nobody telling support why customers are complaining.\n\nThe fix is explicit roles. The Incident Commander coordinates and decides, and specifically does not debug — an IC who drops into a terminal has vacated the role. Operations makes the changes, ideally as the only person touching production, announcing each action before taking it. Communications owns the status page and stakeholder updates on a fixed cadence, which stops executives from interrupting responders.\n\nTwo disciplines matter more than the org chart. Mitigate before you diagnose: roll back, fail over, drain the bad zone, turn the flag off. Understanding why can wait until users are served again, and the urge to find root cause first is the most common cause of long incidents. And run the incident in one channel with one document — decisions made in direct messages are invisible to the next responder, which is what makes handoffs across shift boundaries fail.",
+      "code": "# INC-2043  checkout 5xx elevated      SEV2      state: MITIGATING\nIC:     @dana   coordinates and decides; does not debug\nOps:    @sam    only person making production changes\nComms:  @lee    status page + stakeholder update every 15 minutes\nScribe: @ravi   timestamped timeline, verbatim, in this document\n\n14:02  fast-burn alert fires\n14:06  incident declared, roles assigned\n14:11  correlates with deploy v412 at 14:00 -> Ops begins rollback\n14:24  error rate normal; hold 30 minutes before standing down"
+    },
+    {
+      "title": "7. On-Call Health: Paging Load and Rotation Design",
+      "content": "On-call health is an engineering problem with measurable inputs, not a morale problem. The dominant input is page volume. A widely used ceiling is roughly two incidents per twelve-hour shift, and the reasoning is mechanical rather than sentimental: each page deserves investigation, mitigation and a written follow-up, and beyond about two the responder starts triaging by pattern-matching instead of understanding.\n\nRotation size sets frequency. A rotation needs enough people that any individual's turn comes round infrequently enough to recover between shifts. Small teams solve this by pooling rotations across services, or by pairing two geographic sites so each covers its own daylight hours and nobody is routinely woken at 3am.\n\nThe quality bar for a page is strict: urgent, actionable, and requiring human judgement. If it can wait until morning it is a ticket. If the response is always the same command, it is automation. If nothing is broken from a user's perspective it should not page — which is the argument for symptom-based alerting on SLO burn rather than cause-based alerting on every saturated resource.\n\nTrack the health signals directly: pages per shift, the share outside business hours, what fraction led to real action, time to acknowledge, and repeat offenders by alert name. Review them at handoff and treat a noisy alert as a bug with an owner. Compensation, a documented escalation path and a secondary are necessary, but none substitute for reducing the number of pages."
+    },
+    {
+      "title": "8. Blameless Postmortems: Mechanism, Not Ceremony",
+      "content": "A postmortem is a learning instrument, and it only works if the people closest to the failure will honestly describe what they did and why it seemed right at the time. If naming yourself in the timeline can damage your career, the accurate details disappear — and the accurate details are the entire value of the exercise. Blamelessness is an engineering requirement, not a kindness.\n\nThe underlying model is that people act reasonably given the information, tooling and time pressure available in the moment. \"Human error\" is where the investigation starts, not where it stops: the useful question is why the wrong action was available, plausible and easy. The specific enemy is counterfactual language — \"should have noticed\", \"could have checked\" — which is hindsight bias in grammatical form.\n\nA useful document states impact in SLI and budget terms rather than adjectives, gives a timestamped timeline, and separates the trigger from the contributing conditions. It should include what went well and what got lucky — near misses are free information — and end with action items that each have an owner, a date, and a ticket in the normal backlog.\n\nWrite trigger criteria in advance so nobody argues about whether an event deserves a postmortem: SLO breach, data loss, customer-visible outage beyond some duration, near misses. And accept that the common failure is not a bad document but a good one whose action items are never done.",
+      "code": "# Postmortem: INC-2043 checkout 5xx elevated\nImpact:  7% of checkout requests failed for 22 minutes.\n         38% of the 28-day error budget consumed. 1,412 orders lost.\nTrigger: deploy v412 shipped a config default of pool_size=5.\n\nContributing factors\n  - connection pool size had no lower-bound validation\n  - canary ran 4 minutes: too short to reach peak concurrency\n  - pool saturation was not on the service dashboard\n\nActions\n  AI-1  validate pool_size at config load   @sam   2026-03-18  ENG-8821\n  AI-2  hold canary until 1k requests seen  @dana  2026-03-25  ENG-8822"
+    },
+    {
+      "title": "9. MTTR, MTBF, and Why the Averages Mislead",
+      "content": "MTBF is mean time between failures, MTTR is mean time to repair or restore, and MTTF is mean time to failure — the uptime portion. The relationship is MTBF = MTTF + MTTR, and availability is uptime over total time, MTTF / (MTTF + MTTR). Many sources write availability as MTBF / (MTBF + MTTR), which double-counts repair time.\n\nThe more important insight is that availability constrains only the ratio, not either term. A service failing monthly and recovering in 30 seconds and one failing weekly and recovering in 7.5 seconds have identical availability. That is the basis for the modern emphasis on fast recovery over rare failure: raising MTBF means making change rare, which fights velocity, while lowering MTTR means rollback, failover and good alerting, which do not.\n\nTo improve MTTR you must decompose it — time to detect, to acknowledge, to mitigate, to fully repair. Teams instinctively optimise the last segment, but detection and mitigation usually dominate, and both are addressable with better alerting and a rehearsed rollback path.\n\nBe sceptical of MTTR as a headline metric. Incident durations are strongly right-skewed, so a handful of multi-hour incidents dominate the mean and one bad outage makes a quarter look like a regression. Report the distribution, or better, error budget consumed, which weights each incident by how much traffic it hurt.",
+      "code": "# Uptime / (uptime + downtime). Note MTBF = MTTF + MTTR.\ndef availability(mttf_hours, mttr_hours):\n    return mttf_hours / (mttf_hours + mttr_hours)\n\navailability(720, 0.5)    # monthly failure, 30 min recovery -> 0.999306\navailability(180, 0.125)  # weekly failure, 7.5 min recovery -> 0.999306\n# Same availability: only the ratio is pinned, not either term.\n\n# Why the mean is a poor summary of incident duration (minutes):\nd = [8, 11, 12, 14, 15, 17, 22, 26, 41, 380]\nsum(d) / len(d)           # mean   54.6  <- one bad night\nsorted(d)[len(d) // 2]    # median 17    <- the typical incident"
+    },
+    {
+      "title": "10. Chaos Engineering: Hypothesis-Driven Fault Injection",
+      "content": "Chaos engineering injects realistic faults to find out whether a system behaves the way you believe it does. It exists because the parts that fail during an outage are precisely the parts unit tests cannot reach: timeout values, retry policies, failover automation, connection pool behaviour under partial failure, the alert that was supposed to fire.\n\nThe method is experimental, and describing it as randomly breaking things is the wrong interview answer. Define steady state as a measurable SLI. State a hypothesis: checkout availability stays above 99.9% when one replica is killed. Inject the smallest realistic fault. Measure. A disproved hypothesis is a successful experiment.\n\nBlast radius control is what makes it safe. Start in staging, then one instance, one availability zone, or a small traffic slice. Define abort criteria in advance, tied to the SLI and error budget, with automatic rollback of the injected fault. Run during business hours with the owning team watching — a 3am chaos experiment is just an outage.\n\nUseful faults mirror real ones: added latency, packet loss, instance termination, zone isolation, a dependency hanging, expired certificates, full disks. Game days extend the idea to the human system, testing whether people can find the runbook and reach the right escalation. The prerequisite is honesty about maturity: chaos on a system without solid observability and a reliable rollback path does not reveal weaknesses, it creates incidents you cannot explain.",
+      "code": "# Steady state: checkout availability SLI >= 99.9% over the run window.\n# Abort if it drops below 99.5%, or if any fast-burn alert pages.\n\n# Fault 1: 200ms +/- 50ms added latency and 1% loss on one pod's egress\ntc qdisc add dev eth0 root netem delay 200ms 50ms distribution normal loss 1%\n#   ... observe for 10 minutes, then always remove the qdisc ...\ntc qdisc del dev eth0 root\n\n# Fault 2: sudden loss of one replica, no graceful shutdown\nkubectl delete pod checkout-7d9f-abcde --grace-period=0 --force"
+    },
+    {
+      "title": "11. Capacity Planning: Headroom, Growth and the Utilisation Wall",
+      "content": "Capacity planning turns a demand forecast into a resource number, and needs three inputs: organic growth from the traffic trend, inorganic growth from known launches and marketing, and a measured relationship between demand and resources derived from load testing rather than guessed.\n\nThe reason you cannot simply run at 95% utilisation is queueing theory. Waiting time grows in proportion to rho/(1-rho) as utilisation rho approaches 1, so the curve is not linear, it is a wall. At 50% utilisation a burst costs a little latency; at 90% the same burst costs an order of magnitude; at 95% it costs the service. Headroom is not waste, it is what absorbs variance.\n\nRedundancy imposes a second constraint. If you run N zones or regions and must survive losing one, steady-state utilisation per unit cannot exceed (N-1)/N — about 66% for three regions, 50% for two. Failover is exactly when this bites, because the survivors inherit the dead region's traffic instantly. Plan for the effects that arrive together: retry storms raise load precisely when capacity drops, caches restart cold and multiply backend traffic, and reconnecting clients arrive synchronised.\n\nAutoscaling is not a substitute for planning. It cannot exceed an account quota, and its reaction time — detection interval plus provisioning plus warm-up — is usually longer than the spike it is meant to absorb. Plan the ceiling; let autoscaling handle the shape underneath it.",
+      "code": "import math\n\n# From load testing: latency knee at ~220 rps/instance. Derate to 70%.\nSAFE_RPS_PER_INSTANCE = 220 * 0.70   # 154\n\npeak_rps      = 42_000   # measured daily peak\norganic_6mo   = 1.35     # trend extrapolation\nlaunch_uplift = 1.15     # known marketing push\nregions       = 3        # must survive losing one\n\ndemand     = peak_rps * organic_6mo * launch_uplift  # 65,205 rps\nper_region = demand / (regions - 1)                  # 32,602 rps  (N-1)\ninstances  = math.ceil(per_region / SAFE_RPS_PER_INSTANCE)  # 212/region"
+    },
+    {
+      "title": "12. Graceful Degradation and Load Shedding",
+      "content": "When demand exceeds capacity a system has two options: serve a reduced experience to everyone, or fall over for everyone. Without deliberate design it picks the second. The mechanism is worth describing precisely. As load rises, queues grow; queue time pushes total latency past the client's timeout; the client gives up and often retries — and the server keeps spending CPU computing responses nobody is waiting for. Useful throughput collapses while the machine stays 100% busy.\n\nLoad shedding attacks it by refusing work early and cheaply. The refinements that matter: propagate a deadline with each request and drop anything whose deadline has already passed, since that work is guaranteed waste; keep queues bounded, because an unbounded queue is just a latency amplifier; and shed by criticality, so background jobs, prefetches and retried traffic are dropped before a user's checkout.\n\nGraceful degradation is the product-facing half. Decide in advance, per feature, what the reduced version is: stale cache instead of a live read, a page without recommendations, read-only mode instead of an error, lower-fidelity search. A fallback path never exercised in normal operation is broken in the way that matters, so run it regularly rather than only during disasters. Shedding must also be visible: reject with 429 or 503 and Retry-After, count shed requests as a first-class metric, and decide explicitly whether shed traffic burns the error budget — usually it should.",
+      "code": "import time\n\nTIERS = {\"checkout\": 0, \"search\": 1, \"recommendations\": 2, \"prefetch\": 3}\n\ndef admit(req, inflight, limit):\n    # 1. Never spend CPU on work whose deadline already passed.\n    if req.deadline_unix <= time.time():\n        return False, \"deadline expired before admission\"\n\n    # 2. Shed by criticality as concurrency fills up.\n    #    ~50% full: prefetch dropped. ~80% full: only checkout served.\n    headroom = 1 - (inflight / limit)\n    if TIERS[req.tier] > headroom * len(TIERS):\n        return False, \"shed: tier too low for current load\"\n\n    return True, \"admit\""
+    },
+    {
+      "title": "13. Retries, Backoff, Jitter and Circuit Breakers",
+      "content": "Retries are the most common way a partial failure becomes a total one. The arithmetic is unforgiving: if three layers each retry three times, one user request becomes up to 27 requests against the dependency that is already struggling, so load rises exactly when capacity falls.\n\nBackoff spreads load in time, but plain exponential backoff has a synchronisation problem: every client that failed at the same instant waits the same interval and returns together, so the recovering service is hit by a periodic wave and knocked down again. Jitter breaks the lockstep. The common full-jitter form sleeps a random duration between zero and the capped exponential.\n\nThree further controls matter. Retry at one layer only — usually the one closest to the user that can make a meaningful decision — because multiplication across layers produces the storm. Enforce a retry budget: a token bucket capping retries at a small fraction of successful traffic, often around 10%, so retries collapse toward zero when nearly everything is failing. And only retry what is safe: idempotent methods, or calls carrying an idempotency key, never a deterministic 4xx.\n\nCircuit breakers add the state machine. Closed passes traffic while counting failures; crossing a failure ratio threshold with a minimum request volume opens the breaker so requests fail immediately; after a cooldown it goes half-open and admits a few trial requests, closing on success and reopening on failure. The point is twofold: stop hammering a sick dependency so it can recover, and fail fast so the caller can degrade instead of piling up threads. Pair it with bulkheads — separate connection or thread pools per dependency — and alert when a breaker opens, because a breaker silently swallowing errors looks healthy from outside.",
+      "code": "import random\n\nBASE, CAP = 0.1, 20.0     # seconds\n\ndef full_jitter_delay(attempt):\n    # random over [0, capped exponential). The randomness is the point:\n    # it de-synchronises clients that all failed at the same moment.\n    return random.uniform(0, min(CAP, BASE * (2 ** attempt)))\n\nRETRYABLE = {429, 500, 502, 503, 504}\n\ndef should_retry(status, method, has_idempotency_key, budget):\n    if method not in (\"GET\", \"HEAD\", \"PUT\", \"DELETE\") and not has_idempotency_key:\n        return False              # a retry could charge the card twice\n    if status not in RETRYABLE:\n        return False              # deterministic failure: retrying cannot help\n    return budget.try_consume()   # token bucket: retries <= ~10% of successes\n\n# Breaker: CLOSED --failure ratio too high--> OPEN --cooldown--> HALF_OPEN\n#          HALF_OPEN --trial ok--> CLOSED   |   --trial fails--> OPEN"
+    },
+    {
+      "title": "14. Reliability Versus Velocity: The Tradeoff SRE Exists to Manage",
+      "content": "The framing interviewers want is that 100% is the wrong reliability target, and that this is an engineering argument rather than resignation. Each additional nine costs disproportionately more — redundant capacity, multi-region complexity, longer release processes, deeper automation — while delivering less perceptible benefit, because the user's device, wifi and ISP already contribute more unavailability than your service does.\n\nReliability is therefore a product decision with a cost curve. The target comes from asking what failure rate users and the business actually tolerate, what competitors offer, and what the marginal revenue of the next nine is. Different services deserve different targets: an internal batch pipeline with a daily deadline does not need what a payment path needs, and tiering SLOs by criticality is how you avoid gold-plating everything.\n\nThe error budget is the control loop that makes the tradeoff mechanical instead of political. Instead of an argument settled by seniority, both parties agreed the number in advance and the current budget decides. It also aligns incentives: better canarying, faster rollback and smaller changes all buy back release velocity, so investing in safety becomes self-interested rather than a tax.\n\nThat points at the highest-leverage reliability work. Change is the leading cause of incidents, but the answer is not to change less — it is to make change smaller, observable and reversible. Progressive rollouts with automated canary analysis, feature flags that decouple deploy from release, and a rollback path rehearsed often enough to be boring improve reliability and velocity at once."
+    }
+  ],
+  "interviewQA": [
+    {
+      "q": "What is the difference between an SLI, an SLO and an SLA?",
+      "a": "An SLI is a measurement, an SLO is a target on that measurement, and an SLA is a contract about the target with money attached. The rigour lives in the SLI: define it as good events over valid events, with both terms spelled out — responses with status below 500, divided by all requests to /api/checkout, measured at the edge load balancer, synthetic probes excluded. Every clause is load-bearing, because the measurement point decides whether a failure that never reached your servers counts against you, and excluding probes stops a monitoring outage from looking like a product outage. The SLO adds a target and a window, say 99.9% over a rolling 28 days; both halves matter, since 99.9% over an hour and over a quarter permit wildly different outages. The SLA should be deliberately looser than the SLO — 99.5% published against 99.9% internal — so alerts fire and the budget is spent well before you owe anyone a credit. If the SLO equals the SLA, you have removed all the warning from the system.",
+      "followUps": [
+        "Why does the SLA gap matter operationally, not just legally?",
+        "Rolling window or calendar month, and what breaks with the other choice?",
+        "Where exactly would you measure this SLI, and what does that point miss?"
+      ]
+    },
+    {
+      "q": "How do you choose a good SLI, and what makes one bad?",
+      "a": "A bad SLI is worse than none, because it produces a confidently green dashboard during an outage, and three mechanisms cause that. Measurement point: server-side metrics only see requests that arrived, so if the load balancer is dropping connections, DNS is stale or TLS handshakes fail, the surviving traffic looks perfect. Gateway logs are the usual compromise — close enough to the user to catch edge failures, far enough away to stay clean. Averages: mean latency hides the tail where users abandon carts, so I would express latency as a ratio of requests under a threshold rather than as a raw percentile. Scope: three to five SLIs per service, aligned to critical user journeys rather than one per endpoint, and split latency by outcome, because a dependency failing in 5ms makes your latency SLI look better during an outage unless failures are excluded. The golden signals are a checklist for what to instrument, not a list of things to SLO on — saturation is a cause, not a symptom.",
+      "followUps": [
+        "Why is saturation a bad thing to page on?",
+        "How would you pick the latency threshold itself?",
+        "What SLI would you use for an asynchronous pipeline with no request/response?"
+      ]
+    },
+    {
+      "q": "Why would you express a latency SLO as a ratio of fast requests rather than as a p99?",
+      "a": "Because percentiles do not aggregate and ratios do. There is no valid way to average the p99s of ten shards, or of 288 five-minute buckets, and recover the p99 of the day — you would need the raw distribution. A ratio SLI such as the fraction of requests served in under 300ms sums cleanly across shards and across time, so the 28-day number is just good events over valid events, and it plugs straight into an error budget: a slow request becomes a bad event exactly like a 500 is. It also forces the more useful conversation, which is what threshold users actually notice, rather than which percentile sounds impressive. The practical requirement in Prometheus is that a bucket boundary exists at your threshold — le=\"0.3\" has to be in the histogram — otherwise you are interpolating inside a bucket. I would still chart p99 for debugging; I just would not make it the objective.",
+      "followUps": [
+        "How does that interact with histogram bucket choice at instrumentation time?",
+        "Would you use one threshold or several tiers?",
+        "How do you handle requests that time out and never return a status?"
+      ]
+    },
+    {
+      "q": "What is an error budget, and can you do the arithmetic?",
+      "a": "The error budget is 1 minus the SLO, made concrete. At 99.9% over 28 days you may spend 0.1% of valid events, which works out to roughly 40 minutes of total unavailability. At 99.99% over the same window it is about 4 minutes — less time than a human needs to read a page and open a laptop, which is the real argument that beyond three nines mitigation has to be automated rather than staffed. I prefer to express the budget in events rather than minutes, because it then scales with traffic: ten minutes of failure at 3am and ten minutes at peak consume very different shares of the allowance. The budget is what makes reliability negotiable. It converts \"was this outage acceptable\" into \"how much of the window's allowance did it cost\", and it is the same currency the release policy, the alerting thresholds and the postmortem impact statement are all written in.",
+      "followUps": [
+        "How would you compute remaining budget in a query?",
+        "Should traffic you deliberately shed burn the budget?",
+        "How do you handle a single customer generating most of the failures?"
+      ]
+    },
+    {
+      "q": "What is burn rate, and why is a burn-rate alert better than \"error rate above 1%\"?",
+      "a": "Burn rate is the budget's derivative: the multiple of the sustainable spend rate you are running at right now. A burn rate of 1 exhausts the budget exactly at the end of the window; 14.4 sustained for one hour consumes 2% of a 30-day budget. A static threshold cannot mean the same thing in two places — a fixed 1% rule pages at 3am for a low-traffic service where three requests failed, and stays silent for a busy service quietly losing money. Burn rate normalises by both traffic and objective, so severity is comparable across every service you run. The standard implementation is multi-window, multi-burn-rate: pair a long window that establishes significance with a short window roughly one twelfth its length that confirms the problem is still happening, so the page clears once the spike is genuinely over rather than an hour later. Typical tiers are 1h/5m at 14.4x and 6h/30m at 6x to page, with 1d/2h at 3x and 3d/6h at 1x opening tickets.",
+      "followUps": [
+        "Why include the short window at all?",
+        "What does the `for:` duration on the alert buy you on top of that?",
+        "How would you tune these for a service with very low request volume?"
+      ]
+    },
+    {
+      "q": "What does an error budget policy actually say, and how do you enforce it?",
+      "a": "It is a short written agreement, signed by engineering, SRE and product before there is an incident to argue about, stating what changes when the budget runs out. A typical one: while budget remains, ship freely; once it is exhausted, feature releases stop and the team's default work becomes reliability — specifically the action items from recent postmortems — until the rolling window recovers. Security patches and risk-reducing changes are always exempt, because blocking them makes things worse. Overrides exist but are deliberately expensive: a named approver, a written justification, recorded on the ticket. Enforcement should be mechanical rather than social — a pipeline step that queries remaining budget and fails the build removes the need for anyone to personally be the one who says no. The symmetric half gets forgotten: finishing every window at 99.99% against a 99.9% target means you are over-delivering reliability at the cost of velocity, and the answer is to release more often or take on deferred migrations.",
+      "followUps": [
+        "What are the two classic failure modes of this policy?",
+        "The team quietly relaxes the SLO so the dashboard goes green — what do you do?",
+        "Who arbitrates when product insists on shipping during a freeze?"
+      ]
+    },
+    {
+      "q": "Define toil. Why do SREs treat it as more than an annoyance?",
+      "a": "Toil is operational work that is manual, repetitive, automatable, tactical or interrupt-driven, devoid of enduring value, and — the decisive property — scales linearly with the size of the service. Approving a quota request for the hundredth time is toil; writing the system that approves them is not. Linear scaling is why it is treated as existential rather than irritating: if operational load grows with traffic, headcount has to grow with traffic, and the team eventually spends all its time running the system and none improving it. The usual guardrail is a cap, commonly 50% of time, with the overflow pushed back to the development team, which makes the cost visible to the people who can actually remove it. And you cannot cap what you do not measure, so track interrupts, tickets and pages per week, tag them by source, and review monthly. The distribution is almost always dominated by a handful of causes, which is what makes the work tractable.",
+      "followUps": [
+        "How do you distinguish toil from ordinary overhead like planning meetings?",
+        "What do you do when the overflow lands back on a dev team that refuses it?",
+        "How would you instrument toil without adding toil?"
+      ]
+    },
+    {
+      "q": "A disk fills up every week and pages someone at 3am. Walk me through how you would fix it.",
+      "a": "I would work the ladder rather than jumping to the top rung, which is the usual mistake. First, should this work exist at all? A disk that fills weekly is normally a log retention bug or an unbounded cache — eliminating that removes the page permanently and makes everything below unnecessary. If the work must exist, reduce its frequency and urgency: ticket at 70% during business hours instead of paging at 95%, so the response happens awake. Then make it self-service: one idempotent command anyone on call can run, documented in the runbook, safe to run twice. Only then automate it on a schedule. Auto-remediation is powerful but it hides symptoms, so it needs rate limits, an audit trail of every run, and an alert when it fires more often than usual — otherwise the underlying growth accelerates invisibly until the automation cannot keep up, and you get the outage anyway with no history to explain it.",
+      "followUps": [
+        "What alert would you attach to the auto-remediation itself?",
+        "How do you justify the engineering time against feature work?",
+        "When is automating something the wrong answer?"
+      ]
+    },
+    {
+      "q": "How do you structure the response to a major incident?",
+      "a": "With explicit roles, because debugging a live outage consumes all of an engineer's working memory and so does coordinating one — nobody can hold both. The Incident Commander coordinates and decides, and specifically does not debug; an IC who drops into a terminal has vacated the role. Operations makes the changes, ideally as the only person touching production, announcing each action before taking it so the timeline stays coherent. Communications owns the status page and stakeholder updates on a fixed cadence, which is what stops executives from interrupting responders. A scribe keeps a timestamped, verbatim timeline. On a small incident one person can hold several roles, but they should say which ones out loud. Without this you get the same failure every time: five people reading the same dashboard, two people making conflicting production changes, and nobody telling support why customers are complaining.",
+      "followUps": [
+        "When would you escalate severity or hand over the IC role?",
+        "How do you run a clean handoff across a shift boundary?",
+        "Who decides to declare an incident in the first place?"
+      ]
+    },
+    {
+      "q": "Ten minutes into an outage an engineer says they nearly have the root cause but need another hour. What do you do?",
+      "a": "Mitigate now, diagnose afterwards. Roll back the recent deploy, fail over, drain the bad zone, turn the flag off — whatever restores users fastest, even if it is inelegant and even if we are not certain it is the cause. Understanding why can wait until users are being served again; the urge to find root cause first is the single most common reason incidents run long, because the clock keeps burning error budget while the investigation proceeds. Rollback is also cheap to be wrong about: if the symptom persists we have learned something real and lost a few minutes. I would also insist the incident runs in one channel with one document. Decisions made in direct messages are invisible to the next responder, and that is exactly what makes handoffs fail — the incoming commander inherits the symptoms but not the reasoning, and re-does work that was already ruled out.",
+      "followUps": [
+        "What if rollback is not possible because of a schema migration?",
+        "How long do you hold before standing the incident down?",
+        "How do you preserve evidence you will need for the postmortem?"
+      ]
+    },
+    {
+      "q": "What makes an on-call rotation sustainable?",
+      "a": "Page volume first; everything else is secondary. A widely used ceiling is about two incidents per twelve-hour shift, and the reasoning is mechanical rather than sentimental: each page deserves investigation, mitigation and a written follow-up, and beyond roughly two the responder starts triaging by pattern-matching instead of understanding. Rotation size sets frequency, so small teams pool rotations across services, or pair two geographic sites so each covers its own daylight hours and nobody is routinely woken at 3am. The bar for a page is strict: urgent, actionable, and requiring human judgement. If it can wait until morning it is a ticket; if the response is always the same command it is automation; if nothing is broken from a user's perspective it should not page at all — which is the argument for symptom-based alerting on SLO burn rather than cause-based alerts on every saturated resource. Then track pages per shift, share out of hours, fraction that led to real action, time to acknowledge, and repeat offenders by alert name.",
+      "followUps": [
+        "What is the minimum viable rotation size and why?",
+        "How do you handle an alert that is noisy but occasionally catches something real?",
+        "Does paying for on-call fix the problem?"
+      ]
+    },
+    {
+      "q": "Why insist that postmortems are blameless? Doesn't that remove accountability?",
+      "a": "Blamelessness is an engineering requirement, not a kindness. The value of a postmortem is the honest account of what someone did and why it seemed right at the time; if naming yourself in the timeline can damage your career, exactly those details disappear and you are left with a document that teaches nothing. The underlying model is that people act reasonably given the information, tooling and time pressure available in the moment, so \"human error\" is where the investigation starts, not where it stops — the useful question is why the wrong action was available, plausible and easy. The specific enemy is counterfactual language: \"should have noticed\", \"could have checked\" is hindsight bias in grammatical form. Accountability does not vanish, it moves: impact stated in SLI and budget terms, trigger separated from contributing conditions, and action items each with an owner, a date and a ticket in the normal backlog. The common failure is not a bad document but a good one whose actions are never done.",
+      "followUps": [
+        "How do you decide which incidents get a postmortem?",
+        "What would you include that most teams leave out?",
+        "How do you make sure the action items actually land?"
+      ]
+    },
+    {
+      "q": "Define MTBF, MTTF and MTTR, and give me the availability formula.",
+      "a": "MTBF is mean time between failures, MTTF is mean time to failure — the uptime portion — and MTTR is mean time to repair or restore. The relationship is MTBF = MTTF + MTTR, and availability is uptime over total time: MTTF / (MTTF + MTTR). Plenty of sources write MTBF / (MTBF + MTTR), which double-counts the repair time. The more interesting point is that availability constrains only the ratio, not either term. A service that fails monthly and recovers in 30 minutes and one that fails weekly and recovers in 7.5 minutes have identical availability, about 99.93%. That is the basis for preferring fast recovery over rare failure: raising MTBF means making change rare, which fights velocity, whereas lowering MTTR means rollback, failover and good alerting, which do not. To improve MTTR you have to decompose it into detect, acknowledge, mitigate and fully repair — teams instinctively optimise the last segment, but detection and mitigation usually dominate.",
+      "followUps": [
+        "Why is MTTR a poor headline metric to report to leadership?",
+        "What would you report instead?",
+        "Which segment of MTTR would you attack first, and how?"
+      ]
+    },
+    {
+      "q": "How would you introduce chaos engineering to a team that has never done it?",
+      "a": "First I would check the prerequisites honestly: chaos on a system without solid observability and a rehearsed rollback path does not reveal weaknesses, it creates incidents you cannot explain. Then run it as an experiment rather than as randomly breaking things, which is the wrong answer. Define steady state as a measurable SLI, state a falsifiable hypothesis — checkout availability stays above 99.9% when one replica is killed — inject the smallest realistic fault, and measure. A disproved hypothesis is a successful experiment. Blast radius control is what makes it safe: staging first, then one instance, one availability zone, or a small traffic slice, with abort criteria defined in advance and tied to the SLI and error budget, plus automatic removal of the injected fault. Run during business hours with the owning team watching — a 3am chaos experiment is just an outage. Useful faults mirror real ones: added latency, packet loss, instance termination, zone isolation, a hanging dependency, expired certificates, full disks.",
+      "followUps": [
+        "What does a game day add that fault injection alone does not?",
+        "Would you ever run this in production, and under what conditions?",
+        "Should a chaos experiment consume error budget?"
+      ]
+    },
+    {
+      "q": "How do you do capacity planning for a service?",
+      "a": "Three inputs: organic growth from the traffic trend, inorganic growth from known launches and marketing, and a measured relationship between demand and resources derived from load testing rather than guessed. Then two constraints. Queueing theory sets the first: waiting time grows in proportion to rho/(1-rho) as utilisation approaches 1, so the cost of a burst is not a slope, it is a wall — at 50% utilisation a burst costs a little latency, at 90% an order of magnitude, at 95% it costs the service. Headroom is not waste, it is what absorbs variance. Redundancy sets the second: if you run N zones or regions and must survive losing one, steady-state utilisation per unit cannot exceed (N-1)/N, about 66% for three and 50% for two. Failover is exactly when this bites, and the nasty effects arrive together — retry storms raise load precisely as capacity drops, caches restart cold and multiply backend traffic, and reconnecting clients arrive synchronised.",
+      "followUps": [
+        "Why can't autoscaling replace this planning?",
+        "How would you derive safe requests per second per instance?",
+        "What changes when the service is stateful?"
+      ]
+    },
+    {
+      "q": "Your service is overloaded, CPU is pinned at 100%, and yet throughput has collapsed. What is happening and what do you do?",
+      "a": "That is congestion collapse. As load rises, queues grow; queue time pushes total latency past the client's timeout; the client gives up and usually retries — and the server keeps spending CPU computing responses nobody is waiting for. Useful throughput falls while the machine stays fully busy. The fix is to refuse work early and cheaply. Propagate a deadline with each request and drop anything whose deadline has already passed, because that work is guaranteed waste. Keep queues bounded — an unbounded queue is just a latency amplifier. Shed by criticality, so background jobs, prefetches and retried traffic are dropped before a user's checkout. And make shedding visible: reject with 429 or 503 and Retry-After, count shed requests as a first-class metric, and decide explicitly whether shed traffic burns the error budget, which it usually should, because the user saw a failure.",
+      "followUps": [
+        "What is the product-facing half of this, and who decides it?",
+        "How do you stop a rarely used fallback path from rotting?",
+        "How do you keep the shedding logic itself from becoming the bottleneck?"
+      ]
+    },
+    {
+      "q": "A downstream dependency slows down and your whole stack falls over. What client-side controls would you add?",
+      "a": "Retries are usually the culprit: if three layers each retry three times, one user request becomes up to 27 requests against a dependency that is already struggling, so load rises exactly when capacity falls. So, retry at one layer only — normally the one closest to the user that can make a meaningful decision. Use exponential backoff with jitter, because plain exponential synchronises every client that failed at the same instant into a wave that knocks the recovering service down again; the full-jitter form sleeps a random duration between zero and the capped exponential. Enforce a retry budget, a token bucket capping retries at a small fraction of successful traffic, often around 10%, so retries collapse toward zero when nearly everything is failing. Only retry what is safe: idempotent methods or calls carrying an idempotency key, and never a deterministic 4xx. Then add a circuit breaker so a sick dependency fails fast, and bulkheads — a separate pool per dependency — so it cannot consume every thread.",
+      "followUps": [
+        "Walk me through the circuit breaker state machine.",
+        "What would you alert on around the breaker?",
+        "Should the caller degrade or error when the breaker is open?"
+      ]
+    },
+    {
+      "q": "Why isn't 100% the right reliability target?",
+      "a": "Because each additional nine costs disproportionately more — redundant capacity, multi-region complexity, longer release processes, deeper automation — while delivering less perceptible benefit, since the user's device, wifi and ISP already contribute more unavailability than your service does. Reliability is therefore a product decision with a cost curve: the target comes from what failure rate users and the business actually tolerate, what competitors offer, and the marginal revenue of the next nine. Different services deserve different targets — an internal batch pipeline with a daily deadline does not need what a payment path needs, and tiering SLOs by criticality is how you avoid gold-plating everything. The error budget is the control loop that makes the tradeoff mechanical rather than political: both sides agreed the number in advance, so the current budget decides instead of seniority. It also aligns incentives, because better canarying and faster rollback buy back release velocity.",
+      "followUps": [
+        "Change is the leading cause of incidents — should we just change less?",
+        "How would you set the target for a brand new service with no history?",
+        "How do you tier SLOs across forty microservices behind one user journey?"
+      ]
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "SLI",
+      "back": "A service level indicator: a measurement of service behaviour, defined as good events divided by valid events, with both terms and the measurement point stated precisely."
+    },
+    {
+      "front": "SLO",
+      "back": "A target for an SLI over a stated window, e.g. 99.9% over a rolling 28 days. It is internal, and it is what alerting and release policy are built on."
+    },
+    {
+      "front": "SLA",
+      "back": "An external contract about a reliability target with consequences such as credits attached. It should be deliberately looser than the internal SLO so warning arrives before liability does."
+    },
+    {
+      "front": "The four golden signals",
+      "back": "Latency, traffic, errors, saturation. They are a checklist for what to instrument, not a list of things to SLO on — saturation is a cause, not a user-visible symptom."
+    },
+    {
+      "front": "Why can't you average percentiles?",
+      "back": "Percentiles are not additive: the p99 of a day cannot be recovered from the p99s of its five-minute buckets or of individual shards. Use a ratio of requests under a threshold instead."
+    },
+    {
+      "front": "Latency SLI expressed as a ratio",
+      "back": "Count requests faster than a threshold as good events — e.g. the fraction served under 300ms. It sums cleanly across shards and time and feeds an error budget directly."
+    },
+    {
+      "front": "Why does the measurement point matter for an availability SLI?",
+      "back": "Server-side metrics only see requests that arrived, so dropped connections, stale DNS or failed TLS handshakes look like perfect health. Measuring at the edge or gateway catches them."
+    },
+    {
+      "front": "Error budget",
+      "back": "1 - SLO, expressed as an allowance of bad events over the window. At 99.9% over 28 days that is 0.1% of requests, roughly 40 minutes of outage; at 99.99% it is about 4 minutes."
+    },
+    {
+      "front": "Burn rate",
+      "back": "The multiple of the sustainable budget-spend rate currently being consumed. A burn rate of 1 exhausts the budget exactly at the end of the window; 14.4 for one hour spends 2% of a 30-day budget."
+    },
+    {
+      "front": "Multi-window, multi-burn-rate alerting",
+      "back": "Pair a long window that establishes significance with a short window about one twelfth its length that confirms the burn is ongoing, so the page resolves when the problem actually stops."
+    },
+    {
+      "front": "Error budget policy",
+      "back": "A pre-agreed written rule for what changes when the budget runs out — typically a feature freeze with reliability work prioritised — with security and risk-reducing changes exempt and overrides deliberately expensive."
+    },
+    {
+      "front": "Toil",
+      "back": "Operational work that is manual, repetitive, automatable, tactical or interrupt-driven, without enduring value, and that scales linearly with service size. That last property is the decisive one, and it is why toil is commonly capped at 50% of time."
+    },
+    {
+      "front": "The toil elimination ladder",
+      "back": "Eliminate the need, then reduce frequency, then make it self-service, then automate it idempotently, and only then auto-remediate — with rate limits, an audit trail, and an alert when it fires unusually often."
+    },
+    {
+      "front": "Incident Commander",
+      "back": "Coordinates the response and makes the decisions; explicitly does not debug. An IC who drops into a terminal has vacated the role."
+    },
+    {
+      "front": "Why mitigate before diagnosing?",
+      "back": "Restoring users is the objective and root cause can wait. Rolling back, failing over or flipping a flag stops the budget burn; hunting root cause first is the most common reason incidents run long."
+    },
+    {
+      "front": "The bar for a page versus a ticket",
+      "back": "A page must be urgent, actionable, and require human judgement. If it can wait until morning it is a ticket; if the response is always the same command it is automation."
+    },
+    {
+      "front": "Sustainable page volume",
+      "back": "Roughly two incidents per twelve-hour shift, because each deserves investigation, mitigation and a written follow-up. Beyond that, responders pattern-match instead of understanding."
+    },
+    {
+      "front": "Why must postmortems be blameless?",
+      "back": "The honest account of what a responder did and why it looked right at the time is the entire value. If appearing in the timeline can damage a career, exactly those details disappear."
+    },
+    {
+      "front": "Counterfactual language in a postmortem",
+      "back": "Phrases like \"should have noticed\" or \"could have checked\". They are hindsight bias in grammatical form, and they replace the real question: why was the wrong action available, plausible and easy?"
+    },
+    {
+      "front": "Availability in terms of MTTF and MTTR",
+      "back": "MTTF / (MTTF + MTTR), where MTBF = MTTF + MTTR. Writing it as MTBF / (MTBF + MTTR) double-counts the repair time."
+    },
+    {
+      "front": "Why prefer lowering MTTR to raising MTBF?",
+      "back": "Availability pins only the ratio, not either term. Raising MTBF means changing less, which fights velocity; lowering MTTR means rollback, failover and better alerting, which do not."
+    },
+    {
+      "front": "Chaos engineering method",
+      "back": "Define steady state as an SLI, state a falsifiable hypothesis, inject the smallest realistic fault, measure, control blast radius, and abort on pre-set criteria. A disproved hypothesis is a successful experiment."
+    },
+    {
+      "front": "The (N-1)/N rule",
+      "back": "With N zones or regions that must survive losing one, steady-state utilisation per unit cannot exceed (N-1)/N — about 66% for three, 50% for two — because survivors inherit the lost unit's traffic instantly."
+    },
+    {
+      "front": "Why not run at 95% utilisation?",
+      "back": "Queueing delay grows in proportion to rho/(1-rho), so the latency cost of a burst is a wall rather than a slope. Headroom is not waste; it is what absorbs variance."
+    },
+    {
+      "front": "Congestion collapse",
+      "back": "Queues grow past client timeouts, clients abandon and retry, and the server burns CPU producing responses nobody is waiting for. Useful throughput falls while utilisation stays at 100%."
+    },
+    {
+      "front": "Deadline propagation",
+      "back": "Passing a request's remaining time budget downstream so any server can immediately drop work whose deadline has already expired — that work is guaranteed-wasted CPU."
+    },
+    {
+      "front": "Graceful degradation",
+      "back": "Deciding per feature, in advance, what the reduced experience is: stale cache instead of a live read, a page without recommendations, read-only instead of an error. Fallbacks must be exercised routinely or they rot."
+    },
+    {
+      "front": "Full jitter backoff",
+      "back": "Sleep a random duration between zero and the capped exponential delay. The randomness is the point: it de-synchronises clients that all failed at the same instant and would otherwise return as a wave."
+    },
+    {
+      "front": "Retry budget",
+      "back": "A token bucket capping retries at a small fraction of successful traffic, often around 10%, so retry volume collapses toward zero precisely when almost everything is failing."
+    },
+    {
+      "front": "Circuit breaker states",
+      "back": "Closed passes traffic while counting failures; crossing a failure-ratio threshold with a minimum request volume opens it so calls fail immediately; after a cooldown it goes half-open and admits trial requests, closing on success and reopening on failure."
+    },
+    {
+      "front": "Why isn't 100% availability the right target?",
+      "back": "Each nine costs disproportionately more while the user's device, wifi and ISP already contribute more unavailability than your service does. The target is a product decision on a cost curve."
+    },
+    {
+      "front": "Change causes most incidents — why isn't \"change less\" the answer?",
+      "back": "Make change smaller, observable and reversible instead: progressive rollouts with automated canary analysis, flags that decouple deploy from release, and a rehearsed rollback improve reliability and velocity at once."
+    }
+  ]
+}

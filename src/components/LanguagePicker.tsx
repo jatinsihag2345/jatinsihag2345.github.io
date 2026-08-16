@@ -20,8 +20,9 @@ import { RunnableCode, type RunnableLanguage } from './RunnableCode';
  * it back to you.
  *
  * `translations` is sparse by design (dsaCodeTranslations.json covers Java and C++
- * for all 191 questions but JavaScript for only a handful) — a language with no
- * entry for this approach shows an honest empty state, never a silent fallback.
+ * for all 191 questions but JavaScript for only a handful, and every entry hangs off
+ * that question's Optimal approach alone) — a language with no entry for this approach
+ * shows an honest empty state, never a silent fallback.
  */
 
 const LANGUAGES = [
@@ -128,7 +129,9 @@ export const LanguagePicker: React.FC<LanguagePickerProps> = ({ pythonCode, tran
           }}
         >
           Not yet translated into {LANGUAGES.find((l) => l.key === lang)?.label} for this approach.
-          Python, Java and C++ are complete; JavaScript covers only a handful of questions so far.
+          Ports are written against each question's <em>Optimal</em> approach — Java and C++ cover
+          all 191 of those, JavaScript only a handful — so the Brute Force and Better cards stay
+          Python-only.
         </div>
       )}
     </div>

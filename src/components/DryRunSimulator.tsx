@@ -26,6 +26,39 @@ interface ManualTraceData {
   rows: ManualTraceRow[];
 }
 
+// `manual-trace-` is in backup.ts's allowlist, so a restored (or hand-edited) backup
+// writes this key back verbatim with no per-key checks. Every field below is read
+// unguarded during render — `rows.map`, `row.varValues[v]` — and there is no
+// ErrorBoundary in the app, so one malformed blob white-screens the whole page.
+// Validate the shape the way ClozeRecall/BugHunt do and let a bad blob fall back to
+// the default template instead.
+const isManualTraceRow = (v: unknown): v is ManualTraceRow => {
+  if (!v || typeof v !== 'object') return false;
+  const r = v as ManualTraceRow;
+  return (
+    typeof r.id === 'string' &&
+    typeof r.stepNum === 'number' &&
+    typeof r.lineNum === 'string' &&
+    typeof r.explanation === 'string' &&
+    !!r.varValues &&
+    typeof r.varValues === 'object' &&
+    !Array.isArray(r.varValues) &&
+    Object.values(r.varValues).every(val => typeof val === 'string')
+  );
+};
+
+const isManualTrace = (v: unknown): v is ManualTraceData => {
+  if (!v || typeof v !== 'object') return false;
+  const d = v as ManualTraceData;
+  return (
+    typeof d.testCase === 'string' &&
+    Array.isArray(d.variables) &&
+    d.variables.every(name => typeof name === 'string') &&
+    Array.isArray(d.rows) &&
+    d.rows.every(isManualTraceRow)
+  );
+};
+
 export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, optimalCode, trace }) => {
   const [activeTab, setActiveTab] = useState<'guided' | 'manual'>('guided');
   // "Quiz me" swaps passive watching for prediction. Off by default — the first
@@ -46,7 +79,7 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
 
   // Load manual trace from localStorage
   useEffect(() => {
-    const parsed = readJson<ManualTraceData | null>(`manual-trace-${questionId}`, null);
+    const parsed = readJson<ManualTraceData | null>(`manual-trace-${questionId}`, null, isManualTrace);
 
     if (parsed) {
       setManualTestCase(parsed.testCase || '');
@@ -292,6 +325,11 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
           const here = pointerNames.filter(p => pointers[p] === idx);
           const linkDefined = Object.prototype.hasOwnProperty.call(links, String(idx));
           const linkTarget = links[String(idx)];
+          // The glyph has to follow where the link actually POINTS, not merely that one
+          // was set this step: traces carry both forward targets (curr.next = the node
+          // after it) and backward ones (reversal), and drawing every set link as ←
+          // contradicted the step's own narration on every forward attach.
+          const linkGlyph = !linkDefined ? '→' : linkTarget === null ? '×' : Number(linkTarget) < idx ? '←' : '→';
           const activeColor = here.length > 0 ? POINTER_COLORS[pointerNames.indexOf(here[0]) % POINTER_COLORS.length].bg : 'hsl(var(--border-color))';
           return (
             <React.Fragment key={idx}>
@@ -327,7 +365,7 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
                     color: linkDefined ? 'hsl(var(--primary))' : 'hsl(var(--text-muted))'
                   }}
                 >
-                  {linkTarget === null ? '×' : linkDefined ? '←' : '→'}
+                  {linkGlyph}
                 </div>
               )}
             </React.Fragment>

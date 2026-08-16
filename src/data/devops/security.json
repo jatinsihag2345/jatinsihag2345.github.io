@@ -1,0 +1,370 @@
+{
+ "subject": "Security & DevSecOps",
+ "summary": "Security in a DevOps context is the practice of building systems where one stolen credential, one poisoned dependency or one misconfigured resource does not become a full compromise. It spans the pipeline (static, dependency and image scanning, signed artifacts, federated credentials) and the running platform (least privilege, segmentation, mTLS, audit logging), and its unifying idea is reducing blast radius rather than trying to be flawless. Interviewers probe it hard because it is where surface-level knowledge collapses fastest: anyone can say \"use Vault\" or \"least privilege\", but only someone who has done the work can explain why deleting a committed secret does not remediate it, why an image scanner misses a vendored binary, or why an OIDC trust policy without a subject condition hands your production role to every repository on the platform.",
+ "sections": [
+  {
+   "title": "1. Shift-Left Security: Moving the Feedback, Not Just the Tool",
+   "content": "Shift-left means moving security feedback closer to the moment code is written. The mechanism is feedback latency, not tooling fashion. A developer who learns about a flaw thirty seconds after typing it still has the context in their head, and the fix is a line edit. The same flaw surfacing in a penetration test three months later means the code has shipped, other systems depend on its behaviour, the author has moved teams, and the fix is a project.\n\nThat produces a ladder of gates with increasing scope and decreasing speed: pre-commit hooks catching secrets in under a second, pull-request checks running static analysis, dependency scanning and infrastructure-as-code policy on the diff, build steps that scan the artifact and generate an SBOM, admission control refusing unsigned images at deploy.\n\nThe common failure is shifting the tool left without shifting the ownership. A scanner emitting four hundred mostly irrelevant findings on its first run teaches the team that security output is noise to click past. Two habits avoid that: gate only on the diff, so old debt is tracked separately from new debt, and run advisory before you run blocking. Every blocking gate also needs a documented break-glass path with an audit trail, because a gate nobody can bypass legitimately is one people bypass illegitimately.",
+   "code": "# Pre-commit hook config\nrepos:\n  - repo: https://github.com/gitleaks/gitleaks\n    rev: v8.18.4\n    hooks:\n      - id: gitleaks\n\n# CI: scan only what this PR changed\ngitleaks detect --source . --log-opts=\"origin/main..HEAD\" --redact\ntrivy fs --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 ."
+  },
+  {
+   "title": "2. Why a Secret in Git Is a Breach, Not a Smell",
+   "content": "Git stores content, not diffs. Every version of every file lives as an immutable blob addressed by its hash, and a commit is a pointer into that object graph. Deleting the file in a later commit adds a new commit; the blob holding the credential is still there, still reachable through history, and still present in every clone, fork and CI cache that ever fetched the repository. Adding the path to .gitignore does nothing once the file is tracked, because .gitignore only governs untracked files.\n\nRewriting history with git filter-repo or BFG creates new commits with new hashes. It requires a force push, breaks every outstanding clone, and never reaches forks or copies already on other machines, so rewriting is cleanup rather than remediation. The only remediation is rotation: assume the credential is public from the moment it was pushed, issue a new one, revoke the old one, and check the audit log for use of the old one.\n\nThe same reasoning applies beyond git. A secret passed as a Docker build argument is recoverable from image metadata, a secret echoed by a CI step lives in build logs, and Terraform state stores values in plaintext regardless of how they entered. A local .env file is fine; a committed one is published. The durable fix is that the application reads secrets from an injected environment or a secrets API at start-up, so there is nothing sensitive on disk to commit by accident.",
+   "code": "# 1) Rotate first. Everything below is cleanup, not remediation.\ngitleaks detect --source . --redact\n\n# 2) Purge a path from every commit (rewrites hashes; force push required)\ngit filter-repo --path config/secrets.yml --invert-paths\n\n# 3) Keep it out\ngit rm --cached .env && echo \".env\" >> .gitignore\n\ndocker history --no-trunc myimage:tag   # build args stay in image metadata"
+  },
+  {
+   "title": "3. Vault: Dynamic Secrets, Leases, and the Secret-Zero Problem",
+   "content": "Vault is a broker, not a filing cabinet. Static key-value storage exists, but the mechanism worth understanding is the dynamic secrets engine. Asked for database credentials, Vault connects to the database as an administrator, creates a brand new user with a bounded grant, hands it back with a lease, and deletes that user when the lease expires or is revoked. Two properties follow: the exposure window of a leak is minutes rather than years, and because every consumer gets its own user, database logs attribute activity to a specific caller.\n\nLeases are the central abstraction: every dynamic secret and token has one, clients renew before expiry, revoking a lease invalidates the underlying credential rather than merely forgetting it, and revoking a parent token cascades to its children.\n\nThe hard part is secret zero: how does a workload authenticate to Vault without a pre-shared secret? Vault's answer is auth methods that verify an identity the platform already issues. The Kubernetes method takes a pod's ServiceAccount token and validates it through the cluster's TokenReview API; the JWT/OIDC method validates a CI-issued token against the provider's public keys; the AWS method verifies signed instance identity material. The platform, not a copied string, becomes the root of trust; Vault Agent handles login, renewal and templating as a sidecar.",
+   "code": "# Vault creates and drops the database user itself\nvault write database/roles/reporting-ro \\\n  db_name=app-postgres \\\n  creation_statements=\"CREATE ROLE \\\"{{name}}\\\" WITH LOGIN PASSWORD '{{password}}' \\\n     VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \\\"{{name}}\\\";\" \\\n  default_ttl=1h max_ttl=24h\n\n# The workload logs in with an identity the platform issued\nvault write auth/kubernetes/login role=reporting \\\n  jwt=\"$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)\"\n\nvault read database/creds/reporting-ro   # username, password, lease_id\nvault lease revoke <lease_id>            # drops the DB user immediately"
+  },
+  {
+   "title": "4. Cloud KMS and Envelope Encryption",
+   "content": "A cloud KMS holds key material in hardware that will not export it. You never receive the key; you send it operations. That protects the key and is useless for bulk data, since every byte would cross an API with size limits, latency and per-call cost. Envelope encryption resolves the tension: you ask KMS to generate a data key and get back two things, the plaintext data key and the same key encrypted under the master key. You encrypt locally with the plaintext key, store the ciphertext next to the wrapped key, and wipe the plaintext key from memory. To decrypt, send the wrapped key back and get the plaintext key again. One small API call protects an arbitrarily large object, and the master key never leaves the boundary.\n\nTwo details carry most of the operational weight. Encryption context is a set of key-value pairs bound into the ciphertext as additional authenticated data: decryption fails unless the same context is supplied, so a ciphertext copied onto another tenant's record will not decrypt, and the context appears in audit logs as evidence of what was decrypted. Authorisation is also two-sided — access needs both the caller's IAM permissions and the key's own resource policy, which lets a security team retain control of a key that application accounts merely use.\n\nRotation changes the material used for new encryptions; existing ciphertexts stay decryptable under the old material and are not silently rewritten.",
+   "code": "# Envelope encryption by hand\naws kms generate-data-key \\\n  --key-id alias/app-data --key-spec AES_256 \\\n  --encryption-context app=billing,env=prod\n# -> Plaintext (use locally, discard) + CiphertextBlob (store with the data)\n\n# Decrypt needs the identical encryption context\naws kms decrypt --ciphertext-blob fileb://wrapped.key \\\n  --encryption-context app=billing,env=prod\n\n# SOPS: config safe to commit, decryptable only via KMS\nsops --encrypt --kms arn:aws:kms:eu-west-1:111122223333:key/abcd-1234 \\\n     --encrypted-regex '^(password|token)$' values.yaml > values.enc.yaml"
+  },
+  {
+   "title": "5. SAST and Infrastructure-as-Code Scanning",
+   "content": "Static analysis reads code without running it. A SAST engine parses source into an abstract syntax tree, builds a control-flow and call graph, then performs taint analysis: untrusted inputs are sources, dangerous operations are sinks, and the question is whether any path carries a tainted value from a source to a sink without passing a recognised sanitiser. So SAST is good at injection, path traversal and unsafe deserialisation, and structurally poor at authorisation bugs — it sees that a value reaches a query, but not which user was meant to see the row.\n\nThe false-positive rate follows from the same mechanism: the analyser cannot see runtime configuration, dependency-injected wiring, reflection, or a sanitiser it has no rule for, so it over-reports or silently misses paths. Pattern tools such as Semgrep are fast and shallow; dataflow engines such as CodeQL find more per run and cost far more, which argues for patterns on every pull request and deep analysis nightly.\n\nIaC scanning is the same idea aimed at declarative config: parse Terraform or Kubernetes manifests and evaluate rules against the resource graph — a security group open to 0.0.0.0/0, an unencrypted volume, a bucket without public-access blocks, a privileged container. It is the highest-yield scanning you can add, because a misconfigured resource is exploitable with no application bug required. Scan the resolved plan rather than raw HCL when values come from variables or modules.",
+   "code": "# Semgrep rule: taint from a request parameter into a shell call\nrules:\n  - id: subprocess-shell-from-request\n    languages: [python]\n    severity: ERROR\n    mode: taint\n    message: Untrusted request data reaches a shell command\n    pattern-sources:\n      - pattern: flask.request.$ANY\n    pattern-sinks:\n      - pattern: subprocess.$FUNC(..., shell=True, ...)\n\n# Scan the resolved plan, not just the HCL\nterraform plan -out=tf.plan && terraform show -json tf.plan > tf.json\ncheckov -f tf.json --framework terraform_plan"
+  },
+  {
+   "title": "6. SCA for Dependencies and DAST Against the Running System",
+   "content": "Software composition analysis answers a different question from SAST: not whether your code is wrong, but what you are shipping that someone else wrote. It resolves the dependency tree from lockfiles and matches each package and version against advisory databases such as OSV, GHSA and the NVD. Almost all of the surface is transitive — an application declares twenty dependencies and installs nine hundred — which is why a lockfile with integrity hashes matters: it pins the exact resolved tree, so what CI scanned is what production installs.\n\nInterpreting the output is where engineers separate. CVSS is a severity score, not a risk score; it says nothing about whether your code calls the vulnerable function or whether the path is reachable from untrusted input. EPSS estimates the probability of exploitation in the wild, reachability analysis checks whether the affected symbol is invoked at all, and VEX statements record that a component is present but not exploitable here, instead of re-litigating it every release.\n\nDAST goes the other way: no source, just requests against a running instance. It crawls, sends malformed and malicious input, and classifies the responses, so it finds what static analysis cannot see — missing security headers, weak TLS configuration, an exposed debug endpoint, a proxy path that bypasses authentication. It needs authenticated sessions and seeded data to get past the login page, it is slow, and it writes data, so run it against a disposable environment on a schedule.",
+   "code": "# Audit the resolved tree, then install exactly that\npip-audit -r requirements.txt\npip install --require-hashes -r requirements.txt\n\nnpm audit --omit=dev\nnpm ci                # installs from package-lock.json, fails if it drifts\n\n# DAST: passive baseline scan\ndocker run --rm -t ghcr.io/zaproxy/zaproxy:stable \\\n  zap-baseline.py -t https://staging.example.com -r report.html"
+  },
+  {
+   "title": "7. Container Image Scanning and Image Provenance",
+   "content": "An image scanner unpacks the layers, inventories what is installed, and matches that inventory against vulnerability feeds. Inventory comes from OS package databases — the dpkg status file, the apk or rpm database — plus language manifests and lockfiles in the filesystem. Two consequences follow. Anything not recorded in a package database is invisible: a statically linked binary you curled in, a vendored library copied from another stage, a jar unpacked by hand. And plain version comparison is wrong for distributions that backport fixes, so a competent scanner uses per-distro feeds; that is why a package can be flagged upstream and marked already-fixed or will-not-fix by Debian.\n\nMost findings come from the base image rather than your code, and most are fixed by rebuilding on a newer base. Smaller bases cut the count mainly by removing packages you never used, and multi-stage builds keep compilers out of the runtime layer. Registry images need re-scanning on a schedule too: an image clean on Tuesday is vulnerable on Friday when a new advisory lands, without a byte changing.\n\nScanning tells you whether the contents are known-bad; provenance tells you whether the image is yours at all. Signing binds an image digest to an identity, and an attestation adds a signed statement about how it was built — which commit, which builder, which parameters. Keyless signing avoids long-lived keys: the signer proves an OIDC identity, receives a short-lived certificate, and the signature is recorded in a transparency log.",
+   "code": "# Keep the toolchain out of the runtime layer\nFROM golang:1.22 AS build\nWORKDIR /src\nCOPY . .\nRUN CGO_ENABLED=0 go build -o /out/app ./cmd/app\n\nFROM gcr.io/distroless/static:nonroot\nCOPY --from=build /out/app /app\nUSER nonroot:nonroot\nENTRYPOINT [\"/app\"]\n\n# Gate the build; ignore what has no fix yet\ntrivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 myapp:1.4.2\n\n# Sign by digest (tags are mutable); verify by identity\ncosign sign myrepo/myapp@sha256:<digest>\ncosign verify myrepo/myapp@sha256:<digest> \\\n  --certificate-identity-regexp '^https://github.com/my-org/' \\\n  --certificate-oidc-issuer https://token.actions.githubusercontent.com"
+  },
+  {
+   "title": "8. Supply-Chain Attacks and the SBOM",
+   "content": "A supply-chain attack skips your defences by arriving through something you already trust, and the classes differ in how you defend against them. Compromise of the build system means the source stays clean while the artifact is malicious — SolarWinds worked this way, and no amount of code review catches it. Compromise of a dependency means a package you legitimately depend on ships hostile code in a new version, after maintainer credentials were stolen or a maintainer was social-engineered; the xz-utils backdoor in 2024 came from a contributor who had spent years earning commit rights. Typosquatting registers names one keystroke from a popular package. Dependency confusion exploits resolvers that consult a public registry alongside a private one and prefer the higher version number, so publishing an internal package name publicly at 99.0.0 can win resolution.\n\nDefences are unglamorous and mostly about determinism: pin dependencies by hash or digest rather than by range, pin third-party CI actions to a full commit SHA rather than a mutable tag, proxy public registries through an internal mirror with an allowlist, and build on ephemeral runners with narrowly scoped credentials.\n\nAn SBOM is the inventory that makes response possible. Generated during the build, where the resolver already knows the exact tree, it is accurate; reconstructed later by scanning an artifact, it is a best guess. SPDX and CycloneDX are the formats that matter. The payoff is the question everyone faced overnight during Log4Shell: which deployed artifacts contain this component, at which version.",
+   "code": "# Pin third-party CI actions to an immutable commit, not a moving tag\n- uses: actions/checkout@<full-40-char-commit-sha>   # not @v4: tags move, commits do not\n\n# Generate the SBOM at build time, attach it to the image\nsyft myapp:1.4.2 -o spdx-json > sbom.spdx.json\ncosign attest --predicate sbom.spdx.json --type spdxjson myrepo/myapp@sha256:<digest>\n\n# Answer \"are we affected?\" from recorded inventory\ngrype sbom:./sbom.spdx.json --fail-on high"
+  },
+  {
+   "title": "9. Least Privilege in Practice: IAM and Kubernetes RBAC",
+   "content": "Least privilege is a statement about blast radius: assume a credential will eventually be stolen, then ask what the holder can reach. The difficulty is that nobody knows the minimal permission set in advance, so people grant a wildcard to unblock a deploy and never return. The workable method is to start broad in a non-production account, collect what was actually called from the audit log, generate a policy from observed usage, then tighten with conditions rather than by guessing action names.\n\nIn AWS, effective permissions are the intersection of several layers, and an explicit deny anywhere beats any allow. Service control policies set a ceiling for a whole account, permission boundaries cap what an identity can hold even if an administrator attaches more, identity policies grant, and resource policies grant independently — which is how a bucket in another account becomes reachable without anyone editing your role. Two escalation paths matter: iam:PassRole plus a compute service lets a caller run code as a more privileged role, and permission to modify IAM is permission to grant itself everything.\n\nKubernetes RBAC is simpler and trickier. Rules are purely additive with no deny, so the only way to remove access is to stop granting it. Several innocuous-looking verbs are administrative in effect: creating pods lets you mount host paths or another service account's token and pivot, get on secrets in kube-system is often cluster-admin by another route, and escalate, bind and impersonate exist to sidestep the normal checks.",
+   "code": "# Constrain with conditions rather than guessing at narrower actions\n{\n  \"Effect\": \"Allow\",\n  \"Action\": [\"s3:GetObject\", \"s3:PutObject\"],\n  \"Resource\": \"arn:aws:s3:::billing-exports/prod/*\",\n  \"Condition\": {\n    \"StringEquals\": {\"aws:PrincipalTag/team\": \"billing\"},\n    \"Bool\": {\"aws:SecureTransport\": \"true\"}\n  }\n}\n\n# Verify effective access as the caller\nkubectl auth can-i --list --as=system:serviceaccount:app:reporting -n app\n\n# Do not hand a token to a pod that never calls the API server\napiVersion: v1\nkind: ServiceAccount\nmetadata: {name: reporting, namespace: app}\nautomountServiceAccountToken: false"
+  },
+  {
+   "title": "10. Zero Trust: Identity Replaces Network Location",
+   "content": "The perimeter model treats the network as the authenticator: inside the VPN is trusted, outside is not. It fails structurally because internal networks are flat. One phished laptop, one vulnerable edge appliance, one exposed build agent, and the attacker is inside the trusted zone, where services routinely accept unauthenticated calls because only internal traffic was supposed to reach them.\n\nZero trust removes the inference from network position to trust. Every request is authenticated and authorised on its own — caller identity, device posture, resource sensitivity — and re-evaluated rather than granted once at login. Credentials are short-lived so stolen ones expire, transport is encrypted end to end rather than only at the edge, and the policy decision point is a service both sides consult rather than a subnet boundary.\n\nFor workloads the interesting mechanism is attested identity. Instead of shipping a shared secret, a node agent attests what a workload actually is — which pod, in which namespace, on which node, verified against the platform's own API — and issues it a short-lived cryptographic identity document, the model SPIFFE and SPIRE formalise. Authorisation is then written against a verifiable name rather than an IP address. Be honest about the limits: zero trust is a direction, not a product, it does not remove the need for segmentation, and it moves availability risk into the identity plane.",
+   "code": "# Authorise on workload identity, not on source IP.\n# The principal is the mesh identity of the caller's service account.\napiVersion: security.istio.io/v1beta1\nkind: AuthorizationPolicy\nmetadata:\n  name: payments-api-allow\n  namespace: payments\nspec:\n  selector:\n    matchLabels: {app: payments-api}\n  action: ALLOW\n  rules:\n    - from:\n        - source:\n            principals: [\"cluster.local/ns/checkout/sa/checkout-api\"]\n      to:\n        - operation:\n            methods: [\"POST\"]\n            paths: [\"/v1/charges\"]\n# Anything not matched by an ALLOW rule on this workload is denied."
+  },
+  {
+   "title": "11. TLS and mTLS: Handshake, Chains, and Rotation",
+   "content": "A TLS handshake does three things at once: agree parameters, prove the server's identity, and derive a shared symmetric key. The client sends its cipher suites, the hostname it wants in the SNI extension, the protocols it speaks in ALPN, and key-exchange material; the server picks parameters and presents a certificate chain. TLS 1.3 completes this in one round trip and dropped the older key-exchange modes that lacked forward secrecy. Bulk traffic afterwards is symmetric — the certificate only establishes trust.\n\nValidation is where production breaks. The client checks that the chain leads to a root it already trusts, that the dates are valid, and that the hostname matches a subject alternative name; the legacy common name is no longer accepted. Revocation is the weak link — CRLs go stale and OCSP checks are often soft-failed — which is the real argument for short lifetimes: expiry is a revocation mechanism that always works.\n\nA few failures recur. A server sending its leaf without the intermediate works in browsers, which fetch the missing certificate themselves, and fails in curl, Go and Java. A container with no CA bundle trusts nothing, and clock skew invalidates a valid certificate. Terminating TLS at a load balancer leaves the application seeing plain HTTP, so it emits http:// redirects unless it honours the forwarded-proto header. mTLS adds the mirror image — the server also validates a client certificate, making the caller's identity cryptographic — at the cost of an internal CA and automated rotation, which is why meshes issue hour-long certificates.",
+   "code": "# What the server actually serves, chain order included\nopenssl s_client -connect api.example.com:443 -servername api.example.com -showcerts </dev/null\n\n# \"Works in the browser, fails in curl\" is usually a missing intermediate:\n#   verify error:num=20:unable to get local issuer certificate\n\n# mTLS: the client presents a certificate too\ncurl --cert client.crt --key client.key --cacert internal-ca.crt \\\n  https://payments.internal/v1/charges"
+  },
+  {
+   "title": "12. The OWASP Top 10 Where It Lands on Infrastructure",
+   "content": "The 2021 Top 10 is taught as an application list, but most entries have an infrastructure face. Broken access control appears as an over-broad IAM role, a public storage bucket, or an admin interface reachable without authentication — an open dashboard, an exposed etcd, a Redis bound to 0.0.0.0 with no auth. Cryptographic failures appear as unencrypted volumes and snapshots, plaintext traffic between internal services, or a key policy letting far too many principals decrypt. Injection is still yours whenever a pipeline interpolates a branch name or PR title into a shell command.\n\nSecurity misconfiguration dominates real incidents: default credentials, debug endpoints left on, error pages leaking stack traces and internal hostnames, permissive CORS, management ports open to the internet. Vulnerable and outdated components is unpatched base images and long-lived nodes; integrity failures is the supply-chain entry — unsigned artifacts, mutable tags, unpinned CI actions.\n\nServer-side request forgery has the sharpest cloud edge. An application that fetches a user-supplied URL can be pointed at the link-local instance metadata address, and in the original metadata protocol one unauthenticated GET returned the instance role's credentials. The fix is layered: require the session-token version of the metadata service so a naive proxied GET fails, set the response hop limit so a container cannot reach it through an extra hop, block link-local egress, and allowlist outbound URLs in the application.",
+   "code": "# IMDSv1 (legacy): one unauthenticated GET returns role credentials.\ncurl http://169.254.169.254/latest/meta-data/iam/security-credentials/\n\n# IMDSv2: a PUT must first obtain a session token, which a blind\n# SSRF that can only issue GETs cannot do.\nTOKEN=$(curl -sX PUT \"http://169.254.169.254/latest/api/token\" \\\n  -H \"X-aws-ec2-metadata-token-ttl-seconds: 21600\")\ncurl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" \\\n  http://169.254.169.254/latest/meta-data/\n\n# Require it, and stop the response crossing an extra hop into a container\naws ec2 modify-instance-metadata-options --instance-id i-0123456789abcdef0 \\\n  --http-tokens required --http-put-response-hop-limit 1"
+  },
+  {
+   "title": "13. Network Segmentation: Making a Breach Stop Somewhere",
+   "content": "Segmentation accepts that something will be compromised and limits where the attacker goes next. It is measured by what an attacker reaches from a foothold, so the strongest boundary is the hardest one to cross laterally: separate cloud accounts per environment, because they separate the IAM control plane and not merely the routing. Below that sit VPCs and subnet tiers, with only load balancers in public subnets, everything else egressing through NAT, and cloud APIs reached over private endpoints so the traffic never touches the internet.\n\nThe two AWS filtering primitives differ in a way interviewers ask about. Security groups are stateful and allow-only: the response to a permitted request returns automatically, and a rule can reference another security group instead of a CIDR, which makes them behave like coarse identity. Network ACLs are stateless, evaluated in rule-number order, and support explicit deny — being stateless, they need a rule for return traffic on ephemeral ports, the classic cause of one-way connectivity.\n\nIn Kubernetes the default is a flat network where every pod reaches every other pod. NetworkPolicy fixes that, with two traps: it is enforced by the CNI plugin, so a cluster whose CNI does not implement policy accepts the object and silently enforces nothing, and policies are additive allowlists that take effect only once something selects the pod. Egress rules matter as much as ingress — they limit exfiltration and block SSRF against metadata endpoints.",
+   "code": "# Deny everything in the namespace first.\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata: {name: default-deny, namespace: payments}\nspec:\n  podSelector: {}\n  policyTypes: [Ingress, Egress]\n---\n# Then allow exactly one path in, plus DNS out.\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata: {name: allow-checkout, namespace: payments}\nspec:\n  podSelector:\n    matchLabels: {app: payments-api}\n  policyTypes: [Ingress, Egress]\n  ingress:\n    - from:\n        - namespaceSelector: {matchLabels: {name: checkout}}\n      ports: [{protocol: TCP, port: 8443}]\n  egress:\n    - to: [{namespaceSelector: {matchLabels: {name: kube-system}}}]\n      ports: [{protocol: UDP, port: 53}]"
+  },
+  {
+   "title": "14. Audit Logging and Secure CI/CD via OIDC Federation",
+   "content": "Audit logging records who did what, to which resource, from where and when — and it is only useful if the attacker cannot edit it. That means shipping it out of the account that generates it, storing it write-once with retention locks, and verifying integrity, since an intruder's first move after gaining administrative access is to stop the trail. Ask what is not covered: cloud audit trails capture control-plane calls but not data-plane reads unless separately enabled, and the Kubernetes API server logs nothing until an audit policy is configured, at levels from metadata only through full request and response bodies — and logging response bodies for Secrets writes the secrets into the log.\n\nStatic cloud keys in CI are the credential most often stolen. They never expire, they leak through echoed environment variables and build logs, any malicious dependency running during the build can read them, and every job shares one identity so nothing is attributable. OIDC federation removes them: the CI platform acts as an identity provider, the job requests a short-lived signed token describing itself — issuer, repository, ref, workflow, environment, audience — and the cloud verifies that signature against the provider's published keys, matches the claims against the role's trust policy, and returns temporary credentials.\n\nThe whole security of the scheme sits in those claim conditions. Matching only the issuer lets any repository on that platform assume your role; matching the repository but not the ref lets an untrusted branch deploy to production.",
+   "code": "# The job requests a token; nothing long-lived is stored.\npermissions:\n  id-token: write          # required to request the OIDC token\n  contents: read\nsteps:\n  - uses: aws-actions/configure-aws-credentials@v4\n    with:\n      role-to-assume: arn:aws:iam::111122223333:role/deploy-prod\n      aws-region: eu-west-1\n\n# The trust policy is the actual control. Pin the subject claim.\n{\n  \"Effect\": \"Allow\",\n  \"Principal\": {\"Federated\": \"arn:aws:iam::111122223333:oidc-provider/token.actions.githubusercontent.com\"},\n  \"Action\": \"sts:AssumeRoleWithWebIdentity\",\n  \"Condition\": {\n    \"StringEquals\": {\n      \"token.actions.githubusercontent.com:aud\": \"sts.amazonaws.com\",\n      \"token.actions.githubusercontent.com:sub\": \"repo:my-org/my-repo:environment:production\"\n    }\n  }\n}\n# \"repo:my-org/*\", or omitting sub, lets any repo assume this role."
+  }
+ ],
+ "interviewQA": [
+  {
+   "q": "What does 'shift left' actually mean, and how do you add security gates to a pipeline without the team learning to ignore them?",
+   "a": "Shift left is about feedback latency, not about buying tools earlier. A flaw flagged thirty seconds after it is typed is a line edit, because the author still has the context; the same flaw found in a pen test three months later is a project, since the code has shipped and other systems depend on it. In practice that gives a ladder of gates with increasing scope and decreasing speed: pre-commit hooks catching secrets in under a second, pull-request checks running static analysis, dependency scanning and IaC policy on the diff, build-time image scanning and SBOM generation, and admission control refusing unsigned images at deploy. The failure mode is shifting the tool without shifting ownership: a scanner emitting four hundred mostly irrelevant findings on day one teaches everyone that security output is noise. So I gate only on the diff, keeping old debt separate from new debt, run every new check advisory before making it blocking, and give each blocking gate a documented break-glass path with an audit trail. A gate nobody can bypass legitimately is one people bypass illegitimately.",
+   "followUps": [
+    "How do you work down the backlog of pre-existing findings you decided not to gate on?",
+    "What belongs in a pre-commit hook rather than CI, given hooks can be skipped with --no-verify?",
+    "How would you measure whether these gates are actually reducing risk?"
+   ]
+  },
+  {
+   "q": "A developer pushed an AWS access key to a public repository an hour ago. Walk me through your response.",
+   "a": "Rotation first; everything else is cleanup. I assume the key is public from the moment it was pushed, because public repos are scraped within minutes, so I issue a replacement, revoke the old key, then search CloudTrail for that access key ID: unfamiliar source IPs, calls outside the normal region or service set, IAM changes, snapshot and data-export activity. Only then do I think about history. Git stores content, not diffs: every version of every file is an immutable blob, so deleting the file in a later commit just adds a commit, and the blob is still reachable through history and present in every clone, fork and CI cache. Adding it to .gitignore does nothing once tracked, because .gitignore only governs untracked files. Rewriting with git filter-repo or BFG creates new hashes, needs a force push, breaks outstanding clones and never reaches forks, so it is hygiene, not remediation. The durable fix is that nothing sensitive sits on disk: the app reads secrets from an injected environment or a secrets API at start-up, backed by pre-commit scanning and server-side push protection.",
+   "followUps": [
+    "Where else would that same secret have leaked - build logs, image layers, Terraform state?",
+    "How would you determine whether the key was used before you revoked it?",
+    "Does anything change if the repository was private rather than public?"
+   ]
+  },
+  {
+   "q": "Explain Vault's dynamic secrets and leases, and how a workload authenticates to Vault in the first place.",
+   "a": "Vault is a broker, not a filing cabinet. With a dynamic secrets engine, a request for database credentials makes Vault connect as an administrator, create a new user with a bounded grant, and hand it back with a lease; when the lease expires or is revoked, Vault drops that user. Two properties follow: a leak's exposure window is minutes rather than years, and because every consumer gets its own user, database logs attribute activity to one caller. Leases are the central abstraction: clients renew before expiry, revoking a lease invalidates the underlying credential rather than merely forgetting it, and revoking a parent token cascades to its children, so 'revoke everything that pipeline issued' is one operation. The hard part is secret zero: how a workload proves who it is with no pre-shared secret. Vault's answer is auth methods that verify an identity the platform already issues - a pod's ServiceAccount token checked via TokenReview, a CI-issued JWT checked against the provider's public keys, signed AWS instance identity. The platform, not a copied string, is the root of trust.",
+   "followUps": [
+    "What happens to your applications when Vault is unavailable or sealed?",
+    "How does the credential reach the process - Vault Agent templating, the CSI driver, or a direct SDK call?",
+    "How does an application handle its database credential being rotated underneath it?"
+   ]
+  },
+  {
+   "q": "Why does a cloud KMS use envelope encryption, and what is encryption context for?",
+   "a": "A KMS holds key material in hardware that will not export it: you never receive the key, you send it operations. That protects the key but is useless for bulk data, since every byte would cross an API with size limits, latency and per-call cost. Envelope encryption resolves the tension: you ask KMS to generate a data key and get back the plaintext data key plus the same key wrapped under the master key. You encrypt locally, store the ciphertext next to the wrapped key, and wipe the plaintext key from memory; to decrypt, send the wrapped key back. One small API call protects an arbitrarily large object and the master key never leaves the boundary. Encryption context is a set of key-value pairs bound into the ciphertext as additional authenticated data: decryption fails unless the identical context is supplied, so a ciphertext copied onto another tenant's record will not decrypt, and the context appears in audit logs as evidence of exactly what was decrypted. Access is also two-sided - you need both the caller's IAM permissions and the key's own resource policy.",
+   "followUps": [
+    "What does key rotation actually change, and are existing ciphertexts rewritten?",
+    "How would you write a key policy so a security team keeps control of a key that application accounts merely use?",
+    "How does SOPS use this to make an encrypted config file safe to commit?"
+   ]
+  },
+  {
+   "q": "Compare SAST and infrastructure-as-code scanning. How do they work, and which would you add first to a pipeline that has neither?",
+   "a": "SAST parses source into an AST, builds control-flow and call graphs, then runs taint analysis: untrusted inputs are sources, dangerous operations are sinks, and the question is whether any path carries a tainted value from source to sink without passing a recognised sanitiser. It is good at injection, path traversal and unsafe deserialisation, and structurally poor at authorisation bugs: it sees a value reach a query, but not which user was meant to see the row. False positives come from the same limits - it cannot see runtime configuration, DI wiring, reflection, or a sanitiser it has no rule for, so it over-reports and also misses paths. IaC scanning is the same idea aimed at config: parse Terraform or Kubernetes manifests and evaluate rules against the resource graph - a security group open to 0.0.0.0/0, an unencrypted volume, a privileged container. I would add IaC scanning first: a misconfigured resource is exploitable with no application bug required. One detail - scan the resolved plan JSON, not raw HCL, since values from variables and modules are unresolved until plan time.",
+   "followUps": [
+    "Why run a pattern engine like Semgrep on every PR but a dataflow engine like CodeQL nightly?",
+    "How do you grant an exception for a rule a team legitimately needs to break?",
+    "Where does admission control such as OPA Gatekeeper or Kyverno fit relative to pipeline IaC policy?"
+   ]
+  },
+  {
+   "q": "What makes audit logging actually useful during an incident, and what do teams usually fail to capture?",
+   "a": "It records who did what, to which resource, from where and when - and it only helps if the attacker cannot edit it. An intruder's first move after gaining admin access is to stop the trail, so the log must leave the account that produces it: ship to a separate logging account, store it write-once with object lock, restrict who can delete objects or change the trail config, and verify integrity. Then ask what is not covered. Cloud audit trails capture control-plane calls but not data-plane access; object reads and KMS decrypts need data events enabled explicitly - exactly the evidence you want when scoping what was exfiltrated. The Kubernetes API server logs nothing until an audit policy is configured, at levels from metadata through full request and response bodies, and logging response bodies for Secrets writes the secrets into your log, so that level is per-resource, never global. Finally, logs nobody queries are theatre: I want detections on root account use, IAM policy changes, trail changes and anonymous storage access, plus retention covering a dwell time measured in months.",
+   "followUps": [
+    "Why keep the logging account separate from the workload accounts rather than just using a locked-down bucket?",
+    "If data events were disabled, how would you reconstruct what a compromised role read?",
+    "What Kubernetes audit level would you set by default, and why not the most verbose one?"
+   ]
+  },
+  {
+   "q": "Your dependency scanner reports sixty critical CVEs in one service. How do you decide what to fix first?",
+   "a": "I separate severity from risk. CVSS scores the flaw in the abstract; it says nothing about whether my code calls the vulnerable function or whether the path is reachable from untrusted input. So I layer signals: is the affected symbol actually invoked, which reachability analysis answers; is this service internet-facing or handling untrusted data; is there a public exploit, and what does EPSS say about exploitation probability in the wild; and is there a fixed version at all, since unfixed findings cannot be patched and belong in a separate queue with compensating controls. Where a component is present but not exploitable in my usage, I record a VEX statement rather than silently muting it, so it is not re-litigated every release. Mechanically, SCA resolves the tree from lockfiles and matches packages against OSV, GHSA and the NVD, and almost all of the surface is transitive - twenty declared dependencies, nine hundred installed. That is why the lockfile matters: with integrity hashes and npm ci or pip install --require-hashes, what CI scanned is what production installs.",
+   "followUps": [
+    "How do you patch a vulnerability that only exists in a transitive dependency?",
+    "How do OSV, GHSA and the NVD differ as advisory sources?",
+    "How do you stop the backlog re-growing - automated update PRs, and how do you make those safe to merge?"
+   ]
+  },
+  {
+   "q": "What does DAST find that SAST and SCA cannot, and how do you run it so it is not a waste of time?",
+   "a": "DAST tests the running system with no source access: it crawls, sends malformed and malicious input, and classifies the responses. That finds the class of problems that only exists once everything is assembled and configured - missing security headers, weak TLS configuration, a debug endpoint left enabled, cookies without Secure or HttpOnly, a reverse-proxy path that bypasses authentication, an error page leaking stack traces and internal hostnames. Static analysis cannot see any of it, because none of it is in the source. The catch is that a naive run bounces off the login page and reports on your marketing pages, so it needs an authenticated session it can hold, seeded data, and ideally a route list or OpenAPI spec so the crawler reaches real endpoints rather than guessing. It is slow and it writes data, so it belongs on a schedule against a disposable environment rather than in the pull-request path; a passive baseline scan is cheap enough to run per deploy, while the full active scan runs nightly or weekly. I treat its output as leads to confirm, not as verdicts.",
+   "followUps": [
+    "How do you keep an authenticated scan from logging itself out or tripping rate limits?",
+    "Where does interactive testing (IAST) sit between SAST and DAST?",
+    "How would you scan an API that is entirely gRPC or GraphQL, where crawling does not work?"
+   ]
+  },
+  {
+   "q": "An image scanner reports zero findings on your production image. What could still be vulnerable in it?",
+   "a": "A scanner unpacks the layers, inventories what is installed, and matches that inventory against vulnerability feeds - and the inventory comes from OS package databases, the dpkg status file or the apk and rpm databases, plus language manifests and lockfiles found on the filesystem. Anything not recorded in a package database is invisible: a statically linked binary someone curled in during the build, a vendored library copied from another stage, a jar unpacked by hand. So 'clean' means nothing known-bad among the parts the scanner can see. It also says nothing about your own code, your configuration, running as root, or credentials baked into a layer. Two further subtleties: distributions backport fixes, so naive version comparison is wrong and a competent scanner uses per-distro feeds - that is why a package flagged upstream can be marked already-fixed or will-not-fix by Debian. And an image clean on Tuesday is vulnerable on Friday when a new advisory lands without a byte changing, so registry images need re-scanning on a schedule, not only at build time.",
+   "followUps": [
+    "How would you drive down the finding count on a base image without breaking the application?",
+    "When is --ignore-unfixed the right call, and when is it hiding real risk?",
+    "How do distroless or scratch images change what a scanner can tell you?"
+   ]
+  },
+  {
+   "q": "What does signing a container image actually prove, and why is keyless signing preferred?",
+   "a": "Scanning tells you whether the contents are known-bad; signing tells you whether the image is yours at all. A signature binds an image digest to an identity, and an attestation adds a signed statement about how it was built - which commit, which builder, which parameters, sometimes the SBOM itself. That lets a cluster refuse anything not produced by your pipeline, which is the only real defence against an attacker who pushes a malicious image into your registry instead of attacking your code. Two details matter. Sign and verify by digest, never by tag, because tags are mutable and can be repointed at other content later. And verify identity, not merely that some valid signature exists: cosign verify with --certificate-identity-regexp and --certificate-oidc-issuer, so only your org's workflow counts. Keyless signing exists because a long-lived signing key is what gets stolen: the signer proves an OIDC identity, receives a short-lived certificate, signs with it, and the record goes into a transparency log as evidence the signature existed while that certificate was valid.",
+   "followUps": [
+    "How do you enforce signature verification at deploy time in Kubernetes?",
+    "What breaks when a registry mirror or promotion process re-tags or re-pushes images?",
+    "What does SLSA add on top of a signature and an SBOM?"
+   ]
+  },
+  {
+   "q": "What are the main classes of supply-chain attack, and what does an SBOM actually buy you?",
+   "a": "They differ by where trust is abused. Build-system compromise leaves the source clean while the artifact is malicious - SolarWinds - and no code review catches it; defences are ephemeral runners, scoped build credentials and signed provenance. Dependency compromise is a package you depend on shipping hostile code in a new version, after maintainer credentials were stolen or a maintainer was social-engineered, as with the xz-utils backdoor. Typosquatting registers a name one keystroke from a popular one. Dependency confusion exploits resolvers that check a public registry alongside a private one and prefer the higher version, so publishing your internal package name publicly at 99.0.0 wins - answered with scoped names and an internal mirror. The generic defence is determinism: pin by hash or digest, and pin CI actions to a full commit SHA, not a mutable tag. An SBOM is the inventory that makes response possible - accurate when generated during the build, a guess when reconstructed later - and it answers the Log4Shell question: which artifacts contain this component, at which version.",
+   "followUps": [
+    "SPDX or CycloneDX, and where do you store the SBOM so you can query it during an incident?",
+    "How would you stop dependency confusion in a monorepo with several package managers?",
+    "What scope should a build job's credentials have, and how do you keep a malicious dependency from using them?"
+   ]
+  },
+  {
+   "q": "How do you actually arrive at a least-privilege IAM policy, and which permissions are more dangerous than they look?",
+   "a": "Nobody knows the minimal permission set up front, which is why people grant a wildcard to unblock a deploy and never come back. The workable method is empirical: start broad in a non-production account, let the workload run, read what was actually called from the audit log, generate a policy from observed usage, then tighten with conditions rather than guessing at narrower action names. Restricting by resource ARN, principal tag, or a required TLS or VPC-endpoint condition is more durable than enumerating every action. Effective permissions are an intersection of layers: SCPs set a ceiling for a whole account, permission boundaries cap what an identity can hold even if an admin attaches more, identity policies grant, resource policies grant independently - which is how a bucket in another account becomes reachable without anyone editing your role - and an explicit deny anywhere beats any allow. The dangerous permissions are escalation paths: iam:PassRole plus a compute service runs code as a more privileged role, and permission to modify IAM is permission to grant itself everything.",
+   "followUps": [
+    "How does the policy stay least-privilege six months later as the service changes?",
+    "How would you stop a developer role escalating through PassRole?",
+    "When do you reach for a permission boundary rather than an SCP?"
+   ]
+  },
+  {
+   "q": "Which Kubernetes RBAC permissions are effectively cluster-admin even though they do not look like it?",
+   "a": "The structural point first: RBAC rules are purely additive with no deny, so the only way to remove access is to stop granting it - which surprises people coming from IAM, where an explicit deny wins. Then the verbs that are administrative in effect. Create on pods is a pivot in almost any namespace, because a pod can mount a hostPath, run privileged, use hostNetwork or hostPID, or simply mount another ServiceAccount's token and act as it; pod-create alongside a privileged service account in the same namespace is a cluster takeover unless admission policy prevents it. That extends to anything that creates pods indirectly - Deployments, DaemonSets, Jobs, CronJobs. Get or list on Secrets in kube-system is usually cluster-admin by another route. Escalate and bind exist specifically to sidestep the check that you cannot grant permissions you do not hold, and impersonate lets you act as any user or group, including system:masters. I verify effective access with kubectl auth can-i --list --as=, and set automountServiceAccountToken to false for pods that never call the API server.",
+   "followUps": [
+    "How do Pod Security Admission levels change the risk of pod-create?",
+    "What is the difference between a ClusterRole bound with a RoleBinding and one bound with a ClusterRoleBinding?",
+    "How would you audit who currently holds cluster-admin, directly or transitively?"
+   ]
+  },
+  {
+   "q": "What does zero trust mean concretely for service-to-service traffic, and what are its limits?",
+   "a": "It means removing the inference from network position to trust. The perimeter model treats the network as the authenticator - inside the VPN is trusted - and fails structurally because internal networks are flat: one phished laptop puts an attacker in the zone where services accept unauthenticated calls, because only internal traffic was meant to reach them. Concretely, every request is authenticated and authorised on its merits - caller identity, device posture, resource sensitivity - and re-evaluated, not granted once at login; credentials are short-lived so stolen ones expire; transport is encrypted end to end, not only at the edge; and policy lives in a service both sides consult, not a subnet boundary. For workloads the key mechanism is attested identity: a node agent verifies what a workload is - which pod, namespace and node, per the platform's own API - and issues it a short-lived identity document, the model SPIFFE and SPIRE formalise. The honest limits: it is a direction, not a product; it does not remove segmentation, and it moves availability risk into the identity plane.",
+   "followUps": [
+    "What happens to traffic when the mesh control plane or the CA is unavailable?",
+    "How do you onboard a legacy service that cannot present a workload identity?",
+    "Why is a SPIFFE ID stronger than matching on a source IP or a service account name alone?"
+   ]
+  },
+  {
+   "q": "A service works in the browser but curl reports 'unable to get local issuer certificate'. What is wrong, and what else commonly breaks TLS in production?",
+   "a": "Almost always a missing intermediate. The server is sending only its leaf certificate; browsers paper over that by fetching the missing issuer through the AIA extension or from cache, while curl, Go and Java do not, so they cannot build a chain to a trusted root and verification fails. The fix is to serve the full chain, leaf first then intermediates, and openssl s_client -connect host:443 -servername host -showcerts shows exactly what is sent and in what order. Other recurring failures: a slim container image with no CA bundle trusts nothing; clock skew makes a valid certificate look not-yet-valid or expired; the hostname must match a subject alternative name, since the legacy common name is no longer accepted; and terminating TLS at a load balancer leaves the application seeing plain HTTP, so it emits http:// redirects unless it honours the forwarded-proto header. On revocation, CRLs go stale and OCSP is usually soft-failed, which is the real argument for short lifetimes - expiry is the one revocation mechanism that always works.",
+   "followUps": [
+    "What does SNI do, and what breaks on a shared IP without it?",
+    "What changed in TLS 1.3 compared with 1.2?",
+    "What does mTLS add, and what does it cost you operationally?"
+   ]
+  },
+  {
+   "q": "How does SSRF turn into cloud credential theft, and how would you defend against it in depth?",
+   "a": "An application that fetches a user-supplied URL can be pointed at the link-local metadata address, 169.254.169.254. In the original metadata protocol one unauthenticated GET to the security-credentials path returns the instance role's temporary credentials, so something as innocuous as 'import an image from a URL' becomes credential theft, and the attacker has whatever that role can do. Defence is layered, since any single layer can be bypassed. Require the session-token version of the metadata service, where a PUT must first obtain a token - a blind SSRF that can only issue GETs cannot do that - by setting http-tokens to required. Set the PUT response hop limit to 1 so the response cannot cross an extra hop into a container. Block link-local and private-range egress at the network layer, and in Kubernetes deny 169.254.169.254 in a NetworkPolicy egress rule while giving pods their own identity rather than the node role. In the application, allowlist outbound destinations and re-validate after every redirect, since a permitted hostname can redirect or rebind to an internal address.",
+   "followUps": [
+    "Why is validating the URL before the request insufficient on its own?",
+    "How would you detect an SSRF attempt from telemetry you already collect?",
+    "How does per-pod cloud identity reduce the impact even if metadata is reachable?"
+   ]
+  },
+  {
+   "q": "How would you segment a cloud environment, and what is the practical difference between security groups and network ACLs?",
+   "a": "Segmentation accepts that something will be compromised and limits where the attacker goes next, so I measure it by what is reachable from a foothold. The strongest boundary is a separate cloud account per environment, because that separates the IAM control plane and not merely the routing - a role compromised in staging cannot touch production resources at all. Below that sit VPCs and subnet tiers: only load balancers in public subnets, everything else egressing through NAT, and cloud APIs reached over private endpoints so traffic never touches the internet. On filtering, security groups are stateful and allow-only - the response to a permitted request returns automatically, and a rule can reference another security group instead of a CIDR, which makes them behave like a coarse identity. Network ACLs are stateless, evaluated in rule-number order, and support explicit deny; being stateless, they need an explicit rule for return traffic on ephemeral ports, the classic cause of one-way connectivity. I use security groups for day-to-day policy and NACLs for broad subnet-edge denies.",
+   "followUps": [
+    "How does this map onto Kubernetes, where by default every pod can reach every other pod?",
+    "What are the specific failure modes of NetworkPolicy?",
+    "How do you restrict egress to the internet without breaking package installs and API calls?"
+   ]
+  },
+  {
+   "q": "How do you get static cloud keys out of CI, and what makes an OIDC trust policy correct rather than dangerous?",
+   "a": "Static keys are the credential most often stolen: they never expire, they leak through echoed variables and build logs, any malicious dependency running during the build can read them, and every job shares one identity so nothing is attributable. OIDC federation removes them. The CI platform acts as an identity provider; the job requests a short-lived signed token describing itself - issuer, repository, ref, workflow, environment, audience - and the cloud verifies that signature against the provider's public keys, matches the claims against the role's trust policy, and returns temporary credentials. The whole security of the scheme sits in those claim conditions. Matching only the issuer lets any repository on that platform assume your role; matching the repository but not the ref or environment lets an untrusted branch deploy to production. So I pin both the audience and the subject claim, typically sub to repo:org/repo:environment:production, and back it with a protected environment. On GitHub Actions the job also needs id-token: write to request the token at all.",
+   "followUps": [
+    "What does the sub claim look like for a branch versus an environment, and why does that distinction matter?",
+    "How do you scope the assumed role itself so a compromised workflow still cannot do much?",
+    "What would you look for in the audit log to see how a federated role has been used?"
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "front": "Why is deleting a committed secret and pushing a fix not remediation?",
+   "back": "Git stores immutable content blobs; the old blob stays reachable through history and exists in every clone, fork and CI cache. Only rotating the credential remediates it."
+  },
+  {
+   "front": "Where else do secrets leak besides source control?",
+   "back": "CI build logs from echoed variables, Docker image layers and build args, and Terraform state, which stores values in plaintext regardless of how they entered."
+  },
+  {
+   "front": "What is a Vault dynamic secret?",
+   "back": "Vault connects to the backend as an administrator, creates a fresh scoped credential on demand, returns it with a lease, and deletes it when the lease expires or is revoked."
+  },
+  {
+   "front": "What does a Vault lease guarantee?",
+   "back": "Every dynamic secret and token has a lease: clients renew before expiry, revoking it invalidates the underlying credential rather than forgetting it, and revoking a parent token cascades to children."
+  },
+  {
+   "front": "What is the secret-zero problem, and Vault's answer?",
+   "back": "How a workload authenticates to Vault without a pre-shared secret. Vault verifies an identity the platform already issues - a Kubernetes ServiceAccount token via TokenReview, a CI JWT, or signed AWS instance identity."
+  },
+  {
+   "front": "Why does KMS use envelope encryption?",
+   "back": "The master key never leaves the HSM, so bulk data cannot cross the API. Instead KMS returns a data key in plaintext plus wrapped form; you encrypt locally and store the wrapped key with the ciphertext."
+  },
+  {
+   "front": "What is KMS encryption context?",
+   "back": "Key-value pairs bound into the ciphertext as additional authenticated data. Decryption fails unless the identical context is supplied, and the context appears in audit logs."
+  },
+  {
+   "front": "How does SAST taint analysis work?",
+   "back": "It parses to an AST, builds control-flow and call graphs, then asks whether a value can travel from an untrusted source to a dangerous sink without passing a recognised sanitiser."
+  },
+  {
+   "front": "What bug class is SAST structurally bad at?",
+   "back": "Authorisation bugs. It can see a value reach a query but has no notion of which user was entitled to that row, so broken access control is invisible to it."
+  },
+  {
+   "front": "Why scan the Terraform plan JSON instead of raw HCL?",
+   "back": "Values from variables, locals, data sources and modules are unresolved expressions in HCL. terraform show -json of a saved plan shows what will actually be created."
+  },
+  {
+   "front": "Why is CVSS a poor prioritisation signal on its own?",
+   "back": "It scores the flaw in the abstract. It says nothing about whether your code calls the vulnerable function or whether the path is reachable from untrusted input."
+  },
+  {
+   "front": "What is a VEX statement for?",
+   "back": "It records that a vulnerable component is present but not exploitable in this product, so the finding is documented once instead of being re-litigated every release."
+  },
+  {
+   "front": "What does DAST find that SAST cannot?",
+   "back": "Problems that only exist in the assembled, running system: missing security headers, weak TLS, exposed debug endpoints, proxy paths that bypass authentication."
+  },
+  {
+   "front": "What is invisible to a container image scanner?",
+   "back": "Anything not in a package database: a statically linked binary curled in during the build, a vendored library copied between stages, a hand-unpacked jar."
+  },
+  {
+   "front": "Why can a package be flagged upstream but marked fixed by Debian?",
+   "back": "Distributions backport security fixes without bumping the upstream version, so naive version comparison is wrong and scanners must use per-distro feeds."
+  },
+  {
+   "front": "Why sign a container image by digest rather than by tag?",
+   "back": "Tags are mutable and can be repointed at different content later; a digest addresses exactly the bytes that were signed."
+  },
+  {
+   "front": "What is keyless signing?",
+   "back": "The signer proves an OIDC identity, receives a short-lived signing certificate, and the signature is recorded in a public transparency log - so there is no long-lived key to steal."
+  },
+  {
+   "front": "What is dependency confusion?",
+   "back": "A resolver consulting a public registry alongside a private one prefers the higher version, so publishing your internal package name publicly at a high version can hijack resolution."
+  },
+  {
+   "front": "Why pin CI actions to a commit SHA rather than a tag?",
+   "back": "Tags are mutable and can be repointed by the action's maintainer or an attacker who compromises the repo; a full 40-character commit SHA is immutable."
+  },
+  {
+   "front": "When is an SBOM accurate?",
+   "back": "When generated during the build, where the resolver already knows the exact resolved tree. Reconstructed later by scanning an artifact it is a best guess. SPDX and CycloneDX are the formats that matter."
+  },
+  {
+   "front": "How do AWS policy layers combine?",
+   "back": "SCPs set an account ceiling, permission boundaries cap an identity, identity and resource policies grant independently, and an explicit deny anywhere beats any allow."
+  },
+  {
+   "front": "Why is iam:PassRole dangerous?",
+   "back": "Combined with a compute service, it lets a caller launch code running as a more privileged role - a classic privilege-escalation path, as is any permission to modify IAM."
+  },
+  {
+   "front": "Which Kubernetes verbs are effectively administrative?",
+   "back": "create on pods (mount hostPath, run privileged, steal another ServiceAccount token), get on Secrets in kube-system, and escalate, bind and impersonate."
+  },
+  {
+   "front": "What do SPIFFE and SPIRE provide?",
+   "back": "Attested workload identity: an agent verifies what a workload actually is against the platform API and issues a short-lived identity document, so policy targets a verifiable name rather than an IP."
+  },
+  {
+   "front": "Why does a chain verify in a browser but fail in curl?",
+   "back": "The server is omitting the intermediate certificate. Browsers fetch it via AIA or cache; curl, Go and Java do not, so verification fails with 'unable to get local issuer certificate'."
+  },
+  {
+   "front": "Why are short certificate lifetimes better than relying on revocation?",
+   "back": "CRLs go stale and OCSP checks are commonly soft-failed, so revocation is unreliable. Expiry is a revocation mechanism that always works."
+  },
+  {
+   "front": "How does IMDSv2 block a blind SSRF?",
+   "back": "A session token must first be obtained with a PUT before any metadata GET succeeds; an SSRF that can only issue GETs cannot get the token. Enforce with --http-tokens required."
+  },
+  {
+   "front": "Security group versus network ACL?",
+   "back": "Security groups are stateful, allow-only, and can reference other security groups. NACLs are stateless, ordered by rule number, and support explicit deny - so they need return-traffic rules on ephemeral ports."
+  },
+  {
+   "front": "What are the two traps with Kubernetes NetworkPolicy?",
+   "back": "Enforcement is by the CNI plugin, so a CNI without policy support accepts the object and enforces nothing; and policies are additive allowlists that only take effect once something selects the pod."
+  },
+  {
+   "front": "Why ship audit logs out of the account that generates them?",
+   "back": "An intruder with administrative access will stop or delete the trail first. A separate logging account with write-once storage and retention locks keeps the evidence."
+  },
+  {
+   "front": "What does a cloud audit trail miss by default?",
+   "back": "Data-plane activity - object reads, KMS decrypts, function invocations - unless data events are explicitly enabled, which is exactly the evidence needed to scope exfiltration."
+  },
+  {
+   "front": "What makes an OIDC trust policy safe?",
+   "back": "Pinning the claim conditions: match the audience and a specific subject such as repo:org/repo:environment:production. Matching only the issuer lets any repository on the platform assume the role."
+  }
+ ]
+}

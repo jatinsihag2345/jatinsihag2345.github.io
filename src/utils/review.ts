@@ -73,8 +73,50 @@ export const stateOf = (r: ReviewRecord): FsrsState => {
 };
 const backfillState = (prev: ReviewRecord | undefined): FsrsState | null => (prev ? stateOf(prev) : null);
 
-export const readReviews = (): ReviewState =>
-  readJson<ReviewState>(KEY, {}, (v): v is ReviewState => typeof v === 'object' && v !== null);
+/**
+ * Make every record safe to read unguarded, because most of the app does.
+ *
+ * The stored map is only shape-checked as "an object", and parseBackup validates that
+ * a backup key holds a string — never the JSON inside it. So a restored or hand-edited
+ * backup can carry `null` records, or records with no `history` array. `dueQuestionIds`
+ * runs on mount from DueReviewNudge, which means one ragged record takes the app down
+ * at boot, before anything paints (StudyHeatmap already guards for exactly this).
+ *
+ * Repaired rather than dropped, and per-record rather than all-or-nothing: rejecting
+ * the whole map would throw away every OTHER question's schedule over one bad entry.
+ * A record with no usable `due` carries nothing schedulable, so that one is dropped.
+ */
+const sanitizeRecord = (value: unknown): ReviewRecord | null => {
+  if (!value || typeof value !== 'object') return null;
+  const r = value as Partial<ReviewRecord>;
+  if (typeof r.due !== 'string') return null;
+  return {
+    ...(r as ReviewRecord),
+    step: typeof r.step === 'number' ? r.step : 0,
+    // `last` feeds daysBetween; a missing one would poison the FSRS interval with NaN.
+    last: typeof r.last === 'string' ? r.last : r.due,
+    history: Array.isArray(r.history)
+      ? r.history.filter(
+          (h): h is { on: string; recall: Recall } =>
+            !!h && typeof h === 'object' && typeof h.on === 'string',
+        )
+      : [],
+  };
+};
+
+export const readReviews = (): ReviewState => {
+  const raw = readJson<Record<string, unknown>>(
+    KEY,
+    {},
+    (v): v is Record<string, unknown> => typeof v === 'object' && v !== null,
+  );
+  const clean: ReviewState = {};
+  for (const [id, record] of Object.entries(raw)) {
+    const safe = sanitizeRecord(record);
+    if (safe) clean[id] = safe;
+  }
+  return clean;
+};
 
 export const writeReviews = (state: ReviewState) => writeJson(KEY, state);
 
@@ -132,20 +174,22 @@ export const forgetQuestion = (id: string, state = readReviews()): ReviewState =
   return next;
 };
 
-/** Everything at or past its due date, most overdue first. */
+/** Everything at or past its due date, most overdue first.
+ *  The `!!r` is belt-and-braces for a state built by a caller rather than read
+ *  through readReviews' sanitiser — this one runs at boot (DueReviewNudge). */
 export const dueQuestionIds = (state = readReviews(), on = todayISO()): string[] =>
   Object.entries(state)
-    .filter(([, r]) => r.due <= on)
+    .filter(([, r]) => !!r && typeof r.due === 'string' && r.due <= on)
     .sort((a, b) => a[1].due.localeCompare(b[1].due))
     .map(([id]) => id);
 
 export const reviewStats = (state = readReviews(), on = todayISO()) => {
   const records = Object.values(state);
-  const due = records.filter(r => r.due <= on).length;
+  const due = records.filter(r => !!r && r.due <= on).length;
   // "Mature" = enough consecutive clean reviews that recall is probably durable.
-  const mature = records.filter(r => r.step >= 3).length;
-  const shaky = records.filter(r => r.history.at(-1)?.recall !== 'easy').length;
-  const upcoming = records.filter(r => r.due > on).length;
+  const mature = records.filter(r => !!r && r.step >= 3).length;
+  const shaky = records.filter(r => (r?.history ?? []).at(-1)?.recall !== 'easy').length;
+  const upcoming = records.filter(r => !!r && r.due > on).length;
   return { tracked: records.length, due, mature, shaky, upcoming };
 };
 

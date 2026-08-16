@@ -30,10 +30,16 @@ export const ExplainBack: React.FC<ExplainBackProps> = ({ questionId, revealed }
   const storageKey = `explain-${questionId}`;
   const [text, setText] = useState(() => readText(storageKey));
   const [passed, setPassed] = useState(false);
+  // Whether an explanation was already SAVED when this question opened. Snapshotted
+  // rather than re-derived from `text`, because `text` changes on every keystroke —
+  // see the unlock note below.
+  const [hadSaved, setHadSaved] = useState(() => readText(storageKey).trim().length > 0);
 
   // New question, new box — a pass on the previous problem must not unlock this one.
   useEffect(() => {
-    setText(readText(`explain-${questionId}`));
+    const saved = readText(`explain-${questionId}`);
+    setText(saved);
+    setHadSaved(saved.trim().length > 0);
     setPassed(false);
   }, [questionId]);
 
@@ -48,8 +54,11 @@ export const ExplainBack: React.FC<ExplainBackProps> = ({ questionId, revealed }
   }, [questionId]);
 
   // An existing explanation also unlocks: they earned it in a previous session and
-  // should be able to revise it without re-running anything.
-  const unlocked = revealed || passed || text.trim().length > 0;
+  // should be able to revise it without re-running anything. That leg reads the text
+  // saved when the question opened, NOT the live textarea — deriving it live meant a
+  // select-all + delete (the normal way to rewrite an explanation) re-locked the card
+  // and yanked the textarea out from under the caret mid-edit.
+  const unlocked = revealed || passed || hadSaved || text.trim().length > 0;
 
   if (!unlocked) {
     return (

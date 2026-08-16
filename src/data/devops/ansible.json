@@ -1,0 +1,370 @@
+{
+ "subject": "Configuration Management (Ansible)",
+ "summary": "Configuration management is the layer that turns a provisioned but empty machine into a running service, and Ansible is the tool most teams reach for because it needs no agent on the target - only SSH and a Python interpreter. Interviewers probe it because it exposes whether you think in desired state or in scripts: idempotency, variable precedence and handler semantics are exactly where scripted habits turn into production incidents. The second half of the question is judgement, knowing when converging long-lived hosts is the right model and when replacing them with a baked image is.",
+ "sections": [
+  {
+   "title": "The agentless push model over SSH",
+   "content": "Ansible runs no persistent agent on managed nodes. For each task the control node opens an SSH session, copies a self-contained Python payload into a temporary directory on the target, executes it, reads a JSON document off stdout, and deletes the files. The prerequisites on a Linux target are SSH access, a Python interpreter, and usually sudo rights for privilege escalation through 'become'.\n\nThis is a push model: change happens when an operator or a CI job runs a playbook. Pull-based tools such as Puppet and Chef install an agent that periodically contacts a server and re-converges on its own. The trade-offs follow. Push means nothing to install on the fleet and no inbound port beyond SSH, but also no continuous drift correction between runs, and the control node must reach every target - through bastions, or a runner inside each network segment. Credentials concentrate there, making it a high-value target.\n\nThe price of agentlessness is round trips: every task costs at least one SSH exchange per host. Two settings dominate real speed. OpenSSH multiplexing (ControlMaster with ControlPersist) reuses one authenticated session for the whole run, and pipelining sends the module payload over that session instead of writing it to disk first. Pipelining requires that sudo not demand a TTY. Concurrency comes from 'forks', which defaults to 5 - far too low for a real fleet and usually the first thing to raise.",
+   "code": "# ansible.cfg\n[defaults]\ninventory          = ./inventory\nforks              = 25\ninterpreter_python = auto_silent\n\n[ssh_connection]\nssh_args   = -o ControlMaster=auto -o ControlPersist=120s\npipelining = True\n\n# raw needs no Python on the target - use it to bootstrap\n# ansible new-host -m raw -a 'apt-get update && apt-get install -y python3'"
+  },
+  {
+   "title": "Static inventory: hosts, groups, and where variables live",
+   "content": "Inventory is the set of hosts Ansible may act on, plus the groups and variables attached to them. A static inventory is a file in INI or YAML form. Two groups always exist implicitly: 'all', and 'ungrouped' for hosts that belong to no other group. Groups nest through the 'children' key, and host ranges such as web[01:04].example.com expand inline.\n\nConnection details are ordinary variables on the host: ansible_host (the address actually dialled, when the inventory name is only a label), ansible_user, ansible_port, ansible_connection and ansible_python_interpreter. Application data belongs in group_vars/<group>.yml and host_vars/<host>.yml directories beside the inventory.\n\nYou can pass -i more than once, or point it at a directory, and Ansible merges the sources - that is how a hand-written bastions file coexists with a cloud plugin. Host patterns select subsets: intersection with ':&', exclusion with ':!', globs, and --limit, the standard blast-radius control.\n\nTwo things bite. Inventory variables sit near the bottom of the precedence order, so a group_vars file next to the playbook silently beats the identically named file next to the inventory. And when a host belongs to several groups, values merge in a defined order rather than by 'most specific wins'. Settle arguments with ansible-inventory --graph and --host <name> rather than by reasoning.",
+   "code": "# inventory/hosts.yml\nall:\n  vars:\n    ansible_user: deploy\n  children:\n    web:\n      hosts:\n        web[01:03].prod.internal:\n      vars:\n        http_port: 8080\n    db:\n      hosts:\n        db01.prod.internal:\n          ansible_host: 10.0.4.11\n          postgres_role: primary\n\n# group_vars/web.yml -> the group; host_vars/db01.prod.internal.yml -> the host\n# ansible-inventory -i inventory --graph"
+  },
+  {
+   "title": "Dynamic inventory: plugins, grouping, and its failure modes",
+   "content": "A static file stops working the moment an autoscaler creates and destroys machines. Dynamic inventory makes the cloud provider or a CMDB the source of truth. The current mechanism is an inventory plugin: a small YAML config file naming the plugin and its options, which Ansible evaluates at the start of every run. Plugin config files must be named so the plugin claims them (the AWS EC2 plugin expects a filename ending in aws_ec2.yml), and the plugin must be enabled through enable_plugins in ansible.cfg.\n\nThe valuable output is not the host list but the derived grouping. keyed_groups turns each distinct value of a tag or attribute into a group, so a Role tag produces role_web and role_db groups that plays target directly; compose builds variables from provider fields, such as setting ansible_host to the private IP, and filters restricts which instances are returned. Results can be cached so several playbooks in one pipeline do not each hammer the API. The older mechanism, an inventory script printing JSON for --list, still suits bespoke sources.\n\nOperationally, dynamic inventory inherits the cloud's problems. Missing IAM permissions return zero hosts, and a play that matches nothing exits successfully - a silent no-op that looks like a green build. A stale cache targets terminated instances; machines born mid-run are simply absent. Verify with ansible-inventory --graph before trusting a run, and make an empty host list a hard failure in CI.",
+   "code": "# inventory/aws_ec2.yml   (the name must end in aws_ec2.yml)\nplugin: amazon.aws.aws_ec2\nregions:\n  - eu-west-1\nfilters:\n  instance-state-name: running\n  tag:Environment: prod\nkeyed_groups:\n  - key: tags.Role\n    prefix: role          # tag Role=web -> group role_web\ncompose:\n  ansible_host: private_ip_address\ncache: true\n\n# ansible-inventory -i inventory/aws_ec2.yml --graph"
+  },
+  {
+   "title": "Plays, tasks, and the linear execution model",
+   "content": "A playbook is a YAML list of plays. A play binds a host pattern to an ordered list of tasks plus the context they run in: become, vars, roles, gather_facts, serial, strategy. A task is one module call plus optional name, when, loop, register, tags and notify.\n\nThe default strategy is 'linear', and its behaviour is the thing to be precise about: Ansible runs task 1 on every host in the play, in parallel batches sized by forks, waits for all of them, and only then starts task 2. That barrier between tasks is what makes ordered fleet-wide operations expressible at all. strategy: free removes the barrier and lets each host race ahead, which is faster and unsafe for anything order-dependent.\n\nFailure is per host. When a task fails on one host, that host is dropped from the rest of the play while the others continue. any_errors_fatal aborts the play for everyone on the first failure; max_fail_percentage sets a tolerance instead. serial splits the play into consecutive batches - a number, a percentage, or a list for a ramping canary - which is how a rolling deploy is written.\n\nReuse comes in two flavours. import_tasks and import_role are static: resolved when the playbook is parsed, so their tasks appear in --list-tasks and a tag on the import applies to everything inside. include_tasks and include_role are dynamic: evaluated when reached, so they can be looped over and driven by runtime variables, but they are invisible to --list-tasks and tags on the include are not inherited by the inner tasks unless passed with 'apply'.",
+   "code": "- name: Roll out the web tier\n  hosts: role_web\n  become: true\n  serial: [1, '25%']        # canary, then quarters of the fleet\n  max_fail_percentage: 0\n  tasks:\n    - name: Install application package\n      ansible.builtin.package:\n        name: 'myapp-1.4.2'\n        state: present\n      notify: restart myapp\n\n  handlers:\n    - name: restart myapp\n      ansible.builtin.service:\n        name: myapp\n        state: restarted"
+  },
+  {
+   "title": "Modules and idempotency: what 'changed' actually means",
+   "content": "Idempotency means that running the same playbook twice produces the same end state and that the second run reports zero changes. It is a property of individual modules, not of core, which only ships arguments to the target and interprets the JSON that comes back.\n\nEvery well-written module works the same way: read the current state on the target, compare it against the declared desired state, act only on the difference, and return changed: true only when it actually did something. The file module compares type, ownership and mode; package queries the package database; template compares checksums; service reads the unit's current state. Ansible core itself diffs nothing.\n\ncommand and shell break the model, because Ansible cannot know what an arbitrary program does. They execute every run and report changed every run. Three fixes cover almost all cases: creates and removes make the module skip when a path already exists or is already gone; changed_when: false marks a genuinely read-only command; and otherwise, register the result and derive changed_when from the return code or output.\n\nThis matters beyond tidiness. Handlers fire only on changed, so a task that lies about changing restarts your service on every run - self-inflicted downtime from a cosmetic bug. In the other direction, changed=0 on a repeat run is the cheapest drift check available: run the playbook with --check on a schedule and treat any reported change as drift introduced from outside Ansible.",
+   "code": "# Not idempotent: runs every time, always reports changed\n- name: Extract release\n  ansible.builtin.shell: tar xzf /tmp/app.tgz -C /opt/app\n\n# Idempotent: the module skips once the marker path exists\n- name: Extract release\n  ansible.builtin.unarchive:\n    src: /tmp/app.tgz\n    dest: /opt/app\n    remote_src: true\n    creates: /opt/app/VERSION"
+  },
+  {
+   "title": "Handlers: deferred, deduplicated, and easy to get wrong",
+   "content": "A handler is a task that runs only when something notifies it. Its purpose is to collapse many possible triggers into one action: ten tasks may touch nginx configuration, and nginx is reloaded once at the end.\n\nThe mechanics are specific. notify fires only when the notifying task reports changed. Notifications are deduplicated per host, so ten notifications produce one run. Handlers execute at the end of the play, not at the point of notification, and they execute in the order the handlers are defined - not the order they were notified. A handler may itself notify another handler.\n\nIf a host fails partway through a play, its pending handlers are discarded, on the reasonable theory that half-configured state should not be activated. force_handlers on the play, or --force-handlers on the command line, overrides that. To run handlers early - for instance to restart a service and then smoke-test it inside the same play - insert a meta: flush_handlers task at that point.\n\nTwo traps recur. Handler names share one namespace for the whole play, so two roles that both define 'restart nginx' collide and one shadows the other; prefix names with the role, or use listen topics so several handlers answer one logical event. And 'config changed but the service never restarted' is nearly always either a notifying task marked changed_when: false, or a template task that correctly reported no change because the rendered output was byte-identical.",
+   "code": "tasks:\n  - name: Deploy site config\n    ansible.builtin.template:\n      src: site.conf.j2\n      dest: /etc/nginx/conf.d/site.conf\n    notify: nginx config changed\n\n  - name: Activate before smoke-testing in this play\n    ansible.builtin.meta: flush_handlers\n\nhandlers:\n  - name: reload nginx\n    listen: nginx config changed\n    ansible.builtin.service:\n      name: nginx\n      state: reloaded"
+  },
+  {
+   "title": "Roles: structure, defaults vs vars, and distribution",
+   "content": "A role is a directory with a fixed layout, and Ansible loads main.yml from each subdirectory automatically: tasks/, handlers/, defaults/, vars/, meta/. files/ and templates/ are resolved relative to the role, so a template task can reference site.conf.j2 by bare filename and find the role's own copy, which is what makes a role portable between repositories.\n\ndefaults/main.yml and vars/main.yml differ only in precedence, and the gap is enormous. Defaults sit at the very bottom of the precedence order and are intended to be overridden by anything - inventory, play vars, role parameters. Role vars sit near the top and are awkward to override from inventory at all. The working rule is that everything a consumer might reasonably change belongs in defaults/, and only internal constants that would break the role if changed belong in vars/.\n\nmeta/main.yml declares dependencies, which run before the role's own tasks, plus Galaxy metadata. Roles are consumed statically through the roles: keyword or import_role, or dynamically through include_role. Parameters passed at the call site have very high precedence, the intended way to configure a role per play. External roles and collections are pinned in requirements.yml and installed with ansible-galaxy; fully qualified names such as ansible.builtin.copy are the unambiguous way to reference content.\n\nA good role does one thing, hard-codes no environment data, and states which platforms it supports. Test with Molecule, which converges twice to prove idempotency, and lint with ansible-lint.",
+   "code": "roles/nginx/\n  defaults/main.yml      # overridable knobs  (lowest precedence)\n  vars/main.yml          # internal constants (high precedence)\n  tasks/main.yml\n  handlers/main.yml\n  templates/site.conf.j2 # found by bare filename from this role\n  meta/main.yml          # dependencies, galaxy metadata\n\n# requirements.yml - pin external content\nroles:\n  - src: https://github.com/acme/ansible-role-app.git\n    scm: git\n    version: v2.1.0\ncollections:\n  - name: community.general\n\n# ansible-galaxy collection install -r requirements.yml\n# molecule test  # the second converge must report changed=0"
+  },
+  {
+   "title": "Variable precedence",
+   "content": "Ansible resolves a variable name from roughly two dozen sources in a fixed ranking, and that is precisely why it is an interview question. The tiers worth holding in your head, lowest to highest: role defaults; inventory group variables; inventory host variables; facts and cached facts; play vars, vars_prompt and vars_files; role vars/main.yml; block variables; task variables; include_vars; set_fact and registered results; role and include parameters; and finally extra variables passed with -e, which nothing can override.\n\nTwo design consequences follow. Role defaults sitting at the bottom is what makes roles reusable - anything else in the tree wins without the author anticipating it. And -e sitting absolutely at the top makes it right for a deliberate one-off override from CI and wrong as a home for defaults, because nothing later in the run can escape it.\n\nGroup variable merging has rules of its own. Values from a parent group are applied before those of its children, so the child wins. Groups at the same level are merged in alphabetical order of group name unless you set ansible_group_priority, where the higher number wins.\n\nMerging is not deep. A dictionary defined twice is replaced wholesale by default, not merged key by key. The global hash_behaviour setting can change that, but it changes it everywhere and is best left alone; use the combine filter explicitly at the point you actually want a merge.",
+   "code": "# role defaults < inventory group/host vars < facts < play vars\n#   < role vars/main.yml < block/task vars < set_fact & registered\n#   < role params < -e extra vars   (nothing overrides -e)\n\n# print what actually resolved instead of guessing\nansible-inventory -i inventory --host web01.prod.internal\n\n# CI override that nothing in the repo can undo\nansible-playbook site.yml -e app_version=1.4.3\n\n# explicit deep merge, rather than the global hash_behaviour switch\n# '{{ base | combine(overrides, recursive=True) }}'"
+  },
+  {
+   "title": "Jinja2 templating and the template module",
+   "content": "Almost every string in a playbook passes through Jinja2 on the control node before a module ever sees it: template files, task arguments, when expressions, inventory variables.\n\nThe template module renders the file locally and then behaves like copy: compare checksums, write only if different, move atomically into place. It supports mode, owner, backup, and validate - a command run against the rendered temporary file, with %s substituted for its path, which must succeed before the file is installed. Wiring validate to visudo -cf %s or sshd -t -f %s prevents most 'templated a syntax error and reloaded the daemon' outages.\n\nThe filters that carry real weight are default (and default(omit), which drops an argument entirely instead of passing an empty value), to_nice_json and to_yaml, map, select and selectattr, join, regex_replace, and ternary. With the magic variables groups, hostvars and inventory_hostname, they let one template generate cluster-wide configuration straight from the inventory.\n\nTwo persistent gotchas. Jinja produces strings, so an expression used where a number or boolean is expected may need an explicit int or bool filter; the jinja2_native setting changes that globally. And templating a file that itself contains {{ }}, such as a Helm chart, breaks unless you wrap the region in {% raw %} or change the delimiters through the module's variable_start_string option. Undefined variables raise an error at render time, which is a feature: reach for default() deliberately rather than suppressing it.",
+   "code": "{# templates/haproxy.cfg.j2 - backends from the inventory #}\nbackend app\n{% for h in groups['role_web'] | sort %}\n  server {{ h }} {{ hostvars[h].ansible_host | default(h) }}:{{ app_port | default(8080) }} check\n{% endfor %}\n\n---\n# validate the rendered file before it is installed\n- name: Install sudoers drop-in\n  ansible.builtin.template:\n    src: deploy.sudoers.j2\n    dest: /etc/sudoers.d/deploy\n    mode: '0440'\n    validate: visudo -cf %s"
+  },
+  {
+   "title": "Facts, gathering cost, and fact caching",
+   "content": "Unless a play sets gather_facts: false, Ansible runs the setup module against every host before the first task. It returns a large ansible_facts dictionary: distribution and version, kernel, architecture, network interfaces and addresses, mounts, memory, CPU count, virtualization type, date and time. Facts are what make one playbook portable across platforms - branching on ansible_facts.os_family rather than maintaining a playbook per distribution.\n\nGathering is not free: an extra round trip plus nontrivial local discovery on each host, which on a large fleet can dominate a short play. gather_subset narrows what is collected; disabling it entirely is fine for plays that need no facts, provided you remember hostvars for other hosts will then be empty too. Fact caching - a JSON file, Redis or Memcached backend with a timeout - persists facts between runs, so a play targeting only the load balancers can still read the web servers' addresses.\n\nFacts are historically also injected as top-level ansible_* variables; prefer the ansible_facts['name'] form, because that injection can be turned off. Custom facts come from /etc/ansible/facts.d: any .fact file that is INI, JSON, or an executable printing JSON appears under ansible_local - machine-specific state no built-in fact covers.\n\nset_fact creates variables at runtime, scoped to the host, with near-top precedence, and cacheable: true writes them into the fact cache. Alongside them sit the magic variables - hostvars, groups, group_names, inventory_hostname - which expose the inventory to templates and conditionals.",
+   "code": "- name: Patch hosts\n  hosts: all\n  gather_subset:\n    - '!all'\n    - '!min'\n    - distribution   # collect only what this play needs\n  tasks:\n    - name: Runtime, host-scoped variable\n      ansible.builtin.set_fact:\n        release_dir: '/opt/app/releases/{{ app_version }}'\n        cacheable: true\n\n# /etc/ansible/facts.d/deploy.fact - INI, JSON, or an executable\n# printing JSON -> ansible_local.deploy.<section>.<key>"
+  },
+  {
+   "title": "Ansible Vault and the limits of file-level secrets",
+   "content": "Vault encrypts secrets symmetrically with AES-256 so they can live in the same Git repository as the code that consumes them. The output is ASCII-armoured text beginning with a $ANSIBLE_VAULT header, so it commits as text, though the diffs are meaningless to a reviewer. You can encrypt a whole file - typically group_vars/prod/vault.yml - or a single value with ansible-vault encrypt_string.\n\nPasswords reach Ansible three ways: --ask-vault-pass, --vault-password-file, and --vault-id label@source. The password file matters most, because it may be an executable that prints the password to stdout - the hook for fetching the key from a secret manager or a CI variable instead of leaving it on disk. Vault IDs let one run carry several keys, so dev and prod secrets use different passphrases and a developer with only the dev key cannot read prod.\n\nThe convention that keeps this maintainable is indirection: a readable vars.yml maps meaningful names to vault_-prefixed variables in the encrypted file, so grep still works.\n\nKnow the limits, because interviewers push here. Vault is a passphrase, not access control: one key opens everything encrypted with it, there is no per-secret authorization and no audit trail of reads, and rotation means rekeying plus re-issuing any credential that may have leaked. Decrypted values pass through the control node in memory and appear in output if a task echoes them: set no_log: true on tasks handling secrets, and be careful with --diff over templates containing them. For short-lived, auditable credentials, prefer a runtime lookup into a dedicated secret store.",
+   "code": "ansible-vault create group_vars/prod/vault.yml\nansible-vault rekey  group_vars/prod/vault.yml\nansible-vault encrypt_string 's3cr3t' --name 'vault_db_password'\n\n# two keys in one run; a source may be a file or an executable\n# that prints the password to stdout\nansible-playbook site.yml \\\n  --vault-id dev@~/.vault/dev \\\n  --vault-id prod@scripts/fetch-prod-key.sh\n\n# group_vars/prod/vars.yml - plaintext, greppable indirection\n# db_password: '{{ vault_db_password }}'\n\n- name: Write application environment file\n  ansible.builtin.template:\n    src: app.env.j2\n    dest: /etc/app/app.env\n  no_log: true"
+  },
+  {
+   "title": "Check mode, diff, and why it is not a plan",
+   "content": "--check asks each module to predict what it would do without changing anything; --diff prints the content changes for file-shaped modules. Together they are the closest thing Ansible has to a preview.\n\nSupport is per module. Well-behaved modules report changed without acting; modules that do not support check mode are skipped during a check run, which is itself a hazard, since a skipped task whose result other tasks register cascades into confusing downstream failures. command and shell are skipped by default. Two per-task overrides exist: check_mode: false forces a task to execute even during a check run, which is how read-only fact-gathering commands keep working, and check_mode: true pins a task to never make changes even in a normal run.\n\nThe structural limitation deserves to be stated plainly, because it is the difference from a Terraform plan. Check mode cannot model cascading state. If a package is not installed, the directory it would create does not exist, so a template task writing there reports an error, or a change that would never occur in a real run. Terraform computes a diff over a dependency graph of tracked state; Ansible keeps no state file at all, so check mode is a per-task prediction, never a whole-run simulation.\n\nTreat --check --diff as a smoke test and as scheduled drift detection against production, where any reported change means something modified the host outside Ansible. For real safety, rely on --syntax-check, ansible-lint, Molecule, --limit and tags, and a staging environment that resembles production.",
+   "code": "ansible-playbook site.yml --syntax-check\nansible-playbook site.yml --check --diff --limit canary01\n\n---\n# read-only command that must still run during a check run,\n# because later tasks depend on what it registers\n- name: Read cluster health\n  ansible.builtin.command: /usr/bin/etcdctl endpoint health\n  register: cluster\n  changed_when: false\n  check_mode: false"
+  },
+  {
+   "title": "Error handling, retries, and rolling updates",
+   "content": "Two failure controls are routinely confused. ignore_errors: true lets a task fail and carries on, which mostly hides real problems. failed_when redefines what failure means for that task, which is usually what you actually wanted: a command whose exit code 2 is benign, or a task that must fail on a string in stdout even though the exit code was zero.\n\nStructured recovery uses block, rescue and always - Ansible's try, except, finally. Tasks in rescue run only if something in the block failed, which is where rollback and cleanup belong, and always runs either way, where you re-enable the alerting you suppressed. Transient failures are absorbed with until, retries and delay on a task, and readiness is waited for with wait_for on a port or file, or wait_for_connection after a reboot.\n\nA rolling update is the composition of all of these. serial splits the play into batches. Inside a batch you delegate_to the load balancer to drain the node, apply the upgrade, verify with a uri health check wrapped in until, then re-add. max_fail_percentage or any_errors_fatal stops the rollout rather than grinding the fleet through a broken artifact. run_once: true executes a task on one host of the batch, schema migrations for instance, while throttle caps concurrency for one specific task independently of the global forks setting.\n\nFor long operations, async with poll: 0 starts a task and returns immediately, and async_status collects the result later - that is how a ten-minute upgrade runs across hundreds of hosts without holding connections open.",
+   "code": "tasks:\n  - block:\n      - name: Drain at the load balancer\n        community.general.haproxy:\n          state: disabled\n          host: '{{ inventory_hostname }}'\n          backend: app\n        delegate_to: lb01\n\n      - name: Upgrade the package\n        ansible.builtin.package:\n          name: 'myapp-{{ app_version }}'\n          state: present\n\n    rescue:  # only if the block failed\n      - name: Fail the host so the batch aborts the rollout\n        ansible.builtin.fail:\n          msg: 'upgrade failed'\n\n    always:  # either way - never leave a node drained\n      - name: Re-enable at the load balancer\n        community.general.haproxy:\n          state: enabled\n          host: '{{ inventory_hostname }}'\n          backend: app\n        delegate_to: lb01"
+  },
+  {
+   "title": "Configuration management versus immutable infrastructure",
+   "content": "Configuration management is convergent: you describe desired state and a tool repeatedly nudges an existing, long-lived machine toward it. Immutable infrastructure replaces the machine instead - bake an image, boot new instances from it, delete the old ones.\n\nAnsible wins where machines cannot simply be discarded, or where the work is sequencing rather than provisioning. Stateful services with local data, bare metal and on-prem estates, network devices and appliances. Day-2 operations: emergency patching, certificate rotation, diagnostics, one-off remediation across a fleet. And multi-host orchestration - drain, upgrade, verify, re-add in a defined order across roles - which image replacement alone does not express. It is also how the images get built: Packer runs Ansible against a temporary instance, so one codebase produces both the golden image and any live fix.\n\nIt loses on drift and scale. Convergence happens only when someone runs the playbook, and only across resources the playbook mentions. Ansible keeps no state file, so it cannot notice or remove something it never declared - a file a human dropped in stays forever. Partial failures leave a fleet in mixed versions with no atomic rollback, and long-lived hosts accumulate history no playbook describes, which is exactly the snowflake problem. At thousands of hosts, SSH convergence is slow next to replacing an autoscaling group wholesale.\n\nThe honest answer is hybrid with a clear boundary: bake anything that can be baked at image build time, configure at runtime only what genuinely varies per host, and run --check --diff on a schedule to detect the drift the model cannot prevent.",
+   "code": "# Packer: the same role that patches live hosts also bakes the image\nbuild {\n  sources = [\"source.amazon-ebs.base\"]\n\n  provisioner \"ansible\" {\n    playbook_file   = \"./playbooks/baseline.yml\"\n    extra_arguments = [\"--extra-vars\", \"build_mode=image\"]\n  }\n}\n\n# Scheduled drift detection on surviving mutable hosts:\n# any reported change is something Ansible did not put there.\nansible-playbook baseline.yml --check --diff | tee drift.log"
+  }
+ ],
+ "interviewQA": [
+  {
+   "q": "Walk me through what actually happens when Ansible runs a single task against a remote host.",
+   "a": "The control node templates the task's arguments locally with Jinja2, then opens an SSH session to the target. It assembles a self-contained Python payload - the module code plus its arguments - copies it into a temporary directory on the target, executes it (through become if privilege escalation is configured), reads a single JSON document off stdout, and deletes the temporary files. Nothing persistent is installed: the prerequisites are SSH reachability, a Python interpreter, and usually sudo. Core itself decides nothing about state; it ships arguments and interprets the returned JSON, and the module is what compares desired state to actual state and sets changed. With pipelining enabled the payload rides the existing SSH session instead of being written to disk first, which removes a round trip per task - it requires that sudo not demand a TTY. raw is the exception that needs no Python on the target, which is how you bootstrap a host that does not have one yet.",
+   "followUps": [
+    "What do you do if the target has no Python interpreter installed?",
+    "Why does pipelining break when sudo is configured with requiretty?",
+    "Credentials concentrate on the control node - what does that mean for how you secure it?"
+   ]
+  },
+  {
+   "q": "Ansible is push-based while Puppet and Chef are pull-based. What are the real trade-offs?",
+   "a": "Ansible pushes: change happens only when an operator or a CI job runs a playbook. Puppet and Chef install an agent that wakes on a schedule, fetches its configuration from a server and re-converges on its own. Push means nothing to install on the fleet, no inbound listener beyond SSH, and an auditable 'this commit, these hosts, this run' - but there is no drift correction between runs, the control node must be able to reach every target through bastions or a runner per network segment, and credentials concentrate there, making it a high-value target. Pull distributes the work to the agents, so it scales further and hosts converge whenever they come back online, at the cost of operating a server and PKI and of giving up control over convergence order across the fleet. If you want push plus continuous convergence you schedule the playbook from AWX or cron, and run --check on a timer as drift detection.",
+   "followUps": [
+    "How would you get continuous drift correction out of a push tool?",
+    "How do you reach hosts that have no route from the control node?",
+    "What is the blast radius if the control node is compromised?"
+   ]
+  },
+  {
+   "q": "A playbook takes 40 minutes across 500 hosts. How do you make it faster?",
+   "a": "Measure first with the profile_tasks callback so you fix the actual hot spots rather than guessing. Then the standard levers. Raise forks from its default of 5 to whatever the control node's CPU and file descriptors sustain - 25 to 100 is typical. Enable SSH multiplexing with ControlMaster=auto and ControlPersist so the run reuses one authenticated connection per host instead of re-handshaking on every task, and enable pipelining so the module payload rides that session instead of being written to disk. Cut fact gathering: gather_facts: false where facts are unused, gather_subset to collect only what the play needs, or a fact cache shared between playbooks. Structurally, collapse loops of package or user tasks into a single task taking a list, since most modules batch natively; avoid include_tasks inside tight loops; and use async with poll: 0 plus async_status for genuinely long operations. If the work is order-independent, strategy: free removes the inter-task barrier - never for a rolling deploy.",
+   "followUps": [
+    "What limits how high you can push forks?",
+    "When is strategy: free unsafe?",
+    "How do serial and forks interact on a rolling deploy?"
+   ]
+  },
+  {
+   "q": "What does idempotency mean in Ansible, and why do command and shell break it?",
+   "a": "Idempotency means a second run of the same playbook changes nothing and reports changed=0. It is a property of individual modules, not of core. Every well-written module reads the current state on the target, compares it against the declared desired state, acts only on the difference, and returns changed: true only when it actually did something: file compares type, ownership and mode, package queries the package database, template compares checksums, service reads the unit's state. command and shell cannot do this because Ansible has no idea what an arbitrary program does, so they execute on every run and report changed on every run. Fixes in order of preference: use a real module instead; use creates or removes so the task skips when a marker path already exists or is already gone; set changed_when: false for a genuinely read-only command; otherwise register the result and derive changed_when from the return code or output. It matters because handlers fire on changed, so a task that lies about changing restarts your service every run.",
+   "followUps": [
+    "How would you make a shell-based archive extraction idempotent?",
+    "How can changed=0 on a repeat run be used as drift detection?",
+    "What is the difference between a task reporting changed and a task reporting ok?"
+   ]
+  },
+  {
+   "q": "Explain handler semantics, and debug the classic 'config changed but the service never restarted'.",
+   "a": "A handler is a task that runs only when notified, so many possible triggers collapse into one action - ten tasks touching nginx config produce one reload. The mechanics are specific: notify fires only when the notifying task reports changed; notifications are deduplicated per host, so ten notifies produce one run; handlers execute at the end of the play rather than at the point of notification, and in the order the handlers are defined, not the order they were notified; a handler may itself notify another handler. If a host fails partway through a play its pending handlers are discarded, on the theory that half-configured state should not be activated, unless force_handlers is set. meta: flush_handlers runs them early, which is how you restart and then smoke-test inside the same play. The missed restart is nearly always one of two causes: the notifying task was marked changed_when: false, or the template correctly reported no change because the rendered bytes were byte-identical.",
+   "followUps": [
+    "Two roles both define a handler named 'restart nginx' - what happens, and how do you avoid it?",
+    "Why do handlers run in definition order rather than notification order?",
+    "When would you deliberately not want force_handlers?"
+   ]
+  },
+  {
+   "q": "Describe Ansible's variable precedence and the design decisions that follow from it.",
+   "a": "Ansible resolves a name from roughly two dozen sources in a fixed ranking. The tiers worth holding in your head, lowest to highest: role defaults; inventory group vars; inventory host vars; facts; play vars, vars_prompt and vars_files; role vars/main.yml; block vars; task vars; include_vars; set_fact and registered results; role and include parameters; and finally extra vars passed with -e, which nothing can override. Two design consequences follow. Role defaults sitting at the very bottom is exactly what makes a role reusable, because anything in the consumer's tree beats it without the author having to anticipate it. And -e sitting absolutely on top makes it right for a deliberate one-off override from CI and wrong as a home for defaults, since nothing later in the run can escape it. Merging is also shallow: a dictionary defined twice is replaced wholesale rather than merged key by key, so use the combine filter with recursive=True where you actually want a merge.",
+   "followUps": [
+    "Why would you put a knob in defaults/ rather than vars/ in a role?",
+    "Two groups at the same level define the same variable - which one wins?",
+    "How do you prove where a resolved value actually came from?"
+   ]
+  },
+  {
+   "q": "How do you structure inventory, and how do you decide where a variable lives?",
+   "a": "Inventory is the set of hosts Ansible may act on plus the groups and variables attached to them. The groups all and ungrouped always exist implicitly, groups nest through the children key, and ranges such as web[01:04].example.com expand inline. Connection details are ordinary host variables: ansible_host, which is the address actually dialled when the inventory name is only a label, plus ansible_user, ansible_port, ansible_connection and ansible_python_interpreter. Application data belongs in group_vars/<group>.yml and host_vars/<host>.yml directories beside the inventory rather than inline in the hosts file, which keeps environments separable and diffs readable. You can pass -i more than once or point it at a directory and Ansible merges the sources, which is how a hand-written bastions file coexists with a cloud plugin. Two things bite: inventory vars sit low in precedence, and a group_vars directory next to the playbook silently beats the identically named one next to the inventory.",
+   "followUps": [
+    "Where do prod and staging differences live in your layout?",
+    "A host belongs to three groups that all set http_port - how do you find the winner?",
+    "How do you limit blast radius when running something risky?"
+   ]
+  },
+  {
+   "q": "When does static inventory stop working, and what are the failure modes of dynamic inventory?",
+   "a": "A static file stops working the moment an autoscaler creates and destroys machines, so you make the cloud provider or a CMDB the source of truth. The modern mechanism is an inventory plugin: a small YAML config naming the plugin and its options, evaluated at the start of every run. Two setup gotchas - the config file must be named so the plugin claims it, for example a filename ending in aws_ec2.yml for the EC2 plugin, and the plugin must be enabled through enable_plugins in ansible.cfg. The valuable output is not the host list but the derived grouping: keyed_groups turns each distinct tag value into a group so a Role tag yields role_web and role_db that plays target directly, compose builds variables from provider fields such as ansible_host from the private IP, filters restricts what is returned, and caching stops several pipeline stages hammering the API. Operationally it inherits the cloud's problems: missing IAM permissions return zero hosts, and a play that matches nothing exits successfully - a silent no-op that looks like a green build.",
+   "followUps": [
+    "How do you make an empty host list fail a CI pipeline?",
+    "How do you combine a cloud plugin with a hand-written bastion list?",
+    "What goes wrong with a stale inventory cache?"
+   ]
+  },
+  {
+   "q": "Describe Ansible's execution model. What does the linear strategy actually guarantee?",
+   "a": "A playbook is a list of plays; a play binds a host pattern to an ordered list of tasks plus the context they run in - become, vars, roles, gather_facts, serial, strategy. Under the default linear strategy Ansible runs task 1 on every host in the play, in parallel batches sized by forks, waits for all of them, and only then starts task 2. That barrier between tasks is what makes ordered fleet-wide operations expressible at all: you can rely on every host having the new configuration before any host restarts. strategy: free removes the barrier and lets each host race ahead, which is faster and unsafe for anything order-dependent. Failure is per host: when a task fails on one host that host is dropped from the rest of the play while the others continue, which can quietly leave a partially upgraded fleet. any_errors_fatal aborts the play for everyone on the first failure, and max_fail_percentage sets a tolerance instead. serial splits the play into consecutive batches - a number, a percentage, or a list such as [1, '25%'] for a ramping canary.",
+   "followUps": [
+    "One host fails at task 3 of 20 - what state is that host left in?",
+    "How do serial and forks interact?",
+    "When is strategy: free genuinely appropriate?"
+   ]
+  },
+  {
+   "q": "What is the difference between import_tasks and include_tasks, and when do you use each?",
+   "a": "import_* is static: it is resolved when the playbook is parsed. The inner tasks appear in --list-tasks, a tag on the import applies to everything inside it, and --start-at-task can find them - but you cannot loop over an import or drive it with a variable that only exists at runtime. include_* is dynamic: it is evaluated when execution reaches it, so it can be looped and its path or arguments can come from runtime variables or a registered result, but the inner tasks are invisible to --list-tasks, tags on the include are not inherited by the inner tasks unless passed with apply, and failures inside are harder to reason about. The practical rule is to default to import for structure known at parse time, such as roles and per-tier task files, because tags and dry listing keep working, and reach for include only when you genuinely need runtime dispatch - including an OS-specific task file named after ansible_facts.distribution, or looping one task file over a list of app instances.",
+   "followUps": [
+    "Why is a tag on include_tasks not inherited by the tasks inside it?",
+    "How do you include a task file chosen by the target's distribution?",
+    "What happens to --list-tasks output when a role is full of includes?"
+   ]
+  },
+  {
+   "q": "How is a role structured, and what is the difference between defaults/ and vars/?",
+   "a": "A role is a directory with a fixed layout, and Ansible loads main.yml automatically from each subdirectory: tasks/, handlers/, defaults/, vars/, meta/. files/ and templates/ resolve relative to the role, so a template task can reference site.conf.j2 by bare filename and find the role's own copy, which is what makes a role portable between repositories. defaults/main.yml and vars/main.yml differ only in precedence and the gap is enormous: defaults sit at the very bottom and are intended to be overridden by inventory, play vars or role parameters, while role vars sit near the top and are awkward to override from inventory at all. The rule is that anything a consumer might reasonably change belongs in defaults/, and only internal constants that would break the role belong in vars/. meta/main.yml declares dependencies, which run before the role's own tasks, plus Galaxy metadata. Pin external roles and collections in requirements.yml, install with ansible-galaxy, and use fully qualified names such as ansible.builtin.copy.",
+   "followUps": [
+    "How do you test a role, and what proves it is idempotent?",
+    "How do you configure the same role differently in two plays?",
+    "What makes a role non-reusable in practice?"
+   ]
+  },
+  {
+   "q": "Where does Jinja2 templating apply, and what does the template module give you beyond copy?",
+   "a": "Almost every string in a playbook passes through Jinja2 on the control node before a module ever sees it: template files, task arguments, when expressions, inventory variables. The template module renders the file locally and then behaves like copy - compare checksums, write only if different, move atomically into place - and adds mode, owner, backup and validate. validate runs a command against the rendered temporary file with %s substituted for its path and must succeed before the file is installed; wiring it to visudo -cf %s or sshd -t -f %s prevents most 'templated a syntax error and reloaded the daemon' outages. The filters that carry real weight are default and default(omit), to_nice_json and to_yaml, map, select and selectattr, join, regex_replace and ternary; combined with the magic variables groups, hostvars and inventory_hostname they generate cluster-wide configuration straight from the inventory. Two gotchas: Jinja produces strings, so an int or bool filter is sometimes needed, and templating a file that itself contains braces needs raw blocks or custom delimiters.",
+   "followUps": [
+    "Why is default(omit) different from default('')?",
+    "How would you render an HAProxy backend list from the inventory?",
+    "How do you template a file that already uses {{ }} syntax, like a Helm chart?"
+   ]
+  },
+  {
+   "q": "What are facts, what do they cost, and when would you cache them?",
+   "a": "Unless a play sets gather_facts: false, Ansible runs the setup module against every host before the first task and returns a large ansible_facts dictionary: distribution and version, kernel, architecture, network interfaces and addresses, mounts, memory, CPU count, virtualization type, date and time. Facts make one playbook portable across platforms - branch on ansible_facts.os_family instead of maintaining a playbook per distribution. Gathering is not free: an extra round trip plus real discovery work on each host, which on a large fleet can dominate a short play. gather_subset narrows what is collected, and disabling gathering entirely is fine for plays that need no facts, provided you remember that hostvars for other hosts will then be empty too. Fact caching with a jsonfile, Redis or Memcached backend persists facts between runs, so a play targeting only the load balancers can still read the web servers' addresses. Custom facts live in /etc/ansible/facts.d and appear under ansible_local.",
+   "followUps": [
+    "A play targets only lb01 but needs every web server's IP - how?",
+    "When is a stale fact cache dangerous?",
+    "What would you expose as a custom fact rather than an inventory variable?"
+   ]
+  },
+  {
+   "q": "How does Ansible Vault work, and where does it stop being enough?",
+   "a": "Vault encrypts secrets symmetrically with AES-256 so they can live in the same Git repository as the code that consumes them. The output is ASCII-armoured text beginning with a $ANSIBLE_VAULT header, so it commits as text even though the diffs are meaningless to a reviewer. You can encrypt a whole file, typically group_vars/prod/vault.yml, or a single value with ansible-vault encrypt_string. Passwords reach Ansible three ways: --ask-vault-pass, --vault-password-file, and --vault-id label@source. The password file matters most because it may be an executable that prints the password to stdout, which is the hook for fetching the key from a secret manager or CI variable instead of leaving it on disk, and vault IDs let one run carry several keys so a developer with only the dev key cannot read prod. The limits: Vault is a passphrase, not access control. One key opens everything encrypted with it, there is no per-secret authorization and no audit trail of reads, and rotation means rekeying plus re-issuing anything that may have leaked.",
+   "followUps": [
+    "A vault password leaks - what is your rotation procedure?",
+    "When would you use a runtime lookup into a secret manager instead?",
+    "How do you stop a secret appearing in playbook output or --diff?"
+   ]
+  },
+  {
+   "q": "Is ansible-playbook --check equivalent to terraform plan?",
+   "a": "No, and the difference is structural rather than cosmetic. --check asks each module to predict what it would do without changing anything, and --diff prints content changes for file-shaped modules; together they are the closest thing Ansible has to a preview. But support is per module: modules that do not implement check mode are skipped during a check run - command and shell by default - and a skipped task whose result later tasks register cascades into confusing downstream failures. Two per-task overrides exist: check_mode: false forces a task to execute even during a check run, which is how read-only fact-gathering commands keep working, and check_mode: true pins a task to never make changes even in a normal run. The real limitation is that check mode cannot model cascading state: if a package is not installed, the directory it would have created does not exist, so a template task writing there errors or predicts a change that would never happen. Terraform diffs a dependency graph against tracked state; Ansible has no state file at all.",
+   "followUps": [
+    "How would you use --check --diff as production drift detection?",
+    "Why does a skipped task break tasks that register its result?",
+    "What do you rely on instead of check mode for real safety before a release?"
+   ]
+  },
+  {
+   "q": "How do you handle errors in a playbook? Contrast ignore_errors with failed_when.",
+   "a": "ignore_errors: true lets a task fail and carries on, which mostly hides real problems and leaves later tasks operating on assumptions that no longer hold. failed_when redefines what failure means for that specific task, which is usually what you actually wanted: a command whose exit code 2 is benign, or a task that must fail on a string in stdout even though the exit code was zero. Structured recovery uses block, rescue and always - Ansible's try, except, finally. Tasks in rescue run only if something in the block failed, which is where rollback and cleanup belong, and always runs either way, which is where you re-enable the alerting you suppressed or re-add a node to the load balancer. Transient failures are absorbed with until, retries and delay on a task, and readiness is waited for with wait_for on a port or file, or wait_for_connection after a reboot. At play level, any_errors_fatal and max_fail_percentage stop a broken artifact grinding through the fleet one host at a time.",
+   "followUps": [
+    "When is ignore_errors legitimately the right answer?",
+    "Does a successful rescue block leave the host marked as failed?",
+    "How do you retry only on one specific transient error rather than any failure?"
+   ]
+  },
+  {
+   "q": "Design a zero-downtime rolling upgrade of a 60-node web tier in Ansible.",
+   "a": "serial: [1, '25%'] gives a single-host canary followed by quarters of the fleet, and max_fail_percentage: 0 or any_errors_fatal stops the rollout at the first bad batch rather than grinding the fleet through a broken artifact. Inside a batch, wrap the work in block/rescue/always: delegate_to the load balancer to drain the node, wait for in-flight connections to finish, upgrade the package or flip the release symlink, restart, then verify with a uri health check wrapped in until with retries and delay before re-adding. always re-enables the node at the load balancer so a mid-batch failure never leaves it drained. run_once: true executes a task on a single host of the batch, which is where schema migrations go - and they must be backwards compatible, because old and new code run simultaneously during the rollout. throttle caps concurrency for one specific task independently of forks. Keep the linear strategy so the inter-task barrier holds within the batch, and make the health check assert the new version, not merely HTTP 200.",
+   "followUps": [
+    "Where do database migrations run, and what constraint does that put on them?",
+    "How do you roll back mid-rollout when there is no state file?",
+    "Why is asserting HTTP 200 an insufficient health check here?"
+   ]
+  },
+  {
+   "q": "When would you choose configuration management over immutable infrastructure?",
+   "a": "Configuration management is convergent: you describe desired state and the tool repeatedly nudges an existing, long-lived machine toward it. Immutable infrastructure replaces the machine - bake an image, boot new instances, delete the old. Ansible wins where machines cannot simply be discarded or where the work is sequencing rather than provisioning: stateful services with local data, bare metal and on-prem estates, network devices and appliances; day-2 operations such as emergency patching, certificate rotation, diagnostics and one-off remediation; and multi-host orchestration - drain, upgrade, verify, re-add in a defined order across roles - which image replacement alone does not express. It is also how the images get built, since Packer runs Ansible against a temporary instance. It loses on drift and scale: convergence happens only when someone runs the playbook and only across resources it mentions, and with no state file Ansible cannot notice or remove what it never declared. The honest answer is hybrid with a clear boundary.",
+   "followUps": [
+    "Why can't Ansible remove a resource it no longer declares?",
+    "Where exactly do you draw the line between image-build time and runtime config?",
+    "How do you detect the drift this model cannot prevent?"
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "front": "What must a Linux target have for Ansible to manage it?",
+   "back": "SSH reachability, a Python interpreter, and usually sudo rights for become. No agent is installed - the module payload is copied in, run, and deleted."
+  },
+  {
+   "front": "Push model vs pull model",
+   "back": "Ansible pushes from a control node over SSH when someone runs a playbook. Puppet/Chef agents pull from a server on a schedule and self-converge, so they correct drift between runs while push does not."
+  },
+  {
+   "front": "What is `forks` and what is its default?",
+   "back": "The number of hosts Ansible acts on in parallel. It defaults to 5, which is far too low for a real fleet and is usually the first setting raised."
+  },
+  {
+   "front": "What does pipelining do?",
+   "back": "Sends the module payload over the already-open SSH session instead of writing it to a temp file first, removing a round trip per task. It requires that sudo not demand a TTY."
+  },
+  {
+   "front": "Which two groups always exist in any inventory?",
+   "back": "`all`, and `ungrouped` for hosts that belong to no other group."
+  },
+  {
+   "front": "inventory hostname vs ansible_host",
+   "back": "The inventory name is just a label used for grouping and vars files; ansible_host is the address actually dialled when the label is not resolvable."
+  },
+  {
+   "front": "What does `keyed_groups` do in an inventory plugin?",
+   "back": "Turns each distinct value of a tag or attribute into its own group - a `Role=web` tag with prefix `role` produces group `role_web` that plays can target directly."
+  },
+  {
+   "front": "The silent failure mode of dynamic inventory",
+   "back": "Missing IAM permissions or an over-tight filter return zero hosts, and a play matching no hosts exits successfully - a no-op that looks like a green build."
+  },
+  {
+   "front": "linear strategy vs free strategy",
+   "back": "linear (the default) runs task 1 on every host, waits, then starts task 2 - an inter-task barrier. free removes the barrier and lets each host race ahead: faster, unsafe for order-dependent work."
+  },
+  {
+   "front": "What does `serial` do?",
+   "back": "Splits a play into consecutive batches of hosts. It accepts a number, a percentage, or a list such as [1, '25%'] for a canary that ramps up."
+  },
+  {
+   "front": "any_errors_fatal vs max_fail_percentage",
+   "back": "any_errors_fatal aborts the play for every host on the first failure; max_fail_percentage aborts only once the failed share of the batch exceeds the given tolerance."
+  },
+  {
+   "front": "Why are command and shell not idempotent?",
+   "back": "Ansible cannot know what an arbitrary program does, so both execute on every run and report changed on every run."
+  },
+  {
+   "front": "`creates` and `removes`",
+   "back": "Arguments that make command/shell/unarchive skip the task when the given path already exists (creates) or is already gone (removes) - the cheapest way to make a raw command idempotent."
+  },
+  {
+   "front": "What does `changed_when: false` mean?",
+   "back": "The task never reports changed, so it never triggers handlers. Correct for genuinely read-only commands; a common cause of a handler that silently never fires."
+  },
+  {
+   "front": "When and in what order do handlers run?",
+   "back": "At the end of the play, deduplicated per host, in the order the handlers are defined - not the order they were notified."
+  },
+  {
+   "front": "`meta: flush_handlers`",
+   "back": "Runs all pending handlers immediately at that point in the play, so you can restart a service and then smoke-test it inside the same play."
+  },
+  {
+   "front": "What happens to pending handlers when a host fails?",
+   "back": "They are discarded for that host, so half-configured state is not activated - unless force_handlers is set on the play or --force-handlers is passed."
+  },
+  {
+   "front": "What does `listen` do on a handler?",
+   "back": "Subscribes the handler to a named topic, so one `notify` can trigger several handlers and roles avoid colliding on identical handler names in the play-wide namespace."
+  },
+  {
+   "front": "defaults/main.yml vs vars/main.yml in a role",
+   "back": "Same content, opposite precedence: defaults are the lowest of all sources and meant to be overridden; role vars are near the top and awkward to override from inventory. Knobs go in defaults, internal constants in vars."
+  },
+  {
+   "front": "import_tasks vs include_tasks",
+   "back": "import is static, resolved at parse time - visible to --list-tasks and tags apply inside. include is dynamic, evaluated at runtime - loopable and variable-driven, but invisible to --list-tasks and tags need `apply`."
+  },
+  {
+   "front": "Which variable source overrides everything?",
+   "back": "Extra vars passed with -e / --extra-vars. Nothing later in the run can override them, which makes them right for a deliberate CI override and wrong as a home for defaults."
+  },
+  {
+   "front": "Are dictionaries merged when defined twice?",
+   "back": "No - the whole dict is replaced by default. Use the `combine` filter with recursive=True at the point you actually want a merge, rather than the global hash_behaviour switch."
+  },
+  {
+   "front": "Which group wins when two same-level groups set the same variable?",
+   "back": "They merge in alphabetical order of group name, so the last alphabetically wins - unless ansible_group_priority is set, where the higher number wins."
+  },
+  {
+   "front": "What does the template module's `validate` do?",
+   "back": "Runs a command against the rendered temporary file with %s substituted for its path; the file is installed only if the command succeeds. E.g. `validate: visudo -cf %s`."
+  },
+  {
+   "front": "`default(omit)` vs `default('')`",
+   "back": "omit drops the argument entirely so the module applies its own default; default('') passes an empty string, which is a real value and usually not what you meant."
+  },
+  {
+   "front": "Why enable fact caching?",
+   "back": "It persists gathered facts between runs in jsonfile/Redis/Memcached, so plays skip re-gathering and a play targeting only the load balancers can still read the web servers' addresses via hostvars."
+  },
+  {
+   "front": "What is `ansible_local`?",
+   "back": "Custom facts from /etc/ansible/facts.d on the target - .fact files that are INI, JSON, or an executable printing JSON - surfaced under ansible_local.<file>.<section>.<key>."
+  },
+  {
+   "front": "What does `--vault-id label@source` give you?",
+   "back": "A labelled password source so one run can carry several vault keys (dev and prod). The source may be a file or an executable that prints the password to stdout."
+  },
+  {
+   "front": "The core limitation of Ansible Vault",
+   "back": "It is a passphrase, not access control: one key opens everything encrypted with it, with no per-secret authorization and no audit trail of reads. Use no_log: true so decrypted values do not leak into output."
+  },
+  {
+   "front": "Why is --check not a terraform plan?",
+   "back": "It is a per-task prediction with no state file, so it cannot model cascading state, and modules that do not support check mode are skipped rather than simulated."
+  },
+  {
+   "front": "block / rescue / always",
+   "back": "Ansible's try/except/finally. rescue runs only if something in the block failed - rollback goes there; always runs either way - re-enabling a drained node goes there."
+  },
+  {
+   "front": "`run_once` vs `delegate_to`",
+   "back": "run_once executes a task on a single host of the current batch (e.g. a schema migration); delegate_to executes it on a different host while keeping the current host's variables (e.g. draining at the load balancer)."
+  }
+ ]
+}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import type { Question } from '../data/dsaQuestions';
 import { ComplexityQuiz } from './ComplexityQuiz';
 import { CalibrationPrompt } from './CalibrationPrompt';
@@ -8,7 +8,23 @@ interface SolutionGateProps {
   plan: string;
   onPlanChange: (next: string) => void;
   onReveal: () => void;
+  /** Told when "Turn this gate off" is used, so the owner can offer the way back. */
+  onDisableGate?: () => void;
 }
+
+/**
+ * True for anything rendered inside ProblemViewer's tab panels, because the
+ * viewer already has one gate on screen above them.
+ *
+ * All four panels stay mounted (print + per-tab state — see ProblemViewer), so
+ * while the gate is up EditorialTab and SolutionsTab each render one, and two
+ * LIVE gates means two ComplexityQuiz / CalibrationPrompt pairs. Each of those
+ * reads its whole store at mount and writes the whole store back on change, so
+ * whichever tab you answered second silently erased the other one's history.
+ * The copies inside the panels stand down instead of being deleted: the panels
+ * keep their existing early-return, only the duplicate gate goes.
+ */
+export const SolutionGateHoisted = React.createContext(false);
 
 /**
  * Active-recall gate — reading a solution you have not attempted feels like
@@ -22,7 +38,12 @@ interface SolutionGateProps {
  * logic (textarea, ComplexityQuiz, CalibrationPrompt, the three unlock buttons)
  * is untouched; only where it renders from has moved.
  */
-export const SolutionGate: React.FC<SolutionGateProps> = ({ question, plan, onPlanChange, onReveal }) => (
+export const SolutionGate: React.FC<SolutionGateProps> = ({ question, plan, onPlanChange, onReveal, onDisableGate }) => {
+  // Hook first, then the stand-down — a live gate is already on screen above us.
+  const hoisted = useContext(SolutionGateHoisted);
+  if (hoisted) return null;
+
+  return (
   <div className="glass animate-in" style={{ padding: '2rem', borderRadius: '16px', borderLeft: '4px solid hsl(var(--secondary))', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
     {/* The exit lives at the TOP. Buried under a textarea, a quiz and a
         calibration prompt, it read as "the solutions are gone". */}
@@ -81,12 +102,14 @@ export const SolutionGate: React.FC<SolutionGateProps> = ({ question, plan, onPl
         onClick={() => {
           // A gate you must re-clear on every visit becomes a toll booth.
           localStorage.setItem('gate-disabled', '1');
+          onDisableGate?.();
           onReveal();
         }}
-        title="Solutions will open directly from now on. Re-enable in Settings."
+        title="Solutions open directly from now on, on every problem. Turn it back on from the line that replaces this card on the Editorial tab."
       >
         Turn this gate off
       </button>
     </div>
   </div>
-);
+  );
+};

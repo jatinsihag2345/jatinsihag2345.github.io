@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Play, Pencil, RotateCcw, Loader2, X, Wrench, ChevronDown } from 'lucide-react';
 import { PythonHighlighter } from './PythonHighlighter';
 import { CodeEditor } from './CodeEditor';
@@ -58,27 +58,40 @@ export const RunnableCode: React.FC<RunnableCodeProps> = ({ code, language = 'py
   );
   const [mainBody, setMainBody] = useState(seedBody);
 
+  // Monotonic token, LocalsTimeline's idiom: this instance outlives the snippet it was
+  // showing (see the reset effect below), and Pyodide's first load is ~10s while the
+  // JVM's is ~30s — long enough to switch question mid-run. Without the token the old
+  // code's output prints under the new code, and the new Run button stays disabled.
+  // A token beats comparing `code` here because `code` is the only identity this
+  // component has, and two approaches can legitimately carry the same source.
+  const runToken = useRef(0);
+
   // One RunnableCode instance is reused across questions (SolutionsTab keys its cards
   // by approach name, which repeats), so a new `code` has to reset everything derived
   // from the old one — otherwise the previous question's harness and verdict linger.
   useEffect(() => {
+    runToken.current += 1;
     setDraft(code);
     setMainBody(seedBody);
     setEditing(false);
+    setRunning(false);
     setOut(null);
     setStatus('');
     setProgramShown(false);
   }, [code, seedBody]);
 
   const execute = async () => {
+    const token = ++runToken.current;
     setRunning(true);
     setOut(null);
     if (isJava) {
       // javaRunner keeps a single progress slot, so claim it for the run about to start
-      // rather than at mount — several of these are on screen at once.
-      onJavaProgress(setStatus);
+      // rather than at mount — several of these are on screen at once. Gate it on the
+      // token too, so a superseded run's "Compiling…" cannot caption the new snippet.
+      onJavaProgress(msg => { if (runToken.current === token) setStatus(msg); });
       if (!isJavaReady()) setStatus('Fetching the Java runtime (about 20 MB, one time)…');
       const res = await runJava(buildJavaProgram(source, mainBody));
+      if (runToken.current !== token) return; // code changed mid-run; this verdict is stale
       setStatus('');
       setOut({
         ok: res.ok,
@@ -89,6 +102,7 @@ export const RunnableCode: React.FC<RunnableCodeProps> = ({ code, language = 'py
       });
     } else {
       const res = await runPython(source);
+      if (runToken.current !== token) return; // code changed mid-run; this output is stale
       setOut(
         res.ok
           ? { ok: true, text: res.stdout.trim() || '✓ ran clean, printed nothing — add a print(...) to inspect values' }
@@ -219,7 +233,7 @@ export const RunnableCode: React.FC<RunnableCodeProps> = ({ code, language = 'py
           {status ||
             (isJavaReady()
               ? 'Java runtime loaded — runs take a second or two.'
-              : 'The first run downloads a real JVM (CheerpJ, about 20 MB) from a CDN and takes roughly half a minute; later runs are quick. It needs a connection — Python here does not.')}
+              : 'The first run downloads a real JVM (CheerpJ, about 20 MB) from a CDN and takes roughly half a minute; later runs are quick. It needs a connection — so does Python the first time; the difference is that Python\'s runtime is then cached for offline use and this one is not.')}
         </span>
       )}
 

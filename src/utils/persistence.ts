@@ -48,15 +48,79 @@ export const readJson = <T>(
   }
 };
 
+const STORAGE_BANNER_ID = 'storage-write-failed-banner';
+
+/**
+ * The banner of last resort when a write bounces.
+ *
+ * The event below is the intended channel, but for a long while nothing in the app
+ * listened to it, so a full quota was completely silent: the editor kept saying
+ * "Saved in this browser" while every keystroke was being dropped, and the learner
+ * only found out on reload, when the work was gone. Persistence is imported by
+ * non-React code paths too, and depending on a particular component being mounted
+ * is exactly what failed here — so the fallback is raw DOM and owns no state.
+ *
+ * A listener that renders something better takes over by calling preventDefault()
+ * on the (cancelable) event; then this never runs.
+ */
+const showStorageFullBanner = () => {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (document.getElementById(STORAGE_BANNER_ID)) return; // one banner, however many writes fail
+
+  const bar = document.createElement('div');
+  bar.id = STORAGE_BANNER_ID;
+  bar.setAttribute('role', 'alert');
+  // Opaque surface + a --hard rule rather than a red fill: white-on-red at this size
+  // lands under 4.5:1, and both tokens are redefined by the light theme, so the bar
+  // reads correctly in either without knowing which one is on.
+  bar.style.cssText = [
+    'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:1000',
+    'display:flex', 'gap:12px', 'align-items:center', 'justify-content:center',
+    'flex-wrap:wrap', 'padding:10px 16px',
+    'background:hsl(var(--bg-secondary))', 'color:hsl(var(--text-primary))',
+    'border-bottom:2px solid hsl(var(--hard))',
+    'font-family:var(--font-sans)', 'font-size:14px', 'line-height:1.4',
+  ].join(';');
+
+  const text = document.createElement('span');
+  text.textContent =
+    "This browser's storage is full — nothing you type is being saved. " +
+    'Export a backup from the Dashboard, then clear space.';
+  bar.appendChild(text);
+
+  // Dismissible on purpose: it covers the top of the app, and a learner who has
+  // read it should be able to get back to exporting. It returns on the next
+  // failed write, which is the next keystroke that would have been saved.
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = 'Dismiss';
+  close.setAttribute('aria-label', 'Dismiss the storage-full warning');
+  close.style.cssText = [
+    'flex:none', 'padding:2px 10px', 'border-radius:6px', 'cursor:pointer',
+    'background:transparent', 'color:inherit', 'font:inherit',
+    'border:1px solid hsl(var(--border-color))',
+  ].join(';');
+  close.onclick = () => bar.remove();
+  bar.appendChild(close);
+
+  document.body.appendChild(bar);
+};
+
 /** Broadcast once per storage-full event so any mounted UI can show a real
  *  banner instead of the failure being invisible. Deliberately NOT retried or
  *  queued here — the caller already has the value in memory (React state),
  *  so the data itself is never lost, only its persistence to disk. */
 const warnStorageFull = (key: string, err: unknown) => {
   console.error(`localStorage write to "${key}" failed`, err);
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('storage-write-failed', { detail: { key } }));
+  if (typeof window === 'undefined') {
+    return;
   }
+  // dispatchEvent returns false only if a listener called preventDefault() — i.e.
+  // some UI has claimed this failure and will report it properly itself.
+  const claimed = !window.dispatchEvent(
+    new CustomEvent('storage-write-failed', { detail: { key }, cancelable: true }),
+  );
+  if (!claimed) showStorageFullBanner();
 };
 
 export const writeJson = (key: string, value: unknown) => {

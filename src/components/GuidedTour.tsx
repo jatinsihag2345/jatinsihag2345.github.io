@@ -51,12 +51,16 @@ const STOPS: Stop[] = [
     target: 'recall',
     go: 'problem',
     title: 'Rate your recall — honestly',
-    body: 'After an attempt, grade yourself Got it / Shaky / Blanked. That one click schedules the problem to come back on a 1 → 3 → 7 → 21 → 45 day ladder. Blanking drags it back to tomorrow.',
+    // Deliberately no interval list: scheduling is FSRS (utils/fsrs.ts), where the
+    // next date comes from a per-problem stability, not a fixed ladder. A first
+    // "Got it" is 2 days, a second ~11, a fourth ~5 months; blanking a mature item
+    // lands a few days out, not always tomorrow. Describing the shape stays true.
+    body: 'After an attempt, grade yourself Got it / Shaky / Blanked. That one click schedules the problem to come back — no fixed ladder: a clear recall stretches the gap further every time (a couple of days, then a week or two, then months), a shaky one stretches it far less, and blanking collapses it back to a few days.',
   },
   {
     target: 'core-decks',
     go: 'core',
-    title: 'Core CS rides the same ladder',
+    title: 'Core CS rides the same scheduler',
     body: 'OOP, OS, DBMS, Networks and system design: chapters to read, interview Q&A to drill, and flashcard decks whose cards come due exactly like your problems do — one review queue for everything.',
   },
   {

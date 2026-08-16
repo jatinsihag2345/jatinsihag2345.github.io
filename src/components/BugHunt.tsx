@@ -5,6 +5,7 @@ import { runPython, isPyodideReady } from '../utils/pythonRunner';
 import { readText, writeText } from '../utils/persistence';
 import { SolutionDiff } from './SolutionDiff';
 import { CodeEditor } from './CodeEditor';
+import { indentSelection } from './PythonPlayground';
 import { LineNudges } from './LineNudges';
 import bugHuntJson from '../data/bugHunt.json';
 
@@ -105,17 +106,17 @@ export const BugHunt: React.FC<BugHuntProps> = ({ question }) => {
     setRunning(false);
   };
 
-  /** Tab indents, Cmd/Ctrl+Enter runs — the same editor manners as the playground. */
+  /** Tab indents, Cmd/Ctrl+Enter runs — the same editor manners as the playground,
+   *  literally: the indent itself is the playground's helper, so a repair here can
+   *  never behave differently from an attempt there. */
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Tab') {
       // Shift+Tab must keep moving focus OUT — capturing it too would be a keyboard trap.
       if (e.shiftKey) return;
       e.preventDefault();
       const el = e.currentTarget;
-      const { selectionStart: s, selectionEnd: en } = el;
-      const next = code.slice(0, s) + '    ' + code.slice(en);
-      persist(next);
-      requestAnimationFrame(() => el.setSelectionRange(s + 4, s + 4));
+      indentSelection(el, el.selectionStart, el.selectionEnd);
+      persist(el.value);
     }
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();

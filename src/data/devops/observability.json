@@ -1,0 +1,370 @@
+{
+  "subject": "Monitoring & Observability",
+  "summary": "Monitoring and observability is the practice of instrumenting systems so you can tell what they are doing, notice when they misbehave, and work out why -- from a fleet-wide aggregate down to the path of one request through a dozen services. Interviewers probe it because it separates people who have operated production from people who have only built it: alert design, cardinality control and picking the right signal are judgement calls with real cost and real pager consequences. Expect questions on Prometheus internals and PromQL, on why a dashboard is not an alerting strategy, and on how you would diagnose a latency regression you cannot reproduce.",
+  "sections": [
+    {
+      "title": "1. The Three Pillars, and Why They Are Not Interchangeable",
+      "content": "Metrics, logs and traces coexist because of cost and query shape, not tradition. Each is a different projection of the same reality, and each discards something different.\n\nA metric is a number sampled over time under a name and a small label set. A sample compresses to a couple of bytes, so months of history and fleet-wide aggregation are cheap. What you lose is detail: once a request is counted into a histogram bucket, you cannot recover which request it was.\n\nA log is a timestamped record of a discrete event. It preserves the specifics -- the SQL statement, the stack trace, the tenant -- but cost scales with event volume, and computing p99 latency by scanning logs is slow and expensive.\n\nA trace records the causal path of one request across services as a tree of spans. It answers \"where did the time go\" and \"which call failed\"; neither of the others can, because both are per-component and discard the cross-service relationship.\n\nSo they are not substitutes. Metrics say something is wrong and how widespread; traces say which component; logs say why. A mature setup links them: exemplars attach a trace ID to a histogram bucket and log lines carry trace_id and span_id, so a latency spike leads to a trace and then to that span's logs. And the answer to \"why not log everything and derive metrics from logs\" is that it fails precisely during an incident, when log volume spikes and the pipeline you depend on for diagnosis is itself falling over.",
+      "code": "# The same failing request, seen three ways\n\nmetric  http_requests_total{route=\"/checkout\",status=\"500\"} 87\nlog     {\"level\":\"error\",\"msg\":\"provider timeout\",\"trace_id\":\"4bf92f35...\"}\ntrace   checkout                 812ms\n          |- auth.verify          12ms\n          |- payments.charge     741ms  ERROR   <- where the time went"
+    },
+    {
+      "title": "2. The Prometheus Data Model and the Four Metric Types",
+      "content": "A Prometheus time series is uniquely identified by its metric name plus its complete label set; the name is itself just the reserved label `__name__`. Change any label value and you have a different series -- that one sentence explains both PromQL joins and cardinality blowups later. Data is exposed as plain text over HTTP, one line per series.\n\nA **counter** only goes up and resets to zero when the process restarts. You almost never read its raw value; you take `rate()` of it, which detects resets and reports a per-second average. Convention is a `_total` suffix. A **gauge** goes up and down -- memory in use, queue depth -- and is read directly.\n\nA **histogram** counts observations into cumulative buckets, exposing `<name>_bucket{le=\"...\"}` series where each bucket counts everything at or below that boundary, plus `_sum` and `_count`. Quantiles are estimated at query time from the buckets, so histograms from many instances can be summed before the quantile is computed. The cost is that boundaries are fixed in advance and each one is another series.\n\nA **summary** computes quantiles inside the client over a sliding window and exposes them directly. Cheap to read, but it cannot be aggregated: averaging the p99 of ten instances is not the p99 of the fleet. Prefer histograms for anything you aggregate across instances.\n\nConventions matter in interviews: base units (seconds and bytes, not milliseconds), with the unit in the name rather than in a label. Newer Prometheus versions add native histograms with automatic buckets, but they remain behind a feature flag in many deployments.",
+      "code": "# TYPE http_request_duration_seconds histogram\nhttp_request_duration_seconds_bucket{route=\"/checkout\",le=\"0.1\"} 8123\nhttp_request_duration_seconds_bucket{route=\"/checkout\",le=\"1.0\"} 41234\nhttp_request_duration_seconds_bucket{route=\"/checkout\",le=\"+Inf\"} 41290\nhttp_request_duration_seconds_sum{route=\"/checkout\"} 9271.4\nhttp_request_duration_seconds_count{route=\"/checkout\"} 41290\n\n# buckets are cumulative: le=\"1.0\" includes everything in le=\"0.1\""
+    },
+    {
+      "title": "3. Prometheus Architecture and the Pull Model",
+      "content": "A Prometheus server is one binary doing four jobs: discovering targets, scraping them over HTTP on an interval, storing samples locally, and evaluating rules. The TSDB keeps recent data in an in-memory head block backed by a write-ahead log, then flushes immutable on-disk blocks that a compactor merges. Firing alerts are pushed out to Alertmanager: Prometheus notifies, Alertmanager decides who hears about it.\n\nPull, rather than push, is the defining choice. The scraper controls the sampling rate, so a misbehaving application cannot flood the monitoring system. Every scrape yields a synthetic `up` series per target, a liveness signal you get for free. Targets hold no configuration pointing at the monitoring system, so you can run a second server, or curl `/metrics` by hand during an incident and see exactly what the server sees.\n\nThe costs are real. The server must reach every target, so service discovery and network policy matter in dynamic environments. Short-lived batch jobs may finish before any scrape happens; the Pushgateway exists for that, but it is a deliberate exception -- it holds metrics until explicitly deleted, has no liveness semantics, and becomes a graveyard of stale series if used as a general push endpoint.\n\nPrometheus is single-node by design: no clustering, no replication. High availability means two identically configured servers with Alertmanager deduplicating. Long retention and global query live outside it -- `remote_write` into Mimir or VictoriaMetrics, or Thanos, whose sidecar ships completed blocks to object storage for a querier to fan out across.",
+      "code": "global:\n  scrape_interval: 15s\n  evaluation_interval: 15s      # how often rules run\n  external_labels:\n    cluster: prod-eu            # stamped on remote_write and alerts (HA dedup)\n\nrule_files: [\"/etc/prometheus/rules/*.yml\"]\n\nalerting:\n  alertmanagers:\n    - static_configs:\n        - targets: [\"alertmanager-0:9093\", \"alertmanager-1:9093\"]\n\nscrape_configs:\n  - job_name: node\n    scrape_interval: 30s        # per-job override\n    static_configs:\n      - targets: [\"10.0.1.11:9100\"]"
+    },
+    {
+      "title": "4. Exporters, Service Discovery and Relabeling",
+      "content": "An exporter is a small process that reads a system's native statistics and republishes them in the exposition format. `node_exporter` reads `/proc` and `/sys` and emits host CPU, memory, filesystem and network metrics; database and broker exporters translate vendor stats. For your own code you instrument directly with a client library -- white-box monitoring, where you see internal state. `blackbox_exporter` is the complement, probing an endpoint from outside over HTTP, TCP, ICMP or DNS. You want both: white-box tells you why, black-box tells you whether a user could reach you at all.\n\nStatic target lists do not survive autoscaling, so Prometheus ships service discovery for Kubernetes, EC2, Consul, DNS and files. Discovery produces candidate targets carrying `__meta_*` labels -- pod annotations, instance tags, health status.\n\n`relabel_configs` runs before the scrape and turns those meta labels into something useful. Each rule takes `source_labels`, matches a `regex`, and performs an `action`: `keep` or `drop` to filter targets, `replace` to write a `target_label`, `labelmap` to copy a family of labels, `hashmod` to shard targets. Special labels control the scrape itself -- `__address__`, `__metrics_path__`, `__scheme__` -- and anything still starting with `__` is discarded once relabeling finishes.\n\n`metric_relabel_configs` is the same machinery applied after the scrape, to each sample. It is your last defence against a third-party exporter you cannot modify: drop a noisy metric family, or strip an unbounded label, before it reaches the TSDB.",
+      "code": "- job_name: kubernetes-pods\n  kubernetes_sd_configs:\n    - role: pod\n  relabel_configs:                    # before the scrape, on targets\n    - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]\n      action: keep                    # only scrape pods that opt in\n      regex: \"true\"\n    - source_labels: [__meta_kubernetes_namespace]\n      target_label: namespace         # meta label -> real label\n\n  metric_relabel_configs:             # after the scrape, on samples\n    - action: labeldrop               # strip an unbounded label at ingest\n      regex: \"request_id\""
+    },
+    {
+      "title": "5. PromQL: Vectors, rate() and Quantiles",
+      "content": "PromQL has four expression types: instant vectors (one sample per series at one instant), range vectors (a window of raw samples per series), scalars and strings. `http_requests_total` is an instant vector and can be graphed. `http_requests_total[5m]` is a range vector and cannot -- it must be fed to a function that collapses the window, such as `rate`, `increase` or `avg_over_time`.\n\n`rate()` computes the per-second average increase of a counter over the window and treats any decrease as a counter reset. `increase()` is the same computation multiplied by the window length. `irate()` uses only the last two samples, giving a spiky line that suits zoomed-in graphs and is wrong for alerts. Choose a window covering at least four scrape intervals so one missed scrape does not blank the graph.\n\nTwo mistakes worth naming in an interview. Never apply `rate()` to a gauge -- reset detection invents numbers out of ordinary decreases. And always `rate()` before you `sum()`: summing counters from several instances first turns a restart into a dip that reset detection can no longer see, because it looks like normal movement of the sum.\n\nAggregation operators take `by` (keep these labels) or `without` (drop these). Binary operations match series with identical label sets unless you use `on()` or `ignoring()`, and many-to-one joins need `group_left` or `group_right`. For latency, compute quantiles from summed bucket rates and keep the `le` label, because `histogram_quantile` reads it; the result is interpolated within a bucket, so if everything lands in `+Inf` the answer is meaningless.",
+      "code": "# rate first, then sum -- never the other way round\nsum by (route) (rate(http_requests_total[5m]))\n\n# p99 across all instances: aggregate buckets, then take the quantile\nhistogram_quantile(0.99,\n  sum by (le, route) (rate(http_request_duration_seconds_bucket[5m])))\n\nup{job=\"api\"} == 0                 # instances that stopped reporting\nmax_over_time(queue_depth[1h])     # gauges use *_over_time, never rate()"
+    },
+    {
+      "title": "6. Recording Rules and Alerting Rules",
+      "content": "Rules live in files loaded by the server and are organised into groups. A group has its own evaluation interval, and rules inside it run sequentially, so a later rule can reference a series an earlier one just wrote; separate groups run concurrently.\n\nA recording rule evaluates an expression on a schedule and stores the result as a new series. Two reasons to use one. Dashboards: a panel aggregating ten thousand series on every refresh, times forty panels, times every viewer, will hurt the server -- precompute it once. And alerts, especially multi-window SLO expressions that would otherwise recompute the same subquery repeatedly. The naming convention `level:metric:operations`, as in `job:http_requests:rate5m`, encodes what has already been aggregated.\n\nAn alerting rule adds `for`, `labels` and `annotations`. Whenever the expression returns samples, each returned series becomes an alert instance in the pending state; it becomes firing only once the condition has held continuously for the `for` duration. If the series drops out even once during that window the timer restarts -- which is exactly why alerts on flapping or low-traffic series never fire when you expect. Alert state is queryable through the synthetic `ALERTS` metric.\n\nLabels defined on the rule are what Alertmanager routes on, so `severity` and `team` belong there. Annotations are human text and support Go templating over `$labels` and `$value`. Prometheus resends the whole firing set on every evaluation and Alertmanager deduplicates. Validate and unit-test rules in CI with `promtool check rules` and `promtool test rules`.",
+      "code": "groups:\n  - name: api.rules\n    interval: 30s\n    rules:\n      - record: job:http_errors:ratio_rate5m      # precompute once\n        expr: |\n          sum by (job) (rate(http_requests_total{status=~\"5..\"}[5m]))\n            / sum by (job) (rate(http_requests_total[5m]))\n\n      - alert: ApiHighErrorRatio\n        expr: job:http_errors:ratio_rate5m{job=\"api\"} > 0.02\n        for: 10m                 # must hold continuously for 10m\n        labels:\n          severity: page         # routing keys for Alertmanager\n        annotations:\n          runbook: \"https://runbooks.example.com/api-errors\""
+    },
+    {
+      "title": "7. Alertmanager: Grouping, Inhibition and Silences",
+      "content": "Alertmanager is a separate process whose only job is turning a stream of firing alerts into a sensible number of notifications. Prometheus evaluates; Alertmanager deduplicates, groups, routes, inhibits, silences and delivers.\n\nRouting is a tree. A top-level `route` sets defaults and a receiver, and child routes are tested in order against the alert's labels; the first match wins unless a route sets `continue: true`. Children inherit anything they do not override.\n\nGrouping is the part that saves your pager. `group_by` names the labels that define a group -- if fifty pods of one service start erroring, grouping by `[alertname, service]` produces one notification listing fifty instances instead of fifty pages. Three timers control it. `group_wait` is how long to hold a newly created group before the first notification, so related alerts arriving seconds apart batch together. `group_interval` is the minimum gap before an updated notification when the group's membership changes. `repeat_interval` is how long before re-notifying about an unchanged group.\n\nInhibition suppresses one alert while another fires, with `equal` naming the labels that must match on both sides -- canonically, a critical \"cluster unreachable\" alert inhibiting every warning for that cluster, because they are all downstream symptoms. Silences are time-bounded, matcher-based mutes created by a human for planned maintenance; prefer them to commenting out rules, because they expire on their own.\n\nFor availability, run two or three Alertmanagers as a cluster: they gossip notification state so nothing is delivered twice.",
+      "code": "route:\n  receiver: slack-default\n  group_by: [alertname, cluster, service]\n  group_wait: 30s          # collect related alerts before first notify\n  group_interval: 5m       # min gap between updates for one group\n  repeat_interval: 4h      # re-notify an unchanged firing group\n  routes:\n    - matchers: ['severity = page']\n      receiver: pagerduty\n      group_wait: 10s\n\ninhibit_rules:\n  - source_matchers: ['alertname = ClusterUnreachable']\n    target_matchers: ['severity =~ \"warning|page\"']\n    equal: [cluster]       # only suppress within the same cluster\n\nreceivers:                 # every receiver named above must be defined\n  - name: slack-default\n  - name: pagerduty"
+    },
+    {
+      "title": "8. Alert Design and Alert Fatigue",
+      "content": "The test for an alert that wakes someone is simple: is it urgent, is it real, and is there something a human can do about it right now? If any answer is no, it is a ticket, a dashboard panel, or nothing.\n\nAlert on symptoms, not causes. \"Checkout error ratio above 2% for ten minutes\" is a symptom your users feel. \"CPU above 80%\" is a cause that is often perfectly healthy, fires during every batch job, and stays silent during the novel failure that actually breaks you. Cause-based alerts multiply as the architecture grows and never converge, while a handful of symptom alerts cover failure modes nobody imagined. Keep cause alerts only where the cause is a leading indicator with a fixed remedy -- a disk that will fill in four hours, an expiring certificate.\n\nAlert fatigue is a measurable failure mode, not a mood. Past roughly a couple of pages per on-call shift, responders begin triaging by reflex, silencing broadly and assuming each new page is noise -- so the real one is missed. Track alerts per shift, the fraction that auto-resolve with no human action, and time to acknowledge. Anything that resolves itself is mis-thresholded or needs a longer `for`.\n\nThe strongest technique is error-budget burn-rate alerting: rather than a static threshold, alert when you are consuming the SLO's error budget fast enough to matter. Pair a long window that establishes the trend with a short window confirming the problem is still happening, so the alert neither flaps nor lingers after recovery. Fast burn rates page, slow ones open tickets. And every alert carries a runbook link -- if you cannot write down what the responder should do, it is not ready to page anyone.",
+      "code": "# 99.9% availability SLO -> error budget = 0.001\n# 14.4x burn for 1h consumes ~2% of a 30-day budget: page.\n# 6x burn for 6h consumes ~5%: page.   1x over 3d: ticket.\n\n- alert: SloBurnFast\n  expr: |\n    job:slo_errors:ratio_rate1h{job=\"api\"} > (14.4 * 0.001)\n      and job:slo_errors:ratio_rate5m{job=\"api\"} > (14.4 * 0.001)\n  for: 2m\n  labels: { severity: page }\n\n# The long window (1h) says the burn is real; the short one (5m) says it\n# is still happening -- which is what makes the alert clear promptly\n# instead of lingering for the whole long window after recovery."
+    },
+    {
+      "title": "9. RED and USE: Choosing What to Measure",
+      "content": "Two checklists cover most of what you should instrument, and they apply to different kinds of thing.\n\nRED applies to anything request-driven -- an HTTP service, a gRPC endpoint, a queue consumer. Rate: requests per second. Errors: failed requests per second, or the ratio. Duration: the distribution of latency. Measure per service and per route, and separate errors from successes when looking at duration, because a fast 500 flatters your latency graph and a slow error path hides inside the mean.\n\nUSE applies to resources -- CPU, memory, disks, network interfaces, connection pools, thread pools. Utilization: the fraction of time the resource was busy. Saturation: work queued that the resource could not service. Errors: device errors, drops, retransmits, rejected connections. Google's four golden signals are essentially RED plus saturation.\n\nSaturation is the one people omit and the one that predicts trouble. Utilization tops out at 100% and then tells you nothing about how bad things are, while queue length keeps growing and maps directly to added latency. A host at 70% CPU with a consistently non-empty run queue is already making requests wait. Same for a connection pool: \"90% of connections in use\" is far less useful than \"requests spent 200ms waiting to acquire one\".\n\nTogether the two give the diagnostic path an interviewer wants to hear. RED on the service says users are seeing slow checkouts; USE on its dependencies says the database connection pool is saturated -- the difference between knowing something is broken and knowing what to change.",
+      "code": "# --- RED, for a service\nsum by (route) (rate(http_requests_total[5m]))                        # Rate\nsum by (route) (rate(http_requests_total{status=~\"5..\"}[5m]))         # Errors\nhistogram_quantile(0.99,\n  sum by (le, route) (rate(http_request_duration_seconds_bucket[5m]))) # Duration\n\n# --- USE, for a host (node_exporter)\n1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))  # utilization\nnode_load1 / count by (instance) (node_cpu_seconds_total{mode=\"idle\"}) # saturation\nrate(node_network_receive_errs_total[5m])                              # errors"
+    },
+    {
+      "title": "10. Grafana and What Belongs on a Dashboard",
+      "content": "Grafana stores no metrics. It is a query and visualisation layer: every panel issues a query to a data source on each refresh. That has a direct operational consequence -- a dashboard with forty panels, each aggregating thousands of series, open on ten screens, is a load generator pointed at your Prometheus. Recording rules exist largely to fix this. Template variables, usually populated by a `label_values()` query, turn one dashboard into many, and repeated rows generate a panel per value, so you are not maintaining a near-identical dashboard per service.\n\nDesign for one audience and one question. A service overview should fit on a screen and let someone decide \"is this healthy\" in a few seconds: the RED signals, current SLO and error-budget burn, saturation of the one or two resources that actually bind, and deploy annotations so a regression lines up against a release. Below that sit drill-down dashboards per subsystem, and free-form investigation belongs in ad-hoc exploration rather than a dashboard. One dashboard cannot serve all three audiences, and trying is how you end up with a hundred panels nobody reads.\n\nWhat does not belong: every metric an exporter happens to emit; averages where you need distributions; stacked areas when the reader must compare series rather than sum them; dual y-axes, which make unrelated lines look correlated; single-stat tiles with no threshold, so the number says nothing about whether it is fine. Keep dashboards in version control and provision them from files, or an edit made during an incident becomes the only copy that exists.",
+      "code": "# Grafana dashboard provisioning: files are the source of truth\napiVersion: 1\nproviders:\n  - name: services\n    folder: Services\n    type: file\n    allowUiUpdates: false        # UI edits cannot silently diverge\n    options:\n      path: /etc/grafana/dashboards\n\n# A template variable is just another query, e.g.\n#   label_values(kube_namespace_labels, namespace)\n# panels then filter with {namespace=\"$namespace\"} and rows repeat over it."
+    },
+    {
+      "title": "11. Log Aggregation: Elastic and Loki",
+      "content": "Every log pipeline has the same shape: an agent collects, something transports and buffers, something parses and enriches, a store indexes, and a retention policy expires. The interesting differences are in what gets indexed.\n\nThe Elastic stack collects with Filebeat or Fluent Bit, optionally parses in Logstash with grok or dissect patterns, and indexes in Elasticsearch with Kibana on top. Elasticsearch builds an inverted index over fields, which is what makes arbitrary full-text search across terabytes fast. It is also the cost: indexing burns CPU, the index is often larger than the raw data, and cluster memory scales with the number of fields and shards. The classic self-inflicted outage is mapping explosion -- dynamic mapping creates a field for every distinct JSON key it sees, so one service logging identifiers as key names generates thousands of fields and pushes the cluster over its limits. Defend with explicit index templates, non-dynamic mappings, and lifecycle management to roll indices through hot, warm, cold and delete phases.\n\nLoki takes the opposite bet. It indexes only a small set of labels per stream and stores the log lines as compressed chunks in object storage, then brute-force scans them at query time. Ingest and storage are far cheaper; the trade is that a broad unfiltered search over a long window is slow, because it really is reading the data. Loki's labels obey exactly the same cardinality rule as Prometheus: a label per request ID creates a stream per request and destroys the index. Keep labels to namespace, app and level; everything else stays in the line and is matched at query time.",
+      "code": "# --- LogQL: stream selector, then line filters, then parsing\n{namespace=\"prod\", app=\"api\"} |= \"timeout\" != \"healthcheck\"\n\n# parse structured logs at query time and filter on a parsed field\n{app=\"api\"} | json | status_code >= 500 | line_format \"{{.trace_id}} {{.msg}}\"\n\n# turn logs into a metric (useful, not a substitute for real metrics)\nsum by (route) (rate({app=\"api\"} | json | status_code >= 500 [5m]))\n\n# --- Elasticsearch: stop dynamic mapping from exploding\nPUT _index_template/app-logs\n{\n  \"index_patterns\": [\"app-logs-*\"],\n  \"template\": { \"mappings\": {\n    \"dynamic\": \"strict\",\n    \"properties\": {\n      \"level\":   { \"type\": \"keyword\" },\n      \"message\": { \"type\": \"text\" }\n    }\n  }}\n}"
+    },
+    {
+      "title": "12. Structured Logging, Correlation and Retention",
+      "content": "Emit logs as JSON with stable field names rather than formatted prose. Parsing is where log pipelines break: a grok pattern encodes the shape of a sentence and silently stops matching the moment someone rewords the message. If the producer emits structure, the pipeline only has to route it. Keep a small mandatory core -- timestamp, level, service, environment, message -- and put everything else in nested fields. In containers, write to stdout and let the platform collect; logging to files inside a container reintroduces rotation and disk-full problems, and anything not yet shipped is lost when the pod is evicted.\n\nCorrelation is the highest-value field you can add. Carry `trace_id` and `span_id` from the incoming request context onto every line the request produces. That one field turns three separate tools into a single investigation: find the slow trace, pivot to its logs, read the actual error. Add a request or tenant identifier too -- in the log body, never as a metric label.\n\nKeep DEBUG off in production with a mechanism to raise verbosity temporarily, and reserve ERROR for conditions a human should eventually look at; if normal operation logs errors, people stop reading them. Never log credentials, tokens, full request bodies or personal data -- log pipelines fan out to many consumers and are rarely governed like a regulated datastore, so redaction has to happen at the source.\n\nControl cost with tiers and sampling: a short searchable hot window, a longer cheap archive, compliance-only retention beyond that; keep every error but sample the high-volume success path. Know your agent's backpressure behaviour -- memory buffers drop lines silently when the pipeline stalls, disk buffers fill the node instead.",
+      "code": "import logging, json\nfrom opentelemetry import trace\n\nclass JsonFormatter(logging.Formatter):\n    def format(self, record):\n        ctx = trace.get_current_span().get_span_context()\n        out = {\n            \"ts\": self.formatTime(record),\n            \"level\": record.levelname,\n            \"service\": \"checkout-api\",\n            \"msg\": record.getMessage(),\n        }\n        if ctx.is_valid:                    # correlate logs with traces\n            out[\"trace_id\"] = format(ctx.trace_id, \"032x\")\n            out[\"span_id\"] = format(ctx.span_id, \"016x\")\n        return json.dumps(out)"
+    },
+    {
+      "title": "13. Distributed Tracing and OpenTelemetry",
+      "content": "A trace is the record of one request as a tree of spans sharing a trace ID. Each span has its own ID, a parent ID, a name, start and end timestamps, a status, attributes and timestamped events, and rendered as a waterfall the tree shows exactly where the time went.\n\nContext propagation is the mechanism, and the source of most tracing bugs. The caller serialises the current span context into the outgoing request; the W3C standard is the `traceparent` header, carrying a version, the trace ID, the parent span ID and flags, optionally alongside `tracestate`. The callee extracts it and makes its spans children. If any hop drops the header, the trace silently splits in two. The usual culprits are an un-instrumented proxy, an async framework that loses the ambient context between accepting a request and doing the work, and message queues where nobody propagated context into the message headers.\n\nOpenTelemetry standardises the stack: a language API your code depends on, an SDK implementing it, auto-instrumentation for common frameworks, the OTLP wire protocol (conventionally gRPC on 4317 and HTTP on 4318), and the Collector. The Collector runs as a separate process or daemonset with pipelines of receivers, processors and exporters, letting you batch, limit memory, redact attributes and switch backends without redeploying applications.\n\nSampling is the cost control. Head sampling decides at trace start using a parent-based ratio -- cheap and consistent, but blind to whether the request turned out interesting. Tail sampling buffers whole traces in the Collector and preferentially keeps errors and slow ones; far more useful, but it requires every span of a trace to reach the same collector instance.",
+      "code": "receivers:\n  otlp:\n    protocols:\n      grpc:                     # :4317\n      http:                     # :4318\n\nprocessors:\n  memory_limiter:               # first in the pipeline: shed load before OOM\n    check_interval: 1s\n    limit_mib: 1024\n  batch:\n    timeout: 5s\n\nexporters:\n  otlp/backend:\n    endpoint: tracing-backend:4317\n\nservice:\n  pipelines:\n    traces:\n      receivers: [otlp]\n      processors: [memory_limiter, batch]\n      exporters: [otlp/backend]\n\n# --- application side (Python)\n# with tracer.start_as_current_span(\"payments.charge\") as span:\n#     span.set_attribute(\"payment.provider\", \"stripe\")\n#     charge()   # outgoing calls propagate this context"
+    },
+    {
+      "title": "14. Cardinality Explosions and Cost Control",
+      "content": "Cardinality is the number of distinct time series, and it is the most common way people take down their own monitoring. A series is identified by its name plus its full label set, so adding one label with N values multiplies that metric's series count by N, and labels multiply with each other: 20 routes times 8 status codes times 30 instances is already 4,800 series from a single counter.\n\nThe expensive part is not the samples -- those compress to a couple of bytes. It is the per-series overhead. Every active series holds an in-memory chunk in the head block plus entries in the inverted index, on the order of kilobytes of RAM each, and query latency grows with the number of series a selector must touch. One deploy that adds `user_id` to a request counter can take a server from one million to tens of millions of series and OOM it. Because the head block is rebuilt from the write-ahead log at startup, it then OOMs again on restart -- your monitoring is down exactly when you need it.\n\nThe rule is that labels must be bounded and known in advance. Never label with user, session or request identifiers, email addresses, raw URL paths (template them to `/users/{id}`), error message text, or anything else derived from user input. Watch churn too: pod names are bounded at any instant, but every deploy mints a new set, so series accumulate across the retention window.\n\nDetect it before it detects you. Track `prometheus_tsdb_head_series`, use the TSDB status page for the worst offenders, and find the responsible label by counting its distinct values. Defend with `sample_limit`, so a runaway target fails its own scrape instead of poisoning the server, and `metric_relabel_configs` to drop or strip at ingest. The same discipline applies to Loki stream labels.",
+      "code": "prometheus_tsdb_head_series                       # total active series\ntopk(10, count by (__name__) ({__name__=~\".+\"}))  # worst metric names\ncount(count by (user_id) (http_requests_total))   # is this label unbounded?\n\nscrape_configs:\n  - job_name: third-party\n    sample_limit: 50000          # scrape fails instead of ingesting a blowup\n    metric_relabel_configs:\n      - action: labeldrop\n        regex: \"(user_id|session_id|request_id)\"\n\n# Prometheus UI -> Status -> TSDB Status lists the highest-cardinality\n# label names and label value pairs. Check it after every big release."
+    }
+  ],
+  "interviewQA": [
+    {
+      "q": "What is the difference between monitoring and observability?",
+      "a": "Monitoring is the practice of collecting known signals and checking them against expectations: you decide in advance what to measure and what bad looks like, and you get dashboards and alerts for the failure modes you anticipated. Observability is a property of the system -- how well you can infer internal state from external output, including for questions nobody thought to ask before the incident. The difference shows up on novel failures. A monitoring-only setup tells you the checkout error ratio is 3%; an observable system lets you slice that by route, version, region and tenant until you find it is only the canary in eu-west talking to one payment provider. Getting there needs high-cardinality context in traces and logs, correlation IDs tying the signals together, and instrumentation that emits rich attributes rather than only pre-aggregated counters. I would not treat them as opposites: metrics-based monitoring is what pages you, and observability is what you use once you are awake.",
+      "followUps": [
+        "Which of your signals can safely carry high-cardinality context, and which cannot?",
+        "What does an 'unknown unknown' mean concretely at instrumentation time?",
+        "How would you test whether a service is actually observable before it breaks?"
+      ]
+    },
+    {
+      "q": "Metrics, logs and traces -- why keep all three, and how would you use them to chase a latency regression you cannot reproduce?",
+      "a": "They are three projections of the same events and each discards something different. A metric is a number over time under a name and label set; samples compress to a couple of bytes, so fleet-wide aggregation and months of retention are cheap, but once a request is counted into a bucket you cannot recover which request it was. A log is a discrete event with the specifics -- the SQL, the stack trace, the tenant -- but cost scales with volume and computing a p99 by scanning logs is slow and expensive. A trace is the causal path of one request across services, which neither of the others can reconstruct because both are per-component. For the latency regression: metrics tell me it is real, how widespread it is and when it started, ideally lined up against a deploy annotation; an exemplar or a tail-sampled slow trace shows which span grew; that span's trace_id pivots straight to the logs for the actual error. Metrics say something is wrong, traces say where, logs say why.",
+      "followUps": [
+        "Why not just log everything and derive the metrics from logs?",
+        "What is an exemplar and how does it link a histogram bucket to a trace?",
+        "The regression only affects 0.5% of requests -- how does that change your approach?"
+      ]
+    },
+    {
+      "q": "Walk me through the four Prometheus metric types. When would you pick a histogram over a summary?",
+      "a": "A counter only increases and resets to zero when the process restarts, so you almost never read the raw value -- you take rate(), which detects the reset. Convention is a _total suffix. A gauge moves both ways (memory in use, queue depth) and is read directly or through the *_over_time functions. A histogram counts observations into cumulative buckets exposed as <name>_bucket{le=\"...\"} plus _sum and _count, and quantiles are estimated from those buckets at query time. A summary computes quantiles inside the client over a sliding window and exposes them directly. The deciding factor is aggregation. Histogram buckets from many instances can be summed and then passed to histogram_quantile, giving a genuine fleet-wide quantile; averaging ten instances' p99 summaries is mathematically meaningless. Summaries are cheap to query and exact per instance, but you must choose histogram boundaries in advance and each one costs a series. For anything aggregated across instances or alerted on, I use a histogram.",
+      "followUps": [
+        "How do you choose bucket boundaries for a service with a 300ms latency SLO?",
+        "Why is averaging quantiles wrong -- can you show it with two instances?",
+        "What do native histograms change about this trade-off?"
+      ]
+    },
+    {
+      "q": "Why does Prometheus pull rather than push, and when do you use the Pushgateway?",
+      "a": "Pull means Prometheus scrapes /metrics over HTTP on an interval it controls. That buys three things. The monitoring system sets its own load, so a misbehaving application cannot flood it. Every scrape yields a synthetic up series per target, which is a liveness signal you get for free. And targets hold no configuration pointing at a monitoring backend, so I can stand up a second server against the same fleet, or curl the endpoint by hand during an incident and see exactly what the server sees. The costs are real: Prometheus must be able to reach every target, so service discovery and network policy become work in dynamic environments, and short-lived batch jobs can exit before any scrape happens. Pushgateway exists for that one case. It is deliberately dumb -- it holds whatever you pushed until something explicitly deletes it and has no liveness semantics -- so used as a general push endpoint it becomes a graveyard of stale series that keep alerting long after the job is gone.",
+      "followUps": [
+        "How would you monitor a cron job that runs every six hours and sometimes fails?",
+        "What breaks if you point a whole fleet of app instances at one Pushgateway?",
+        "How do you scrape targets you cannot route to directly?"
+      ]
+    },
+    {
+      "q": "Describe Prometheus's storage and how you would run it highly available with long retention.",
+      "a": "One binary handles discovery, scraping, local storage and rule evaluation; Alertmanager is a separate process that handles notification. The TSDB appends incoming samples to an in-memory head block backed by a write-ahead log, then periodically flushes immutable on-disk blocks that a compactor merges into larger ones. Retention is by time or size, and the head is replayed from the WAL at startup -- which is why a cardinality blowup that OOMs the server also OOMs it again on restart, exactly when you need monitoring most. There is no clustering and no replication by design. HA means two identically configured servers scraping the same targets, both feeding an Alertmanager cluster that deduplicates notifications; their data will not be byte-identical because scrapes are offset, so you accept small graph differences. Long retention and global query live outside the server: remote_write into Mimir or VictoriaMetrics, or Thanos, whose sidecar ships completed blocks to object storage for a querier to fan out across and deduplicate.",
+      "followUps": [
+        "How does Alertmanager know two alerts from the HA pair are the same alert?",
+        "What role do external_labels play in remote_write and in Thanos?",
+        "Your Prometheus OOMs on startup replaying the WAL -- what do you do?"
+      ]
+    },
+    {
+      "q": "Explain relabel_configs versus metric_relabel_configs.",
+      "a": "Service discovery produces candidate targets decorated with __meta_* labels -- pod annotations, instance tags, health status. relabel_configs runs before the scrape, on targets, and turns those meta labels into the target's real identity: source_labels feed a regex and an action either filters the target (keep, drop), writes a target_label (replace), copies a family of labels (labelmap), or shards targets across servers (hashmod). Special labels control the scrape itself -- __address__, __metrics_path__, __scheme__ -- and anything still beginning with __ is discarded once relabeling finishes. metric_relabel_configs is the same machinery applied after the scrape, to every sample rather than every target. That is the distinction worth stating: relabel_configs decides what you scrape and how, metric_relabel_configs decides what you keep. The second is the last line of defence against a third-party exporter you cannot modify -- drop a noisy metric family, or labeldrop an unbounded label, before it ever reaches the TSDB.",
+      "followUps": [
+        "Write a rule that only scrapes pods annotated prometheus.io/scrape: 'true'.",
+        "How would you shard one job across three Prometheus servers?",
+        "Does dropping samples with metric_relabel_configs reduce the target's own load?"
+      ]
+    },
+    {
+      "q": "Explain rate(), irate() and increase(), and the rule about ordering rate and sum.",
+      "a": "All three take a range vector. rate() returns the per-second average increase over the window and treats any decrease as a counter reset, adjusting for it. increase() is the same computation multiplied by the window length. irate() looks only at the last two samples in the window, giving a spiky, responsive line that suits a zoomed-in graph and is wrong for alerting, because whether it catches a burst depends on where those two samples happen to land. Choose a window covering at least four scrape intervals so a single missed scrape does not blank the series. Two rules I would state explicitly. Never rate() a gauge: an ordinary decrease looks like a reset and the function invents a number -- use the *_over_time family instead. And always rate() before sum(): if you sum counters across instances first, one instance restarting produces a dip in the sum, and because the sum itself never resets to zero, reset detection reads that dip as normal downward movement and you silently lose traffic.",
+      "followUps": [
+        "Why does rate() sometimes return a non-integer for a counter of whole events?",
+        "What happens to rate() if the scrape interval is longer than your range window?",
+        "When is irate() genuinely the right choice?"
+      ]
+    },
+    {
+      "q": "How do you compute a p99 latency across every instance of a service, and where does that go wrong?",
+      "a": "You take rate() of the _bucket series first, sum by (le, route) to combine instances while keeping the le label, then apply histogram_quantile(0.99, ...). The ordering matters: aggregate buckets, never aggregate quantiles. histogram_quantile requires the le label to still be present, so dropping it in the aggregation breaks the query. The pitfalls are all about buckets. The result is interpolated linearly within the matching bucket, so accuracy is bounded by boundary placement -- if most observations land in one wide bucket the number is a guess, and if they land above the largest finite boundary, in +Inf, the answer is effectively meaningless. Buckets are cumulative, so le=\"1.0\" already contains everything in le=\"0.1\". Every extra boundary is another series per label combination, so I pick a handful clustered around the SLO threshold rather than a generic ladder. And on a low-traffic series a quantile over a short window comes from a handful of observations and will be noisy.",
+      "followUps": [
+        "How would you check whether your buckets are well placed for the current traffic?",
+        "Would you alert on p99 latency or on a ratio of requests slower than a threshold?",
+        "What does averaging a p99 over time in a Grafana panel actually give you?"
+      ]
+    },
+    {
+      "q": "What are recording rules for, and how do you name and organise them?",
+      "a": "A recording rule evaluates an expression on the group's interval and stores the result as a new series. Two motivations. Dashboard cost: Grafana re-runs every panel's query on every refresh, so a panel aggregating ten thousand series, times forty panels, times ten open browsers, is a load generator pointed at Prometheus -- precompute the aggregation once instead. And alert correctness and speed: multi-window burn-rate expressions would otherwise recompute the same expensive subquery on every evaluation. Rules live in files, organised into groups; a group has its own evaluation interval and its rules run sequentially, so a later rule can reference a series an earlier rule just recorded, while separate groups run concurrently. The convention level:metric:operations -- job:http_requests:rate5m -- encodes the aggregation level, the source metric and what was done, so a reader knows what is already summed. The caveat is that a recorded series only exists from the moment you deploy the rule, so it cannot answer questions about last week.",
+      "followUps": [
+        "How would you backfill a recording rule you wish you had created a month ago?",
+        "What happens if two rules in different groups write the same series name?",
+        "How do you keep recording rules from becoming their own cardinality problem?"
+      ]
+    },
+    {
+      "q": "What exactly does `for` do in an alerting rule, and why do some alerts never fire?",
+      "a": "An alerting rule is an expression plus for, labels and annotations. On every evaluation, each series the expression returns becomes an alert instance keyed by its label set. It enters the pending state immediately and only becomes firing once the condition has held continuously across evaluations for the whole for duration. Continuously is literal: if the expression stops returning that exact series even once -- because the condition dipped, or because the series itself vanished -- the timer restarts from zero. That is precisely why alerts on flapping conditions or low-traffic series never fire when people expect them to. Alert state is queryable through the synthetic ALERTS metric, which is handy for dashboards and meta-alerting. Labels defined on the rule are the routing keys Alertmanager matches on, so severity and team belong there; annotations are human text with Go templating over $labels and $value, and should carry a summary and a runbook link. I validate rules in CI with promtool check rules and promtool test rules.",
+      "followUps": [
+        "How would you write this alert so a genuinely intermittent problem still pages?",
+        "How does `for` interact with Alertmanager's group_wait for time to page?",
+        "Should the absence of data fire an alert, and how would you make that happen?"
+      ]
+    },
+    {
+      "q": "How does Alertmanager grouping work, and what do the three timers do?",
+      "a": "group_by names the labels that define a group. If fifty pods of one service start erroring and you group by [alertname, service], you get one notification listing fifty instances instead of fifty pages -- that is the single biggest lever on pager load. Three timers govern the group's lifecycle. group_wait is how long a newly created group is held before the first notification, so related alerts arriving seconds apart batch together; tens of seconds is typical, shorter for paging routes. group_interval is the minimum gap before an updated notification is sent when the group's membership changes -- a new instance joins, or one resolves. repeat_interval is how long before re-notifying about a group that has not changed at all, usually hours. The common misconfiguration is grouping by an instance-level label, which defeats grouping entirely and gives you one notification per instance again. For availability, run two or three Alertmanagers as a gossiping cluster so notification state is shared and nothing is delivered twice.",
+      "followUps": [
+        "What is the worst-case delay between a condition starting and a page arriving?",
+        "How would you group so a whole-cluster outage is one page, not one per service?",
+        "What happens to grouping if the Alertmanager cluster partitions?"
+      ]
+    },
+    {
+      "q": "Compare inhibition rules and silences, and describe how routing decides a receiver.",
+      "a": "Routing is a tree. The top-level route sets defaults and a fallback receiver; child routes are tested in order against the alert's labels and the first match wins, unless a route sets continue: true, in which case matching carries on. Children inherit anything they do not override. Inhibition is configuration that suppresses one alert while another is firing. It takes source_matchers, target_matchers and equal -- the labels that must be identical on both sides. The canonical case is a critical ClusterUnreachable inhibiting every warning carrying the same cluster label, because they are all downstream symptoms; without equal you would suppress alerts in unaffected clusters too. It is automatic, permanent and expresses a causal relationship. A silence is the opposite: a human creates a time-bounded, matcher-based mute via the UI or API, typically for planned maintenance. Silences beat commenting out a rule because they expire on their own and record who created them and why. Neither stops Prometheus evaluating -- only the notification is suppressed.",
+      "followUps": [
+        "Where would you see that an alert is firing but silenced?",
+        "How do you stop a maintenance silence from being forgotten and left in place?",
+        "Why does an inhibition rule without `equal` become dangerous at scale?"
+      ]
+    },
+    {
+      "q": "How do you decide what deserves to page someone, and how do you fight alert fatigue?",
+      "a": "I test every paging alert with three questions: is it urgent, is it real, and is there something a human can do about it right now? If any answer is no, it is a ticket, a dashboard panel, or nothing. Then I alert on symptoms rather than causes. Checkout error ratio above 2% for ten minutes is something users feel; CPU above 80% is a cause that is frequently perfectly healthy, fires during every batch job, and stays silent during the novel failure that actually breaks you. Cause-based alerts multiply as the architecture grows and never converge, while a handful of symptom alerts cover failure modes nobody imagined. I keep cause alerts only where the cause is a leading indicator with a fixed remedy -- a disk that will fill in four hours, an expiring certificate. Fatigue is measurable, not a mood: track alerts per on-call shift, the fraction that auto-resolve with no human action, and time to acknowledge. Anything that resolves itself is mis-thresholded or needs a longer for.",
+      "followUps": [
+        "Your team gets 40 pages a week. What is your first week of work?",
+        "Which cause-based alerts would you keep, and why those?",
+        "How do you decide the threshold and duration for a brand-new service?"
+      ]
+    },
+    {
+      "q": "Explain error-budget burn-rate alerting.",
+      "a": "An SLO implies an error budget: 99.9% availability over 30 days permits 0.1% bad events. Burn rate is how fast you are consuming that budget relative to the rate that would exhaust it exactly at the period's end -- burn rate 1 finishes the budget precisely on time, and 14.4 burns about 2% of a 30-day budget in a single hour. Alerting on burn rate rather than a static error threshold scales automatically: a service with a looser SLO tolerates more errors before anyone is woken. The standard shape is multi-window, multi-burn-rate. A fast condition, roughly 14.4x sustained over an hour, pages because the budget would be gone in about two days. A slower one, around 6x over six hours, also pages; around 1x over three days opens a ticket instead. Each condition pairs a long window that establishes the burn is real with a short window, conventionally the long one divided by twelve, confirming it is still happening -- so the alert clears promptly instead of lingering for the whole long window after recovery.",
+      "followUps": [
+        "How would you implement this efficiently without recomputing the ratio constantly?",
+        "What does a burn-rate alert do on a service with almost no traffic overnight?",
+        "How do you pick the SLO threshold in the first place?"
+      ]
+    },
+    {
+      "q": "RED and USE -- what are they, and which signal do people most often forget?",
+      "a": "RED applies to anything request-driven: an HTTP service, a gRPC endpoint, a queue consumer. Rate is requests per second, Errors is failed requests per second or as a ratio, Duration is the latency distribution -- a histogram, not an average. Measure per service and per route, and separate error latency from success latency, because a fast 500 flatters your latency graph and a slow error path hides inside the mean. USE applies to resources: CPUs, memory, disks, network interfaces, connection and thread pools. Utilization is the fraction of time the resource was busy, Saturation is work queued that the resource could not service, Errors are device errors, drops, retransmits or rejected connections. Google's four golden signals are essentially RED plus saturation. Saturation is the one people omit and the one that predicts trouble: utilization tops out at 100% and then tells you nothing, while queue depth keeps growing and maps directly to added latency. Together they give the diagnostic path -- RED says checkouts are slow, USE says the connection pool is saturated.",
+      "followUps": [
+        "How would you measure saturation of a database connection pool specifically?",
+        "What is the equivalent of RED for an asynchronous worker consuming a queue?",
+        "A host is at 45% CPU but requests are slow -- what USE signal do you check?"
+      ]
+    },
+    {
+      "q": "What is a cardinality explosion, how do you detect one, and how do you prevent it?",
+      "a": "Cardinality is the number of distinct active time series. A series is a metric name plus its complete label set, so adding a label with N values multiplies that metric's series count by N, and labels multiply with each other -- 20 routes times 8 status codes times 30 instances is already 4,800 series from one counter. The samples are not the expensive part; they compress to a couple of bytes. The per-series overhead is: each active series holds a chunk in the in-memory head block plus inverted-index entries, on the order of kilobytes of RAM, and query latency grows with the number of series a selector must touch. One deploy adding user_id to a request counter takes a server from one million to tens of millions of series and OOMs it, and since the head is replayed from the WAL at startup it OOMs again on restart. Detect it with prometheus_tsdb_head_series and the TSDB status page; prevent it with sample_limit per scrape and metric_relabel_configs to labeldrop unbounded labels at ingest.",
+      "followUps": [
+        "Which label values would you ban outright in a code review?",
+        "Pod names are bounded at any instant -- why are they still a churn problem?",
+        "How would you find which label is responsible using PromQL?"
+      ]
+    },
+    {
+      "q": "Compare Elasticsearch and Loki for log aggregation.",
+      "a": "Both pipelines have the same shape -- an agent collects, transport buffers, something parses and enriches, a store indexes, retention expires -- and the interesting difference is what gets indexed. Elasticsearch builds an inverted index over fields, which is what makes arbitrary full-text search across terabytes fast. The cost is CPU at ingest, an index often larger than the raw data, and cluster memory scaling with field and shard count. Its classic self-inflicted outage is mapping explosion: dynamic mapping creates a field for every distinct JSON key it sees, so one service logging identifiers as key names generates thousands of fields. Defend with explicit index templates, strict or disabled dynamic mapping, and lifecycle management rolling indices through hot, warm, cold and delete. Loki takes the opposite bet -- it indexes only a small label set per stream, stores lines as compressed chunks in object storage and brute-force scans at query time. Far cheaper to ingest and store; the trade is that a broad unfiltered query over a long window is genuinely slow.",
+      "followUps": [
+        "What are the right Loki stream labels for a Kubernetes service, and why?",
+        "How would you get a p99 latency figure out of logs, and why is that a bad idea?",
+        "How do you keep log cost under control without losing incident-critical data?"
+      ]
+    },
+    {
+      "q": "How does distributed tracing propagate context, and why do traces break?",
+      "a": "A trace is one request rendered as a tree of spans sharing a trace ID; each span carries its own ID, a parent ID, a name, start and end timestamps, a status, attributes and timestamped events. Propagation is the mechanism and the source of most tracing bugs: the caller serialises the current span context into the outgoing request -- the W3C standard header is traceparent, carrying a version, the trace ID, the parent span ID and flags, optionally alongside tracestate -- and the callee extracts it so its spans become children. If any hop drops the header, the trace silently splits into two unrelated traces. The usual culprits are an un-instrumented proxy or gateway, an async framework that loses the ambient context between accepting a request and doing the work, and message queues where nobody propagated context into the message headers. OpenTelemetry standardises the API, SDK, auto-instrumentation, the OTLP wire protocol and the Collector, so you can batch, limit memory and redact attributes without redeploying applications.",
+      "followUps": [
+        "Head sampling versus tail sampling -- which would you choose and what does it cost?",
+        "How do you propagate trace context through a Kafka topic?",
+        "Why run a Collector at all instead of exporting straight to the backend?"
+      ]
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "What uniquely identifies a Prometheus time series?",
+      "back": "The metric name plus its complete label set -- and the name is itself the reserved label __name__. Change any single label value and it is a different series."
+    },
+    {
+      "front": "Counter vs gauge",
+      "back": "A counter only increases and resets to zero on process restart, so you read it with rate(); convention is a _total suffix. A gauge moves both ways (memory, queue depth) and is read directly or with *_over_time."
+    },
+    {
+      "front": "Why prefer a histogram over a summary for latency?",
+      "back": "Histogram buckets can be summed across instances and then passed to histogram_quantile, giving a true fleet-wide quantile. Summary quantiles are computed client-side and cannot be aggregated -- averaging p99s is meaningless."
+    },
+    {
+      "front": "Which series does a Prometheus histogram expose?",
+      "back": "<name>_bucket{le=\"...\"} for each boundary, plus <name>_sum and <name>_count. Buckets are cumulative, so le=\"1.0\" already includes everything in le=\"0.1\"."
+    },
+    {
+      "front": "Why does a busy Grafana dashboard hurt Prometheus?",
+      "back": "Grafana stores nothing -- every panel re-queries the data source on each refresh. Forty heavy panels open on ten screens is a load generator, which is why aggregations belong in recording rules."
+    },
+    {
+      "front": "Two advantages of the pull model",
+      "back": "The scraper controls the sampling rate, so a misbehaving app cannot flood the monitoring system; and every scrape emits a synthetic `up` series per target, giving liveness detection for free."
+    },
+    {
+      "front": "When is the Pushgateway appropriate?",
+      "back": "Only for short-lived batch jobs that may exit before a scrape. It holds metrics until explicitly deleted and has no liveness semantics, so as a general push endpoint it becomes a graveyard of stale series."
+    },
+    {
+      "front": "What are the head block and the WAL?",
+      "back": "The head block holds recent samples in memory, backed by a write-ahead log; it is periodically flushed to immutable on-disk blocks that a compactor merges. The head is replayed from the WAL at startup."
+    },
+    {
+      "front": "How do you run Prometheus highly available?",
+      "back": "There is no clustering or replication. Run two identically configured servers scraping the same targets and let an Alertmanager cluster deduplicate the notifications; their data will differ slightly because scrapes are offset."
+    },
+    {
+      "front": "relabel_configs vs metric_relabel_configs",
+      "back": "relabel_configs runs before the scrape on targets -- it decides what you scrape and how. metric_relabel_configs runs after the scrape on each sample -- it decides what you keep in the TSDB."
+    },
+    {
+      "front": "What does sample_limit do?",
+      "back": "It caps the number of samples accepted from one scrape. Exceeding it fails that scrape, so a runaway target breaks only its own metrics instead of poisoning the whole server with a cardinality blowup."
+    },
+    {
+      "front": "Instant vector vs range vector",
+      "back": "An instant vector is one sample per series at one instant and can be graphed. A range vector, written metric[5m], is a window of raw samples and must be collapsed by a function such as rate() or avg_over_time()."
+    },
+    {
+      "front": "rate() vs irate() vs increase()",
+      "back": "rate() is the per-second average increase over the window with counter-reset detection. increase() is rate() multiplied by the window length. irate() uses only the last two samples -- spiky, good for zoomed graphs, wrong for alerts."
+    },
+    {
+      "front": "Why must you rate() before sum()?",
+      "back": "Summing counters first hides restarts: a single instance resetting shows only as a dip in the sum, which never resets itself, so reset detection reads it as ordinary downward movement and you lose traffic."
+    },
+    {
+      "front": "Why never apply rate() to a gauge?",
+      "back": "rate() treats any decrease as a counter reset, so a normal downward move in a gauge makes it invent numbers. Use the *_over_time family -- max_over_time, avg_over_time -- or delta()/deriv() instead."
+    },
+    {
+      "front": "How do you get a fleet-wide p99 from a histogram?",
+      "back": "histogram_quantile(0.99, sum by (le, route) (rate(..._bucket[5m]))) -- rate the buckets, aggregate them keeping the le label, then take the quantile. Never aggregate quantiles."
+    },
+    {
+      "front": "Recording rule naming convention",
+      "back": "level:metric:operations, e.g. job:http_requests:rate5m -- the aggregation level, the source metric, and what was already done to it, so a reader knows what has been summed."
+    },
+    {
+      "front": "What does `for` do in an alerting rule?",
+      "back": "The alert is pending as soon as the expression returns the series, and only fires once the condition holds continuously for that duration. Any single evaluation where the series is missing restarts the timer."
+    },
+    {
+      "front": "group_wait vs group_interval vs repeat_interval",
+      "back": "group_wait: how long to hold a new group before its first notification. group_interval: minimum gap before an updated notification when membership changes. repeat_interval: how long before re-notifying an unchanged group."
+    },
+    {
+      "front": "Which log field is worth more than any other?",
+      "back": "trace_id (with span_id), carried from the request context onto every line. It turns three separate tools into one investigation: find the slow trace, pivot to its logs, read the actual error."
+    },
+    {
+      "front": "Silence vs inhibition",
+      "back": "A silence is a human-created, time-bounded, matcher-based mute for planned work; it expires on its own. Inhibition is configuration where one firing alert suppresses another, with `equal` naming the labels that must match on both sides."
+    },
+    {
+      "front": "Symptom alerts vs cause alerts",
+      "back": "Symptoms are what users feel (error ratio, latency) and cover failure modes you never imagined. Causes like 'CPU > 80%' are often healthy, multiply with the architecture, and miss novel failures."
+    },
+    {
+      "front": "What does a burn rate of 14.4 mean?",
+      "back": "You are consuming the error budget 14.4x faster than the rate that would exhaust it exactly at period end -- about 2% of a 30-day budget in one hour. That is a paging condition."
+    },
+    {
+      "front": "Head vs tail sampling",
+      "back": "Head sampling decides at trace start with a parent-based ratio -- cheap and consistent, but blind to how the request turned out. Tail sampling buffers whole traces in the Collector to keep errors and slow ones, but every span must reach the same collector instance."
+    },
+    {
+      "front": "RED",
+      "back": "Rate, Errors, Duration -- the checklist for anything request-driven. Measure per service and per route, and split error latency from success latency so a fast 500 does not flatter the graph."
+    },
+    {
+      "front": "USE",
+      "back": "Utilization, Saturation, Errors -- the checklist for resources such as CPUs, disks, interfaces and connection pools. Google's four golden signals are essentially RED plus saturation."
+    },
+    {
+      "front": "Why is saturation more predictive than utilization?",
+      "back": "Utilization tops out at 100% and then tells you nothing about how bad things are, while queued work keeps growing and maps directly to added latency. Queue wait time beats 'percent in use'."
+    },
+    {
+      "front": "What is cardinality and why is it expensive?",
+      "back": "The number of distinct active series. Samples compress to a couple of bytes; the cost is per-series -- an in-memory head chunk plus inverted-index entries, kilobytes of RAM each, and query latency scaling with series touched."
+    },
+    {
+      "front": "Label values you must never use",
+      "back": "Anything unbounded or user-derived: user, session or request IDs, email addresses, raw URL paths (template them to /users/{id}) and error message text. Those belong in logs or trace attributes."
+    },
+    {
+      "front": "Loki vs Elasticsearch indexing",
+      "back": "Elasticsearch builds an inverted index over fields -- fast arbitrary search, high CPU and memory cost. Loki indexes only stream labels and brute-force scans compressed chunks in object storage -- cheap ingest, slow broad queries."
+    },
+    {
+      "front": "What is mapping explosion?",
+      "back": "Elasticsearch dynamic mapping creating a field for every distinct JSON key, so a service logging identifiers as key names generates thousands of fields and destabilises the cluster. Fix with explicit templates and strict mappings."
+    },
+    {
+      "front": "What is the traceparent header?",
+      "back": "The W3C context-propagation header carrying version, trace ID, parent span ID and flags (optionally with tracestate). If any hop drops it, the trace silently splits into two unrelated traces."
+    }
+  ]
+}

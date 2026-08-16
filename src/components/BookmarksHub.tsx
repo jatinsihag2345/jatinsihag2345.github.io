@@ -74,7 +74,11 @@ export const BookmarksHub: React.FC<BookmarksHubProps> = ({ onOpenQuestion, refr
       .map(q => ({
         id: q.id,
         title: q.title,
-        chips: [q.topic, ...(q.patterns || []).slice(0, 2)],
+        // Nine questions carry their own topic inside `patterns` too (the Greedy
+        // and Binary Search ones), and the chip below is keyed on its label — so
+        // dedupe or those rows render the same chip twice and trip React's
+        // duplicate-key path.
+        chips: [...new Set([q.topic, ...(q.patterns || []).slice(0, 2)])],
         noteLine: firstNoteLine(q.id),
         question: q,
       }));

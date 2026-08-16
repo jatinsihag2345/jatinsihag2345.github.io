@@ -145,18 +145,41 @@ const cleanTraceback = (raw: string): string => {
 };
 
 /** Turn a failed test into "assert that failed + its source line" instead of a wall
- *  of traceback. The line number in the last <exec> frame indexes into `tests`. */
+ *  of traceback.
+ *
+ *  The tests are compiled under their OWN filename (see runPython) so that a line
+ *  number can be indexed into `tests` safely. When both were compiled as <exec>, a
+ *  crash inside the learner's solution left the deepest frame pointing at a line of
+ *  THEIR code, which was then quoted out of the tests file — naming a check that
+ *  never ran, sometimes a comment. Everything not <tests> is now their code by
+ *  construction, and the innermost <tests> frame is the check that was executing
+ *  when it broke, whether the assert came out false or the solution raised under it. */
 const describeFailure = (raw: string, tests: string): string => {
-  const frames = [...raw.matchAll(/File "<exec>", line (\d+)/g)];
+  const frames = [...raw.matchAll(/File "<tests>", line (\d+)/g)];
   const lastLine = frames.length ? Number(frames[frames.length - 1][1]) : NaN;
-  const src = Number.isFinite(lastLine) ? (tests.split('\n')[lastLine - 1] || '').trim() : '';
+  const testLines = tests.split('\n');
+  const src =
+    Number.isFinite(lastLine) && lastLine >= 1 && lastLine <= testLines.length
+      ? (testLines[lastLine - 1] || '').trim()
+      : '';
   const errLine =
     raw
       .split('\n')
       .reverse()
       .find(l => /^\w*(Error|Exception|AssertionError)/.test(l.trim())) || '';
   if (src) {
-    return `This check failed:\n    ${src}\n${errLine.trim() || 'AssertionError'}`;
+    const err = errLine.trim() || 'AssertionError';
+    // Three different failures, three sentences. A false assert means the answer was
+    // wrong; an exception underneath it means the check never got an answer at all,
+    // and calling that "this check failed" sends people hunting for a logic error in
+    // code that never returned. A compile error is the tests' own — they can be the
+    // learner's ("my tests" in Bug Hunt), so it must not read as their solution's fault.
+    const header = /^AssertionError\b/.test(err)
+      ? 'This check failed:'
+      : /^(SyntaxError|IndentationError|TabError)\b/.test(err)
+        ? 'This check could not be compiled:'
+        : 'Your code raised while running this check:';
+    return `${header}\n    ${src}\n${err}`;
   }
   return cleanTraceback(raw);
 };
@@ -194,7 +217,10 @@ export const runPython = async (code: string, tests?: string): Promise<PyRunResu
 
     if (tests && tests.trim()) {
       try {
-        pyodide.runPython(tests, { globals: ns });
+        // '<tests>' (not the default '<exec>') is what lets describeFailure tell a
+        // test frame from a learner frame. Angle brackets keep Pyodide from trying
+        // to splice source lines into the traceback, exactly as before.
+        pyodide.runPython(tests, { globals: ns, filename: '<tests>' });
       } catch (assertErr) {
         return {
           ok: true,

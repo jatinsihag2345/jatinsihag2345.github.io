@@ -6,7 +6,7 @@ import {
 import { dsaQuestions } from '../data/dsaQuestions';
 import type { Question } from '../data/dsaQuestions';
 import { readJson, writeJson, removeStoredValue, readStringArray, STORAGE_KEYS } from '../utils/persistence';
-import { gradeQuestion, type Recall } from '../utils/review';
+import { gradeQuestion, todayISO, type Recall } from '../utils/review';
 import { useWakeLock } from '../utils/wakeLock';
 import { fireConfetti } from '../utils/Confetti';
 import { buildChallengeUrl, isDrillPreset } from '../utils/challenge';
@@ -246,7 +246,13 @@ export const MockDrill: React.FC<MockDrillProps> = ({ onOpenQuestion }) => {
     writeJson('drill-log', [
       ...log,
       {
-        on: new Date(endedAt).toISOString().slice(0, 10),
+        // todayISO, not toISOString().slice(0,10): every reader of this log windows on
+        // LOCAL calendar days (digest's "last 7 days", the personal-bests date), so a
+        // UTC stamp pushed an evening drill west of Greenwich onto tomorrow — outside
+        // the window that was meant to contain it. Older rows keep whatever date they
+        // were written with; re-dating a learner's history after the fact would move
+        // drills they remember doing.
+        on: todayISO(new Date(endedAt)),
         outcomes: finalState.problems.map(pr => pr.outcome),
         mode: 'classic',
         // Wall-clock duration, for the personal-bests card. Optional on purpose:
@@ -348,6 +354,11 @@ export const MockDrill: React.FC<MockDrillProps> = ({ onOpenQuestion }) => {
       setPreset(null);
       if (picked.length > 0) {
         const t = Date.now();
+        // `now` only advances from the once-a-second interval, which exists solely while
+        // a drill runs — so it is as stale as the time since mount. Re-stamp it with the
+        // same instant the drill starts, or the first paint of the clock shows the budget
+        // plus all that idle drift before the first tick corrects it.
+        setNow(t);
         setLogged({});
         setResults(null);
         setDrill({
@@ -373,6 +384,7 @@ export const MockDrill: React.FC<MockDrillProps> = ({ onOpenQuestion }) => {
     ].slice(0, length);
     if (picked.length === 0) return;
     const t = Date.now();
+    setNow(t); // same stale-clock reason as the preset branch above
     setLogged({});
     setResults(null);
     setDrill({
@@ -511,6 +523,9 @@ export const MockDrill: React.FC<MockDrillProps> = ({ onOpenQuestion }) => {
                       key={l.count}
                       onClick={() => setLength(l.count)}
                       className="lift"
+                      // Selection is otherwise carried by colour alone — same reason the
+                      // mode buttons above announce their state.
+                      aria-pressed={active}
                       style={{
                         flex: '1 1 150px', textAlign: 'left', cursor: 'pointer',
                         display: 'flex', flexDirection: 'column', gap: '0.2rem',
@@ -538,6 +553,7 @@ export const MockDrill: React.FC<MockDrillProps> = ({ onOpenQuestion }) => {
                       key={m.key}
                       onClick={() => setMix(m.key)}
                       className="lift"
+                      aria-pressed={active}
                       style={{
                         flex: '1 1 150px', textAlign: 'left', cursor: 'pointer',
                         display: 'flex', flexDirection: 'column', gap: '0.2rem',
@@ -591,7 +607,7 @@ export const MockDrill: React.FC<MockDrillProps> = ({ onOpenQuestion }) => {
               <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>
                 {preset
                   ? `Friend challenge armed — the next drill runs their exact ${preset.ids.length} problem${preset.ids.length === 1 ? '' : 's'}, length and band above are ignored.`
-                  : `Drawing from ${poolSize} problems, unsolved ones first.`}
+                  : `Drawing from ${poolSize} problems in the ${MIXES.find((m) => m.key === mix)!.label} band, unsolved ones first.`}
               </span>
               {preset && (
                 <button

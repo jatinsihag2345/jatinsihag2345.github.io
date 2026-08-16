@@ -132,8 +132,28 @@ export const LocalsTimeline: React.FC<LocalsTimelineProps> = ({ code, fnName, ar
   const safeIdx = steps.length > 0 ? Math.min(idx, steps.length - 1) : 0;
   const step = steps.length > 0 ? steps[safeIdx] : null;
   // "What just changed?" is the whole point of stepping — values that differ from
-  // the previous step get the highlight so the eye lands on the mutation.
-  const prevLocals = step && safeIdx > 0 ? steps[safeIdx - 1].locals : null;
+  // the previous step get the highlight so the eye lands on the mutation. The
+  // comparison has to come from the SAME frame though: the literally-previous step
+  // can belong to a callee that just returned, and comparing a caller's locals
+  // against a callee's lights up the entire caller frame as "mutated" on every
+  // return — exactly backwards for the recursion the depth badge exists to explain.
+  // traceRun emits no frame id, so identify the frame by walking back over the
+  // nested steps (depth > ours) to the previous step at our own depth. Two stops
+  // mean the frame has only just opened, so everything in it is genuinely new:
+  // a step SHALLOWER than ours (we reached our caller), or a `return` recorded at
+  // our depth (that closed a sibling call — e.g. successive f(x) calls from one
+  // comprehension, where no caller step is recorded between them).
+  const prevSameFrameLocals = (): Record<string, string> | null => {
+    if (!step) return null;
+    for (let k = safeIdx - 1; k >= 0; k--) {
+      const s = steps[k];
+      if (s.depth > step.depth) continue;
+      if (s.depth < step.depth) return null;
+      return s.event === 'return' ? null : s.locals;
+    }
+    return null;
+  };
+  const prevLocals = prevSameFrameLocals();
   const isChanged = (name: string) =>
     step !== null && (prevLocals === null || prevLocals[name] !== step.locals[name]);
   const chip = step ? EVENT_CHIP[step.event] : null;

@@ -12,7 +12,8 @@
  * is text, not navigation — and nothing while the list itself is off screen.
  * "Off screen" is checked the same way MockDrill checks its panel: a null ref
  * (unmounted) or a null offsetParent (a display:none ancestor). A hidden list
- * must not swallow keys meant for whatever IS on screen.
+ * must not swallow keys meant for whatever IS on screen — and neither must a
+ * VISIBLE list that happens to be sitting under an open dialog.
  *
  * The cursor is a plain index, not DOM focus: rows keep their own click
  * handlers and the Tab order stays untouched, so there is no keyboard trap to
@@ -90,6 +91,12 @@ export const useListNavigation = ({
       if (e.key === 'Enter' && t && (t.tagName === 'BUTTON' || t.tagName === 'A')) return;
       const list = listRef.current;
       if (!list || list.offsetParent === null) return;
+      // A dialog on top owns the keyboard. Every overlay in this app parks focus
+      // on a tabIndex={-1} DIV, so the input/textarea gate above lets its keys
+      // through — and the list is still painted underneath, so the visibility
+      // gate passes too. Without this, `s` behind the shortcut sheet silently
+      // solves a row and `o` navigates away under the still-open overlay.
+      if (document.querySelector('[role="dialog"]')) return;
 
       // Letters normalised so CapsLock/Shift don't silently disable navigation.
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;

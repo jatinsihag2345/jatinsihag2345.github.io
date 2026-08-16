@@ -6,33 +6,71 @@ import { type Snapshot, isSnapshotList, relTime } from './PythonPlayground';
 
 interface SubmissionsTabProps {
   questionId: string;
+  /** True while this is the tab on screen. `dsa:tests-passed` covers the green-run
+   *  writer, but `startResolve()`'s stash writes the same list and fires nothing to
+   *  subscribe to — re-reading when the tab is brought forward is what catches it,
+   *  and anything else that ever writes `snap-`, without a poll. */
+  active?: boolean;
 }
+
+/** `snap-` has two writers: `execute()` on a green graded run, and
+ *  `startResolve()`, which stashes whatever is in the editor — passing, failing
+ *  or half-typed — so wiping back to the starter can never cost work. Only the
+ *  writer knows which, so this tab reads an optional flag rather than assuming:
+ *  entries written before the flag existed simply do not carry it and get the
+ *  neutral label. Calling every row "Accepted" was a claim the data does not
+ *  support. */
+type KeptRun = Snapshot & { passed?: boolean };
+
+const verdictOf = (s: KeptRun): string =>
+  s.passed === true ? 'Accepted' : s.passed === false ? 'Stashed before a re-solve' : 'Saved attempt';
 
 /**
  * This app runs no judge, so there is no submission history the way LeetCode
  * has one. What genuinely exists is the Code panel's own `snap-<questionId>`
- * list — every attempt that passed the shipped tests, newest first, capped at
- * 10 (see PythonPlayground.tsx's `execute()`). That is a real, much smaller
- * thing than a submission log, so this tab says so up front rather than
- * dressing it up as one. Read-only here — restoring a snapshot into the editor
- * stays in the Code panel's own "History" dropdown, which already does it.
+ * list — the code it keeps for you, newest first, capped at 10 (see
+ * PythonPlayground.tsx). That is a real, much smaller thing than a submission
+ * log, so this tab says so up front rather than dressing it up as one.
+ * Read-only here — restoring a snapshot into the editor stays in the Code
+ * panel's own "History" dropdown, which already does it.
  */
-export const SubmissionsTab: React.FC<SubmissionsTabProps> = ({ questionId }) => {
-  const [snaps, setSnaps] = useState<Snapshot[]>(() => readJson<Snapshot[]>(`snap-${questionId}`, [], isSnapshotList));
+export const SubmissionsTab: React.FC<SubmissionsTabProps> = ({ questionId, active }) => {
+  const [snaps, setSnaps] = useState<KeptRun[]>(() => readJson<KeptRun[]>(`snap-${questionId}`, [], isSnapshotList));
   const [openOn, setOpenOn] = useState<number | null>(null);
 
   useEffect(() => {
-    setSnaps(readJson<Snapshot[]>(`snap-${questionId}`, [], isSnapshotList));
+    const read = () => setSnaps(readJson<KeptRun[]>(`snap-${questionId}`, [], isSnapshotList));
+    read();
     setOpenOn(null);
+    // The Code panel writes this list from the RIGHT pane while this tab is on
+    // screen — all four panels stay mounted (see ProblemViewer), so a read only
+    // at mount left the learner watching a run go green next to "Nothing yet".
+    // The playground dispatches dsa:tests-passed just BEFORE it writes the
+    // snapshot, both in one synchronous stretch, so the re-read is queued a
+    // microtask later to land after that write rather than before it.
+    const onPassed = (e: Event) => {
+      const id = (e as CustomEvent<{ questionId?: string }>).detail?.questionId;
+      if (id && id !== questionId) return;
+      queueMicrotask(read);
+    };
+    window.addEventListener('dsa:tests-passed', onPassed);
+    return () => window.removeEventListener('dsa:tests-passed', onPassed);
   }, [questionId]);
 
-  const refresh = () => setSnaps(readJson<Snapshot[]>(`snap-${questionId}`, [], isSnapshotList));
+  // Kept separate from the effect above so bringing the tab forward re-reads the
+  // list without also collapsing an expanded row — surviving a tab switch is the
+  // point of keeping all four panels mounted.
+  useEffect(() => {
+    if (active) setSnaps(readJson<KeptRun[]>(`snap-${questionId}`, [], isSnapshotList));
+  }, [active, questionId]);
+
+  const refresh = () => setSnaps(readJson<KeptRun[]>(`snap-${questionId}`, [], isSnapshotList));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
         <History size={16} color="hsl(var(--secondary))" />
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Your passing attempts</h3>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Your saved attempts</h3>
         <button
           className="btn btn-secondary"
           style={{ marginLeft: 'auto', padding: '0.35rem 0.7rem', fontSize: '0.75rem' }}
@@ -42,9 +80,11 @@ export const SubmissionsTab: React.FC<SubmissionsTabProps> = ({ questionId }) =>
         </button>
       </div>
       <p style={{ fontSize: '0.82rem', color: 'hsl(var(--text-secondary))', lineHeight: 1.6 }}>
-        Not a full submission log — there is no judge behind this app. This is every run from the
-        Code panel that passed the shipped tests, auto-saved newest-first and capped at 10. Restore
-        one into the editor from the Code panel's own "History" dropdown, right above it.
+        Not a full submission log — there is no judge behind this app. This is the code the Code
+        panel kept: every run that passed the shipped tests, plus whatever was in the editor when
+        you started a timed re-solve, since that wipe must never cost you work. Newest-first, capped
+        at 10. Restore one into the editor from the Code panel's own "History" dropdown, right above
+        it.
       </p>
 
       {snaps.length === 0 ? (
@@ -66,7 +106,7 @@ export const SubmissionsTab: React.FC<SubmissionsTabProps> = ({ questionId }) =>
                 }}
               >
                 {openOn === s.on ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Accepted — {relTime(s.on)}</span>
+                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{verdictOf(s)} — {relTime(s.on)}</span>
                 <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'hsl(var(--text-muted))', fontFamily: 'var(--font-mono)' }}>
                   {s.code.split('\n').length} lines
                 </span>

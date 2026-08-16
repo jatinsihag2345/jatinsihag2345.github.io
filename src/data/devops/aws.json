@@ -1,0 +1,372 @@
+{
+  "subject": "Cloud Fundamentals (AWS-centric)",
+  "summary": "Cloud fundamentals is the layer every other DevOps skill rests on: if you cannot reason clearly about identity, networking, storage and compute on AWS, nothing you say about pipelines or Kubernetes will land. Interviewers probe this area because its failure modes are expensive and public - a bucket left open, a NAT gateway quietly billing five figures, a single-AZ database that took production down. The questions are rarely trivia; they are \"why does this exist\", \"what breaks when it fails\", and \"what would you have designed differently\".",
+  "sections": [
+    {
+      "title": "Regions, Availability Zones, and the Global Footprint",
+      "content": "AWS partitions its infrastructure into Regions - independent geographic clusters such as us-east-1 - each containing multiple Availability Zones. An AZ is one or more physically separate data centres with independent power, cooling and network feeds, far enough apart to survive a shared flood or grid failure but close enough that inter-AZ latency is a couple of milliseconds. That distance is exactly what makes synchronous replication across AZs practical, while cross-Region replication is almost always asynchronous.\n\nThe consequence: a Region is the boundary for data residency and most service APIs, while an AZ is the blast-radius unit you architect around. Regions are isolated by default - nothing replicates across them unless you configure it. Most services are regional (EC2, RDS, VPC); a few are global (IAM, Route 53, CloudFront, Organizations) with control planes anchored in us-east-1, which is why an ACM certificate used by CloudFront must be issued there regardless of where the workload runs.\n\nA detail that trips people up: AZ names are per-account aliases. The us-east-1a in your account may map to different hardware than us-east-1a in mine, because AWS randomises the mapping to spread load. The stable identifier is the AZ ID, such as use1-az1, and that is what you compare across accounts. Spread tiers across at least three AZs where the Region offers them; single-AZ is a cost decision, not a default.",
+      "code": "# AZ names are per-account aliases; AZ IDs are the stable physical identifier\naws ec2 describe-availability-zones --region us-east-1 \\\n  --query 'AvailabilityZones[].[ZoneName,ZoneId,State]' --output table"
+    },
+    {
+      "title": "The Shared Responsibility Model",
+      "content": "AWS secures the cloud; you secure what you put in it. AWS owns physical security, hardware, the hypervisor and Nitro layer, the network fabric, and the software of managed services. You own your data, its classification, your encryption choices, your IAM configuration, your network rules and - depending on the service - the guest operating system.\n\nThe line moves with the service model, and describing that movement is the actual interview answer. On EC2 you patch the kernel, harden the AMI and configure security groups. On RDS, AWS patches the engine during a maintenance window you schedule, but database users, grants, parameter groups, subnet placement and whether the instance is reachable from the internet are yours. On S3 and Lambda you own almost nothing operationally, yet bucket policies, Block Public Access and function permissions are still on you - and those are exactly where incidents happen.\n\nNearly every headline \"AWS breach\" is a customer misconfiguration rather than a platform failure: a bucket opened to the world, long-lived keys committed to a public repository, an over-broad policy on a role a compromised container could assume. Resilience is shared too, so a single-AZ database that fails is your availability choice and not AWS's outage; and AWS Artifact supplies infrastructure audit reports, but proving your workload meets PCI or HIPAA is evidence you produce.",
+      "code": "# Customer-side checks that AWS will never make for you\naws s3api get-public-access-block --bucket my-bucket\naws s3api get-bucket-encryption   --bucket my-bucket"
+    },
+    {
+      "title": "IAM Identities: Users, Groups, and Roles",
+      "content": "IAM answers one question on every API call: who is making this request, and are they allowed to. The principals are the root user, IAM users, IAM roles, and federated identities arriving through an external provider. The root user holds unconditional power over the account and cannot be constrained by IAM policies - only Organizations service control policies can restrict it. Give it hardware MFA, no access keys, and use it only for the few tasks that require it.\n\nIAM users are long-lived identities holding a console password, an access key pair, or both. Groups exist purely to attach policies to sets of users; a group is not a principal, so it cannot be named in a trust policy or a bucket policy.\n\nRoles are the construct that matters: an identity with permissions but no permanent credentials. A role carries two distinct documents: a trust policy saying who may assume it, and permission policies saying what it can do once assumed. Assuming a role yields temporary credentials from STS - access key ID, secret, session token and expiry. Temporary keys begin with ASIA and long-lived user keys with AKIA, a useful tell when triaging a leaked credential.\n\nThe modern pattern is to have almost no IAM users. Humans authenticate through IAM Identity Center or a corporate IdP and land in roles; workloads receive roles from the platform - instance profiles on EC2, task roles on ECS, execution roles on Lambda, IRSA or Pod Identity on EKS.",
+      "code": "# Audit long-lived credentials before arguing about policy design\naws iam generate-credential-report\naws iam list-access-keys --user-name deploy-bot\n\n# A role is defined by its trust policy as much as its permissions\naws iam get-role --role-name app-runtime --query 'Role.AssumeRolePolicyDocument'"
+    },
+    {
+      "title": "IAM Policies and How Evaluation Actually Works",
+      "content": "A policy is a JSON document: a Version field, then Statements carrying Effect, Action, Resource, an optional Principal and an optional Condition. Identity-based policies attach to users, groups or roles. Resource-based policies attach to the resource itself - S3 bucket policies, SQS queue policies, KMS key policies - and must name a Principal, because the identity is not implied.\n\nEvaluation, simplified but accurate enough to reason with: every request starts at an implicit deny. An explicit Deny in any applicable policy wins immediately and cannot be overridden by any Allow. Otherwise the request needs an Allow that survives every restricting layer: service control policies, which act as organisation-wide guardrails that filter permissions but never grant them; permissions boundaries, which cap what an identity policy can effectively grant; session policies passed at assume-role time; and the identity and resource policies themselves. Within one account, an Allow from either the identity policy or the resource policy is generally enough; across accounts, both sides must allow it independently.\n\nLeast privilege is iterative. Start from CloudTrail and IAM last-accessed data rather than guessing at required actions, scope Resource to concrete ARNs, and narrow further with conditions such as aws:PrincipalOrgID or aws:SecureTransport. Two traps: granting iam:PassRole broadly is a privilege-escalation path, because a caller can hand a powerful role to a service they control; and NotAction silently allows every action AWS adds in future.",
+      "code": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Sid\": \"ReadOnePrefixOverTLS\",\n      \"Effect\": \"Allow\",\n      \"Action\": [\"s3:GetObject\", \"s3:ListBucket\"],\n      \"Resource\": [\n        \"arn:aws:s3:::reports-prod\",\n        \"arn:aws:s3:::reports-prod/team-a/*\"\n      ],\n      \"Condition\": {\n        \"Bool\": { \"aws:SecureTransport\": \"true\" },\n        \"StringEquals\": { \"aws:PrincipalOrgID\": \"o-exampleorgid\" }\n      }\n    },\n    {\n      \"Sid\": \"NeverStopTheAuditTrail\",\n      \"Effect\": \"Deny\",\n      \"Action\": [\"cloudtrail:StopLogging\", \"cloudtrail:DeleteTrail\"],\n      \"Resource\": \"*\"\n    }\n  ]\n}"
+    },
+    {
+      "title": "AssumeRole, STS, and Cross-Account Access",
+      "content": "sts:AssumeRole is the mechanism underneath almost all real AWS access. A caller presents an identity, the target role's trust policy decides whether that identity qualifies, and STS returns short-lived credentials scoped to the role's permissions. The default session lasts one hour; a role can be configured to allow up to twelve, but chaining one role into another caps the session at one hour regardless.\n\nCross-account access always has two halves and candidates routinely forget one. In the target account you create a role whose trust policy names the source account or a specific principal ARN. In the source account you grant your principal sts:AssumeRole on that role ARN. When a third-party SaaS vendor assumes into your account, add an ExternalId condition - it defends against the confused-deputy problem, where the vendor is tricked into using its legitimate access on an attacker's behalf.\n\nAssumeRoleWithWebIdentity exchanges an OIDC token for AWS credentials, which is how GitHub Actions, EKS IRSA and similar systems get keyless access. The trust policy pins the issuer, the audience, and a subject condition identifying the repository and branch or the Kubernetes service account; writing that subject as a wildcard over an entire organisation is a common security review finding.\n\nOn EC2 an instance profile publishes credentials through the metadata service and the SDKs refresh them automatically. ECS tasks fetch them from a container credentials endpoint, and Lambda receives them as environment variables. In every case the credentials expire on their own, which is the entire point.",
+      "code": "aws sts assume-role \\\n  --role-arn arn:aws:iam::222233334444:role/deploy \\\n  --role-session-name ci-run-8231 --duration-seconds 3600\n\n# Keyless CI: pin issuer, audience and the exact repo/branch subject\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\n    \"Effect\": \"Allow\",\n    \"Principal\": {\n      \"Federated\": \"arn:aws:iam::222233334444:oidc-provider/token.actions.githubusercontent.com\"\n    },\n    \"Action\": \"sts:AssumeRoleWithWebIdentity\",\n    \"Condition\": {\n      \"StringEquals\": {\n        \"token.actions.githubusercontent.com:aud\": \"sts.amazonaws.com\",\n        \"token.actions.githubusercontent.com:sub\": \"repo:my-org/my-repo:ref:refs/heads/main\"\n      }\n    }\n  }]\n}"
+    },
+    {
+      "title": "EC2: Instances, Purchasing, Storage, and Metadata",
+      "content": "EC2 rents virtual machines on shared hardware. An instance type encodes a family and a size: m for balanced, c for compute-heavy, r and x for memory, i and d for local storage, g and p for accelerators. The burstable t family is different in kind - it accrues CPU credits while idle and throttles hard once they are exhausted, which explains the box that benchmarks well in staging and degrades a week into production.\n\nOn-Demand costs the most and commits to nothing. Reserved Instances and Savings Plans trade a one- or three-year commitment for a large discount, with Savings Plans the more flexible because they apply across instance families and, in the Compute variant, across Fargate and Lambda. Spot offers spare capacity at a steep discount with a two-minute interruption notice - excellent for stateless workers, batch and CI, unsuitable for anything that cannot be killed mid-flight.\n\nEBS volumes are network-attached, exist within a single AZ, and persist independently of the instance; gp3 is the sensible default because throughput and IOPS are provisioned separately from capacity, unlike gp2 where performance scaled with size. Instance store is physically attached NVMe - very fast, and irrecoverably gone when the instance stops or is replaced. Snapshots are incremental and stored in S3, and are the only way to move a volume to another AZ or Region.\n\nAn instance boots from an AMI and can run user data through cloud-init on first boot. Instance facts and instance-profile credentials come from the metadata service at 169.254.169.254; enforce IMDSv2, whose token exchange blocks credential theft through SSRF.",
+      "code": "# Require IMDSv2 at launch and keep the token from leaving the host\naws ec2 run-instances --image-id ami-0123456789abcdef0 \\\n  --instance-type m7i.large \\\n  --metadata-options \"HttpTokens=required,HttpEndpoint=enabled,HttpPutResponseHopLimit=1\"\n\n# The two-step exchange is what defeats SSRF\nTOKEN=$(curl -sX PUT \"http://169.254.169.254/latest/api/token\" \\\n  -H \"X-aws-ec2-metadata-token-ttl-seconds: 21600\")\ncurl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" \\\n  http://169.254.169.254/latest/meta-data/instance-id"
+    },
+    {
+      "title": "VPC: Subnets, Route Tables, Internet and NAT Gateways",
+      "content": "A VPC is a private, software-defined network inside one Region, defined by a CIDR block between /16 and /28. You carve it into subnets, and a subnet lives in exactly one Availability Zone - that single constraint is why every highly available design ends up with parallel subnets, one per AZ. AWS reserves five addresses in every subnet (network address, VPC router, DNS resolver, one held for future use, and broadcast), so a /28 yields eleven usable IPs rather than sixteen.\n\nRouting is what makes a subnet public or private; there is no attribute called \"public\". Each subnet associates with exactly one route table, and every route table contains an unremovable local route covering the VPC CIDR, so instances in different subnets can always reach each other subject to security rules. Add a default route to an Internet Gateway and the subnet is public: instances holding public IPs reach the internet, with the IGW performing one-to-one address translation. Point the default route at a NAT Gateway instead and the subnet is private - outbound connections work, inbound ones cannot be initiated.\n\nNAT Gateways are the classic budget surprise. Each is scoped to one AZ, requires an Elastic IP, sits in a public subnet, and bills per hour plus per gigabyte processed. One NAT per AZ is the resilient layout; a single shared NAT is cheaper but adds a zonal single point of failure and cross-AZ charges on every byte. VPC endpoints keep traffic off the NAT: gateway endpoints for S3 and DynamoDB are route table entries and cost nothing, while interface endpoints place a PrivateLink ENI in your subnet and bill hourly plus per gigabyte.",
+      "code": "# Private subnet: default route to a NAT gateway, not the IGW\naws ec2 create-route --route-table-id rtb-private-1a \\\n  --destination-cidr-block 0.0.0.0/0 --nat-gateway-id nat-0a1b2c3d\n\n# A gateway endpoint removes S3 traffic (and its per-GB NAT cost) from that path\naws ec2 create-vpc-endpoint --vpc-id vpc-0abc123 \\\n  --vpc-endpoint-type Gateway \\\n  --service-name com.amazonaws.us-east-1.s3 \\\n  --route-table-ids rtb-private-1a rtb-private-1b"
+    },
+    {
+      "title": "Security Groups vs Network ACLs",
+      "content": "Security groups and network ACLs are both packet filters, and the difference is the most reliably asked VPC question there is.\n\nA security group attaches to an elastic network interface, not to a subnet. It contains allow rules only - there is no syntax for a deny - and when several groups are attached to one interface the effective permission is their union. Crucially it is stateful: if a request is allowed inbound, the response is permitted outbound regardless of the outbound rules, and the reverse holds too. Rules can reference another security group as the source, which is how you express \"the application tier may reach the database tier\" without hard-coding addresses that change on every scale-out.\n\nA network ACL attaches to a subnet and is stateless. Rules are numbered and evaluated in ascending order until one matches, both allow and deny are expressible, and an implicit deny sits at the end. Because it is stateless you must write the return path yourself, which means permitting the ephemeral port range in the opposite direction. Forgetting that is why a hand-written NACL breaks something subtle - the connection establishes and then the responses vanish.\n\nUse security groups as the primary control, and reach for NACLs only when you need a coarse subnet-wide deny, since security groups cannot deny at all. When traffic mysteriously fails, VPC Flow Logs record ACCEPT and REJECT per flow at the interface, and Reachability Analyzer will name the specific rule or missing route responsible.",
+      "code": "# Reference the source security group, never a hard-coded instance IP\naws ec2 authorize-security-group-ingress --group-id sg-db \\\n  --ip-permissions 'IpProtocol=tcp,FromPort=5432,ToPort=5432,UserIdGroupPairs=[{GroupId=sg-app}]'\n\n# NACL rules are numbered, ordered and stateless - the return path is your job\naws ec2 create-network-acl-entry --network-acl-id acl-0abc123 \\\n  --rule-number 100 --protocol tcp --port-range From=443,To=443 \\\n  --cidr-block 0.0.0.0/0 --rule-action allow --ingress"
+    },
+    {
+      "title": "S3: Durability, Storage Classes, Versioning, Lifecycle",
+      "content": "S3 stores objects in buckets under a flat key namespace; the folders in the console are prefix conventions. It is designed for eleven nines of annual durability by redundantly storing each object across at least three Availability Zones - the One Zone classes explicitly opt out and will lose data if their AZ is lost. Durability is not availability: the availability SLA is far weaker and varies by class. Reads are strongly consistent, so a GET after a PUT returns the new object with no propagation window.\n\nStorage classes trade retrieval speed against price. Standard suits hot data; Intelligent-Tiering suits unpredictable access, charging a small per-object monitoring fee for automatic tier movement. Standard-IA and One Zone-IA lower the per-gigabyte rate but add a retrieval charge, a minimum storage duration and a minimum billable object size - which is why moving millions of tiny objects into IA can cost more than leaving them in Standard. The Glacier family covers archives, from Instant Retrieval at millisecond latency through to Deep Archive.\n\nVersioning, once enabled, can only be suspended - never removed. A delete becomes a delete marker and the previous version remains, still billing. That is why versioning and lifecycle rules belong together: transition current versions to colder classes, expire noncurrent versions after a fixed window, and always abort incomplete multipart uploads, which are invisible in the object listing and accumulate silently. Security defaults have improved - Block Public Access is enabled on new buckets, ACLs are disabled in favour of bucket policies, and objects are encrypted at rest by default.",
+      "code": "{\n  \"Rules\": [\n    {\n      \"ID\": \"logs-tier-and-expire\",\n      \"Status\": \"Enabled\",\n      \"Filter\": { \"Prefix\": \"logs/\" },\n      \"Transitions\": [\n        { \"Days\": 30, \"StorageClass\": \"STANDARD_IA\" },\n        { \"Days\": 90, \"StorageClass\": \"GLACIER\" }\n      ],\n      \"Expiration\": { \"Days\": 365 },\n      \"NoncurrentVersionExpiration\": { \"NoncurrentDays\": 30 },\n      \"AbortIncompleteMultipartUpload\": { \"DaysAfterInitiation\": 7 }\n    }\n  ]\n}"
+    },
+    {
+      "title": "RDS: High Availability, Replicas, and Recovery",
+      "content": "RDS runs managed relational engines - PostgreSQL, MySQL, MariaDB, Oracle, SQL Server, plus Aurora's MySQL- and PostgreSQL-compatible variants. AWS handles provisioning, engine patching inside a maintenance window you choose, backups and failover orchestration; you keep schemas, users, grants and query performance.\n\nThe two replication features exist for different reasons, and interviewers listen for whether you conflate them. Multi-AZ is an availability feature: a standby in another AZ receives writes synchronously and is not readable. On failure AWS repoints the endpoint's DNS record at the standby, typically within a minute or two. Read replicas are a scaling feature: replication is asynchronous, the replica is readable, it can live in another Region, and it lags - which makes replicas wrong for read-after-write correctness. Promoting a replica to a standalone primary permanently breaks its replication link. Aurora blurs the distinction with a shared storage layer replicated six ways across three AZs, where replicas double as fast failover targets.\n\nAutomated backups combine a daily snapshot with continuous transaction logs, enabling point-in-time recovery to within roughly five minutes across a retention window of up to thirty-five days. They are deleted with the instance; manual snapshots survive until you remove them. Encryption at rest must be chosen at creation - you cannot encrypt an instance in place, only restore an encrypted copy from a snapshot. Failover does not preserve in-flight connections, so applications must reconnect and must not cache DNS indefinitely.",
+      "code": "# Point-in-time restore creates a NEW instance; it never rewinds the original\naws rds restore-db-instance-to-point-in-time \\\n  --source-db-instance-identifier prod-orders \\\n  --target-db-instance-identifier prod-orders-restore \\\n  --restore-time 2026-08-15T03:00:00Z\n\n# Confirm the HA posture you think you have\naws rds describe-db-instances --db-instance-identifier prod-orders \\\n  --query 'DBInstances[0].[MultiAZ,StorageEncrypted,BackupRetentionPeriod]'"
+    },
+    {
+      "title": "Elastic Load Balancing: ALB, NLB, and Target Groups",
+      "content": "Elastic Load Balancing is a managed, horizontally scaled fleet fronted by a DNS name - never an IP address, because the nodes behind that name are replaced and rescaled continuously. The Application Load Balancer operates at layer 7 and understands HTTP, HTTPS and gRPC. The Network Load Balancer operates at layer 4 for TCP, UDP and TLS, sustains extreme connection rates at very low latency, preserves the client source IP, and can carry a static or Elastic IP per AZ.\n\nAn ALB has listeners; each listener holds rules matched on host header, path, HTTP header, query string, method or source IP; each rule forwards to a target group. Targets may be EC2 instances, raw IP addresses or Lambda functions, and each target group carries its own health check with interval, timeout, thresholds and an expected status code matcher. Only healthy targets receive traffic, which is what makes rolling deployments safe - and a health check pointed at an endpoint that queries the database will remove the entire fleet the moment the database hiccups, so health checks should verify the process can serve rather than that every dependency is perfect.\n\nThe ALB idle timeout defaults to sixty seconds; if the backend's keep-alive timeout is shorter, the ALB reuses a connection the server is simultaneously closing and you get sporadic 502s, so the backend value must be the larger of the two. Deregistration delay defaults to 300 seconds and makes deployments feel slower than expected until tuned. Cross-zone load balancing is on by default for ALB and off by default for NLB.",
+      "code": "aws elbv2 create-target-group --name api-tg \\\n  --protocol HTTP --port 8080 --vpc-id vpc-0abc123 --target-type ip \\\n  --health-check-path /healthz \\\n  --health-check-interval-seconds 15 --health-check-timeout-seconds 5 \\\n  --healthy-threshold-count 2 --unhealthy-threshold-count 2 \\\n  --matcher HttpCode=200"
+    },
+    {
+      "title": "Route 53 and CloudFront: DNS and the Edge",
+      "content": "Route 53 is AWS's authoritative DNS service, global rather than regional, doing two jobs interviewers care about: name resolution and traffic steering. Hosted zones can be private, resolving only inside associated VPCs. It also offers ALIAS records - an AWS-specific extension pointing at AWS resources such as an ALB, a CloudFront distribution or an S3 website endpoint. ALIAS works at the zone apex where a CNAME is illegal, tracks the target's changing addresses automatically, and is not charged per query.\n\nRouting policies are where traffic engineering happens. Weighted splits traffic by ratio for canaries and blue-green cutovers. Latency-based sends each client to the Region with the lowest measured latency for them, which is not the same as geographically nearest. Failover pairs a primary with a secondary using health checks. TTL decides how fast a failover propagates versus how much query volume you pay for, and a long TTL cached by resolvers will outlast your incident response.\n\nCloudFront is the CDN layer, backed by edge locations and regional edge caches. Origins can be S3 - locked down with Origin Access Control so the bucket stays private - an ALB, or any HTTP endpoint. The cache key is defined by a cache policy specifying which headers, cookies and query strings participate, while an origin request policy separately controls what is forwarded. Freshness comes from origin Cache-Control headers bounded by the distribution's minimum, maximum and default TTLs. Prefer versioned object keys over invalidations, which are slow and billed beyond a monthly free allowance.",
+      "code": "{\n  \"Comment\": \"Apex ALIAS to an ALB - a CNAME is not legal at the zone apex\",\n  \"Changes\": [{\n    \"Action\": \"UPSERT\",\n    \"ResourceRecordSet\": {\n      \"Name\": \"example.com\",\n      \"Type\": \"A\",\n      \"AliasTarget\": {\n        \"HostedZoneId\": \"Z35SXDOTRQ7X7K\",\n        \"DNSName\": \"my-alb-1234567890.us-east-1.elb.amazonaws.com\",\n        \"EvaluateTargetHealth\": true\n      }\n    }\n  }]\n}"
+    },
+    {
+      "title": "Compute Choices: Lambda, ECS, and EKS",
+      "content": "Lambda runs a function in a managed execution environment created on demand. Code outside the handler runs once during initialisation and is reused by later invocations on the same environment - that reuse is why database clients and SDK objects belong at module scope, and why a cold start is dominated by init work. CPU is allocated in proportion to configured memory, so raising memory often makes a function both faster and cheaper. Timeouts cap at fifteen minutes.\n\nConcurrency is the real scaling model: one environment per concurrent request, bounded by an account-level limit. Reserved concurrency both caps a function and guarantees it capacity; provisioned concurrency keeps environments initialised to remove cold starts. Retry behaviour differs sharply by invocation type - synchronous callers handle their own retries, asynchronous invocations retry automatically before going to a failure destination, and stream sources retry a failing batch until it succeeds or expires, blocking that shard entirely.\n\nECS and EKS both schedule containers. ECS is AWS's own orchestrator - task definitions, services, clusters - with IAM integration that feels native because task roles are first-class; the control plane is free and there is little to operate. EKS gives you a managed Kubernetes control plane, billed hourly, and with it the whole Kubernetes API, ecosystem and portability, at the price of a real operational surface: add-on management, CNI configuration and version upgrades on Kubernetes' fast release cadence. Both run on EC2 capacity you manage or on Fargate. A recurring EKS production issue is IP exhaustion, because the VPC CNI assigns pods real subnet addresses.",
+      "code": "{\n  \"family\": \"api\",\n  \"networkMode\": \"awsvpc\",\n  \"requiresCompatibilities\": [\"FARGATE\"],\n  \"cpu\": \"512\",\n  \"memory\": \"1024\",\n  \"executionRoleArn\": \"arn:aws:iam::111122223333:role/ecsTaskExecutionRole\",\n  \"taskRoleArn\": \"arn:aws:iam::111122223333:role/api-task\",\n  \"containerDefinitions\": [{\n    \"name\": \"api\",\n    \"image\": \"111122223333.dkr.ecr.us-east-1.amazonaws.com/api:1.4.2\",\n    \"portMappings\": [{ \"containerPort\": 8080 }],\n    \"logConfiguration\": { \"logDriver\": \"awslogs\" }\n  }]\n}"
+    },
+    {
+      "title": "CloudWatch, Autoscaling, and Cost Control",
+      "content": "CloudWatch is the default telemetry plane. Metrics are namespaced and dimensioned, with EC2 reporting at five-minute intervals under basic monitoring and one minute with detailed monitoring. The gap that surprises everyone: memory and disk utilisation are not visible to the hypervisor, so they do not exist as metrics until you install the CloudWatch agent. Alarms evaluate a metric over several periods and need an explicit decision about how missing data is treated.\n\nAn EC2 Auto Scaling group is defined by a launch template plus minimum, maximum and desired capacity, and it replaces instances failing its health check - EC2-level by default, or ELB-level if configured, which is usually what you want. Target tracking is the policy to reach for first: name a metric and a target value and the service manages the arithmetic. Step scaling suits non-linear responses, and lifecycle hooks give you a window to drain or bootstrap. Scale out quickly and in slowly. Scaling never fixes a downstream bottleneck - more app instances against a saturated database makes things worse.\n\nCost control is mostly data movement and forgotten resources. Inbound transfer is free, egress to the internet is charged, and cross-AZ traffic is billed in both directions. NAT Gateway processing, public IPv4 addresses billed hourly whether attached or not, unattached EBS volumes, ancient snapshots and unbounded log retention account for most surprise line items. Use cost allocation tags, Cost Explorer and Budgets for visibility, and commit to Savings Plans only once usage has a stable shape.",
+      "code": "# Target tracking: declare the goal, let the service compute the steps\ncat > tt.json <<'JSON'\n{\n  \"TargetValue\": 50.0,\n  \"PredefinedMetricSpecification\": { \"PredefinedMetricType\": \"ASGAverageCPUUtilization\" }\n}\nJSON\n\naws autoscaling put-scaling-policy \\\n  --auto-scaling-group-name web-asg --policy-name cpu-target-50 \\\n  --policy-type TargetTrackingScaling \\\n  --target-tracking-configuration file://tt.json\n\n# Log groups never expire by default - this is real recurring money\naws logs put-retention-policy --log-group-name /ecs/api --retention-in-days 30"
+    }
+  ],
+  "interviewQA": [
+    {
+      "q": "What is the difference between a Region and an Availability Zone, and how does that shape a design?",
+      "a": "A Region is an independent geographic cluster such as us-east-1; an AZ is one or more physically separate data centres inside it with independent power, cooling and network feeds. Inter-AZ latency is a couple of milliseconds, which is what makes synchronous replication across AZs practical, while cross-Region replication is almost always asynchronous. The Region is the boundary for data residency and most service APIs, and nothing crosses it unless you configure it. The AZ is the blast-radius unit you architect around: spread every tier across at least three AZs where the Region offers them, and treat single-AZ as an explicit cost decision rather than a default. Most services are regional (EC2, RDS, VPC); a few are global (IAM, Route 53, CloudFront, Organizations) with control planes anchored in us-east-1, which is why an ACM certificate fronting CloudFront must be issued there. One trap: AZ names are per-account aliases, so my us-east-1a and yours may be different hardware. The stable physical identifier is the AZ ID, like use1-az1.",
+      "followUps": [
+        "Two accounts both deploy into us-east-1a - are they in the same physical data centre?",
+        "Why must an ACM certificate used by CloudFront be issued in us-east-1?",
+        "When would you accept a single-AZ deployment in production?"
+      ]
+    },
+    {
+      "q": "Explain the shared responsibility model, and show how the line moves between EC2, RDS and S3.",
+      "a": "AWS secures the cloud; you secure what you put in it. AWS owns physical security, hardware, the hypervisor and Nitro layer, the network fabric, and the software of managed services. You own your data and its classification, your encryption choices, your IAM configuration, your network rules and - depending on the service - the guest operating system. The useful part of the answer is how that line moves. On EC2 you patch the kernel, harden the AMI and configure security groups. On RDS, AWS patches the engine during a maintenance window you schedule, but database users, grants, parameter groups, subnet placement and whether the instance is publicly reachable are yours. On S3 and Lambda you operate essentially nothing, yet bucket policies, Block Public Access and function permissions are still yours - and that is precisely where incidents happen. Almost every headline 'AWS breach' is a customer misconfiguration. Resilience is shared too: a single-AZ database that fails is your availability choice, not an AWS outage.",
+      "followUps": [
+        "On Fargate, who is responsible for the operating system and who for the container image?",
+        "AWS Artifact gives you SOC and PCI reports - does that make your workload compliant?",
+        "A public bucket leaks customer data. Whose failure is it, and what control should have caught it?"
+      ]
+    },
+    {
+      "q": "IAM users versus IAM roles - which should a workload use, and why?",
+      "a": "An IAM user is a long-lived identity holding a console password, an access key pair, or both. A role is an identity with permissions but no permanent credentials, defined by two documents: a trust policy saying who may assume it, and permission policies saying what it can do once assumed. Assuming a role calls STS and returns temporary credentials - access key ID, secret, session token and an expiry - which the SDKs refresh automatically. That is the whole argument: leaked long-lived keys are the most common AWS incident, and temporary credentials expire on their own. Groups exist only to attach policies to sets of users; a group is not a principal, so it can never appear in a trust policy or a bucket policy. The target state is almost no IAM users: humans authenticate through IAM Identity Center or a corporate IdP and land in roles, and workloads receive roles from the platform - instance profiles on EC2, task roles on ECS, execution roles on Lambda, IRSA or Pod Identity on EKS. Root gets hardware MFA, no access keys, and near-zero use.",
+      "followUps": [
+        "How does an EC2 instance actually receive its role credentials, and how do you stop SSRF from stealing them?",
+        "Why can't you name a group as a principal in a trust policy?",
+        "You find an AKIA key in a public repo - what do you do in what order?"
+      ]
+    },
+    {
+      "q": "Walk me through how AWS evaluates whether an API call is allowed.",
+      "a": "Every request starts at an implicit deny. An explicit Deny in any applicable policy wins immediately and cannot be overridden by any Allow anywhere. Otherwise the request needs an Allow that survives every restricting layer: service control policies, which are organisation-wide guardrails that filter permissions but never grant them; permissions boundaries, which cap what an identity policy can effectively grant; session policies passed at assume-role time; and then the identity and resource policies themselves. Within a single account, an Allow from either the identity policy or the resource policy is generally sufficient. Across accounts, both sides must allow independently - the caller's identity policy and the target's resource policy or role trust policy. Identity policies attach to users, groups and roles; resource policies attach to the resource (S3 bucket, SQS queue, KMS key) and must name a Principal because the identity is not implied. In practice, build least privilege from CloudTrail and IAM last-accessed data, scope Resource to real ARNs, and tighten with conditions.",
+      "followUps": [
+        "An SCP denies an action but the identity policy allows it - what happens, and where do you debug it?",
+        "What is the practical difference between an SCP and a permissions boundary?",
+        "Why is a broad grant of iam:PassRole a privilege escalation path?",
+        "Why is NotAction risky in an Allow statement?"
+      ]
+    },
+    {
+      "q": "How do you give a partner account, or a CI pipeline, access to your AWS account without sharing keys?",
+      "a": "Through sts:AssumeRole, and it always has two halves that candidates routinely forget one of. In the target account you create a role whose trust policy names the source account or a specific principal ARN. In the source account you grant your principal sts:AssumeRole on that role ARN. STS returns short-lived credentials - one hour by default, up to twelve if the role's maximum session duration allows it, though chaining one role into another caps the session at one hour regardless. For a third-party SaaS vendor, add an ExternalId condition to the trust policy: it defends against the confused-deputy problem, where the vendor is tricked into using its legitimate access to your account on an attacker's behalf. For CI, drop stored keys entirely and use AssumeRoleWithWebIdentity: the pipeline presents an OIDC token and the trust policy pins the issuer, the aud claim, and a sub condition naming the exact repository and branch. Wildcarding that subject across an entire org is a standard security-review finding. EKS IRSA uses the same mechanism.",
+      "followUps": [
+        "Explain the confused-deputy problem and exactly what ExternalId prevents.",
+        "How would you restrict a GitHub Actions role to only run on tagged releases?",
+        "Why does role chaining cap the session at one hour?"
+      ]
+    },
+    {
+      "q": "Compare EC2 purchasing options and tell me how you would actually mix them.",
+      "a": "On-Demand pays list price and commits to nothing, which suits unpredictable or short-lived work. Reserved Instances and Savings Plans trade a one- or three-year commitment for a large discount; Savings Plans are usually the better instrument because they apply across instance families and, in the Compute variant, across Fargate and Lambda too, so a refactor does not strand the commitment. Zonal RIs also reserve capacity in an AZ, which a Savings Plan does not. Spot sells spare capacity at a steep discount with a two-minute interruption notice: excellent for stateless workers, batch, CI runners and anything checkpointed, unsuitable for work that cannot be killed mid-flight. The layered answer is to commit at the trough of steady-state usage, run the elastic middle On-Demand, and put interruptible work on Spot with diversified instance types. One sizing trap worth naming: the burstable t family accrues CPU credits while idle and throttles hard once they are exhausted, which is the box that benchmarks well in staging and degrades a week into production.",
+      "followUps": [
+        "How would you run part of a web tier on Spot without risking availability?",
+        "When would you still buy a Reserved Instance instead of a Savings Plan?",
+        "What happens to a t3 instance when its CPU credits run out?"
+      ]
+    },
+    {
+      "q": "EBS versus instance store - when do you use each, and how do you move a volume between AZs?",
+      "a": "EBS is network-attached block storage that lives in exactly one Availability Zone and persists independently of the instance, so you can stop an instance, or terminate it with delete-on-termination disabled, and reattach the volume. gp3 is the sensible default because IOPS and throughput are provisioned separately from capacity; with gp2, performance scaled with size, which is why people used to buy terabytes just to get IOPS. io1 and io2 exist for sustained high IOPS and low latency, st1 and sc1 for throughput-oriented cold data. Instance store is NVMe physically attached to the host: extremely fast and included in the instance price, but irrecoverably gone when the instance stops or is replaced - a reboot preserves it, a stop/start does not. So it is for scratch space, caches and shuffle data, never the only copy of anything. Snapshots are incremental and stored in S3, and they are the only way to move a volume to another AZ or Region: snapshot it, then create a volume from that snapshot in the target AZ.",
+      "followUps": [
+        "How do you encrypt an existing unencrypted EBS volume?",
+        "Why is gp3 usually cheaper than gp2 for the same performance target?",
+        "Does a reboot lose instance store data? Does a stop/start?"
+      ]
+    },
+    {
+      "q": "What makes a subnet public or private, and why do NAT gateways show up in cost reviews?",
+      "a": "Routing makes it public - there is no attribute called 'public'. A VPC is a Region-scoped private network with a CIDR between /16 and /28, and a subnet lives in exactly one AZ, which is why every highly available design ends up with parallel subnets, one per AZ. AWS reserves five addresses in each subnet, so a /28 gives eleven usable, not sixteen. Each subnet associates with exactly one route table, which always contains an unremovable local route for the VPC CIDR. Point the default route at an Internet Gateway and the subnet is public: instances with public IPs reach the internet and the IGW does one-to-one address translation. Point it at a NAT Gateway instead and the subnet is private - outbound works, inbound cannot be initiated. NAT Gateways bill per hour plus per gigabyte processed, are scoped to one AZ, need an Elastic IP and sit in a public subnet. One shared NAT is cheaper but adds a zonal single point of failure and cross-AZ charges on every byte. VPC endpoints keep traffic off it entirely.",
+      "followUps": [
+        "An instance in a private subnet pulls terabytes from S3 - what is the cheapest path?",
+        "Gateway endpoint versus interface endpoint: cost, mechanism and which services?",
+        "One NAT gateway or one per AZ - defend your choice."
+      ]
+    },
+    {
+      "q": "Security groups versus network ACLs.",
+      "a": "A security group attaches to an elastic network interface, not to a subnet. It holds allow rules only - there is no deny syntax - and when several groups are attached to one interface the effective permission is their union. Crucially it is stateful: if a request is allowed inbound, the response is permitted outbound regardless of outbound rules, and the reverse holds too. Rules can reference another security group as the source, which is how you express 'the app tier may reach the database tier' without hard-coding addresses that change on every scale-out. A network ACL attaches to a subnet and is stateless. Rules are numbered and evaluated in ascending order until one matches, both allow and deny are expressible, and an implicit deny sits at the end. Because it is stateless you must write the return path yourself, allowing the ephemeral port range in the opposite direction - forgetting that is why a hand-written NACL breaks something subtle. Use security groups as the primary control; reach for NACLs only for coarse subnet-wide denies.",
+      "followUps": [
+        "You need to block one abusive IP address - which control, and why not the other?",
+        "Why does a stateless NACL need the ephemeral port range open?",
+        "Traffic between two instances times out and nothing is logged in the app - how do you find the cause?"
+      ]
+    },
+    {
+      "q": "Explain S3 durability, the storage classes, and how you would design a lifecycle policy.",
+      "a": "S3 is designed for eleven nines of annual durability by redundantly storing each object across at least three Availability Zones; the One Zone classes explicitly opt out and will lose data if that AZ is lost. Durability is not availability - the availability SLA is far weaker and varies by class. Reads are strongly consistent, so a GET after a PUT returns the new object with no propagation window. Classes trade retrieval speed against price: Standard for hot data; Intelligent-Tiering for unpredictable access, charging a small per-object monitoring fee to move objects automatically; Standard-IA and One Zone-IA cut the per-gigabyte rate but add a retrieval charge, a minimum storage duration and a minimum billable object size - which is why moving millions of tiny objects into IA can cost more than leaving them in Standard; then the Glacier family, from Instant Retrieval at millisecond latency to Deep Archive. A lifecycle policy should transition current versions, expire noncurrent versions on a fixed window, and always abort incomplete multipart uploads.",
+      "followUps": [
+        "Why can Standard-IA be more expensive than Standard for small objects?",
+        "Your storage bill exceeds the total size of every object you can list - what is going on?",
+        "When is Intelligent-Tiering the wrong choice?"
+      ]
+    },
+    {
+      "q": "How do you secure an S3 bucket properly, and what does versioning actually give you?",
+      "a": "Versioning, once enabled, can only be suspended - never removed. A delete writes a delete marker and the previous version remains, still billing, which is exactly why versioning and lifecycle rules belong together: a noncurrent-version expiration rule is what stops a versioned bucket growing forever. Versioning plus MFA Delete, or Object Lock in compliance mode, is the real answer to ransomware and to a script that deletes everything. On access control the defaults are far better now: Block Public Access is enabled on new buckets, ACLs are disabled in favour of bucket policies, and objects are encrypted at rest by default. Use SSE-KMS when you want a separate key policy and an audit trail, and remember the KMS key policy is a second gate - a principal allowed by the bucket policy but not the key policy still gets AccessDenied. Grant access with bucket policies scoped to prefixes and tightened with conditions such as aws:PrincipalOrgID and aws:SecureTransport, serve public content through CloudFront with Origin Access Control, and use presigned URLs for one-off sharing.",
+      "followUps": [
+        "How do you serve public web content without ever making the bucket public?",
+        "Someone deletes every object in a versioned bucket - what survives, and how do you recover?",
+        "How would you find every publicly readable bucket across an organisation?"
+      ]
+    },
+    {
+      "q": "Multi-AZ versus read replicas on RDS - what does each one solve?",
+      "a": "They solve different problems and interviewers listen for whether you conflate them. Multi-AZ is an availability feature: a standby in another AZ receives writes synchronously, is not readable, and exists purely to take over. On failure AWS repoints the endpoint's DNS record at the standby, typically within a minute or two. Read replicas are a scaling feature: replication is asynchronous, the replica is readable, it can live in another Region, and it lags - which makes replicas wrong for read-after-write correctness, so anything that must see its own write goes to the primary. Promoting a replica to standalone permanently breaks the replication link, making it a DR lever rather than a failover mechanism. Aurora blurs the distinction with a shared storage layer replicated six ways across three AZs, where replicas double as fast failover targets. Two consequences people miss: failover does not preserve in-flight connections, so applications must reconnect and must not cache DNS indefinitely; and Multi-AZ buys you no extra read throughput at all.",
+      "followUps": [
+        "A user saves their profile and the next page shows stale data - diagnose and fix it.",
+        "Does Multi-AZ protect you from an accidental DROP TABLE?",
+        "What changes if the application caches DNS for the RDS endpoint?"
+      ]
+    },
+    {
+      "q": "Someone dropped a production table twenty minutes ago. Walk me through recovery on RDS.",
+      "a": "Automated backups combine a daily snapshot with continuous transaction log capture, giving point-in-time recovery to within roughly five minutes across a retention window of up to thirty-five days. So the move is a point-in-time restore to just before the offending statement, which always creates a new instance with a new endpoint - it never rewinds the original. That is important operationally: you then either copy the missing table back into the live database, or plan a cutover of the endpoint and connection strings. Doing it that way also means the live system keeps serving while you recover. Two facts that decide whether this is even possible: automated backups are deleted along with the instance, while manual snapshots survive until you delete them, so take a final snapshot before any destructive change; and encryption at rest must be chosen at creation - you cannot encrypt an instance in place, you copy a snapshot with a KMS key and restore from it. Finally, an untested restore is not a backup: rehearse it and measure the real RTO.",
+      "followUps": [
+        "What is your RPO with automated backups, and how would you reduce it?",
+        "How do you encrypt an existing unencrypted RDS instance?",
+        "How would you plan cross-Region DR for this database?"
+      ]
+    },
+    {
+      "q": "ALB or NLB - how do you choose, and how do target groups fit in?",
+      "a": "Both are managed, horizontally scaled fleets fronted by a DNS name, never an IP, because the nodes behind that name are replaced and rescaled continuously - which is why you point Route 53 at them with an ALIAS record. The Application Load Balancer works at layer 7 and understands HTTP, HTTPS and gRPC: its listeners hold rules matched on host header, path, HTTP header, query string, method or source IP, and each rule forwards to a target group. That is what gives you path-based routing, header-based canaries and native WAF integration. The Network Load Balancer works at layer 4 for TCP, UDP and TLS: extreme connection rates at very low latency, it preserves the client source IP, and it can carry a static or Elastic IP per AZ - which is the deciding factor when a client must allow-list an address or the protocol is not HTTP. Targets may be instances, raw IPs, or Lambda functions for ALB, and each target group carries its own health check. Cross-zone load balancing is on by default for ALB and off by default for NLB.",
+      "followUps": [
+        "A partner needs a fixed IP to allow-list - what do you deploy?",
+        "How does an application behind an ALB see the real client IP?",
+        "Why is cross-zone load balancing off by default on NLB?"
+      ]
+    },
+    {
+      "q": "Your ALB returns intermittent 502s but every target reports healthy. How do you debug it?",
+      "a": "Intermittent 502s with healthy targets are almost always a keep-alive race. The ALB reuses backend connections and its idle timeout defaults to sixty seconds; if the backend's keep-alive timeout is shorter, the ALB sends a request down a connection the server is closing at that exact moment and returns a 502. The fix is to make the backend keep-alive strictly larger than the ALB idle timeout. Confirm it in the access logs: an elb_status_code of 502 with an empty target_status_code means the ALB never received a valid response, which separates an ALB-generated error from one your application produced. Related deployment symptoms come from deregistration delay, which defaults to 300 seconds, so instances linger in draining and rollouts feel slower than expected, and connection resets appear if the process exits before draining completes. While you are there, check health check design: a check that queries the database will pull the entire fleet out the moment the database hiccups, turning a slow dependency into a total outage.",
+      "followUps": [
+        "How do you distinguish an ALB-generated 5xx from an application 5xx?",
+        "What should a health check endpoint actually verify?",
+        "How does deregistration delay interact with in-flight requests during a deploy?"
+      ]
+    },
+    {
+      "q": "How do Route 53 and CloudFront work together, and what do you tune in each?",
+      "a": "Route 53 is global authoritative DNS doing two jobs: resolution and traffic steering. ALIAS records are the AWS-specific extension pointing at AWS targets such as an ALB, a CloudFront distribution or an S3 website endpoint; they work at the zone apex where a CNAME is illegal, they track the target's changing addresses automatically, and they are not charged per query. Routing policies are the traffic engineering: weighted for canaries and blue-green cutovers, latency-based to send each client to the Region with the lowest measured latency for them - which is not the same as geographically nearest - failover pairing a primary and secondary with health checks, and geolocation for compliance. TTL trades failover speed against query volume, and a long TTL cached by resolvers will outlast your incident response, so lower it before a planned cutover. CloudFront caches at edge locations backed by regional edge caches; lock an S3 origin down with Origin Access Control so the bucket stays private, and define the cache key deliberately in a cache policy.",
+      "followUps": [
+        "Why can't you use a CNAME at the zone apex?",
+        "Cache hit ratio collapsed after someone forwarded all headers to the origin - explain the mechanism.",
+        "Invalidation or versioned object keys for a deploy, and why?"
+      ]
+    },
+    {
+      "q": "Lambda, ECS or EKS - how do you pick, and what bites people in each?",
+      "a": "Lambda for event-driven, spiky or short work: no servers, per-request billing, but a fifteen-minute ceiling and cold starts. The scaling model is one execution environment per concurrent request, bounded by an account-level limit. Code outside the handler runs once at initialisation and is reused, which is why SDK and database clients belong at module scope; CPU is allocated in proportion to configured memory, so raising memory often makes a function both faster and cheaper. Reserved concurrency caps a function and guarantees it capacity; provisioned concurrency pre-initialises environments to remove cold starts. ECS when you want containers on AWS's own orchestrator: task definitions, services, clusters, first-class IAM task roles, a free control plane and very little to operate. EKS when you need the Kubernetes API, its ecosystem or portability - you pay hourly for the control plane and take on real operational surface: add-ons, CNI configuration and fast-cadence upgrades. A recurring EKS incident is subnet IP exhaustion, because the VPC CNI gives every pod a real subnet address.",
+      "followUps": [
+        "Why does increasing Lambda memory sometimes reduce total cost?",
+        "How does retry behaviour differ between synchronous, asynchronous and stream event sources?",
+        "How would you prevent or fix IP exhaustion on an EKS cluster?",
+        "When is EKS the wrong choice for a small team?"
+      ]
+    },
+    {
+      "q": "How would you set up autoscaling and keep the AWS bill under control?",
+      "a": "An EC2 Auto Scaling group is a launch template plus minimum, maximum and desired capacity, and it replaces instances that fail its health check - EC2-level by default, or ELB-level if you configure it, which is usually what you want, since an instance can run while the app is dead. Target tracking is the first policy to reach for: name a metric and a target value and the service does the arithmetic. Step scaling suits non-linear responses, and lifecycle hooks give you a window to bootstrap or drain. Scale out quickly and in slowly, and scaling never fixes a downstream bottleneck - more app instances against a saturated database makes things worse. On telemetry, the gap that surprises everyone is that memory and disk utilisation are invisible to the hypervisor, so they do not exist as metrics until you install the CloudWatch agent, and alarms need an explicit decision about missing data. Cost is mostly data movement and forgotten resources: egress, cross-AZ traffic billed both directions, NAT processing, idle public IPv4 addresses, orphaned volumes and unbounded log retention.",
+      "followUps": [
+        "Why prefer ELB health checks over EC2 health checks in an ASG?",
+        "How would you scale workers on queue depth rather than CPU?",
+        "The bill jumped 30% and nothing was deployed - where do you look first?"
+      ]
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "Region vs Availability Zone",
+      "back": "A Region is an independent geographic cluster of AZs; an AZ is one or more physically separate data centres with independent power, cooling and network. Inter-AZ latency is a few milliseconds, so cross-AZ replication can be synchronous; cross-Region is normally asynchronous."
+    },
+    {
+      "front": "Why is us-east-1a not the same place in every account?",
+      "back": "AZ names are per-account aliases that AWS randomises to spread load. The stable physical identifier is the AZ ID, such as use1-az1, and that is what you compare across accounts."
+    },
+    {
+      "front": "On RDS, who is responsible for what?",
+      "back": "AWS patches the engine during a maintenance window you schedule and runs backups and failover. You own database users, grants, parameter groups, subnet placement, whether it is publicly reachable, and query performance."
+    },
+    {
+      "front": "The two policy documents on an IAM role",
+      "back": "A trust policy says who may assume the role; permission policies say what it can do once assumed. A role has no permanent credentials - assuming it returns temporary ones from STS."
+    },
+    {
+      "front": "AKIA vs ASIA access key prefixes",
+      "back": "AKIA marks a long-lived IAM user access key; ASIA marks temporary STS credentials, which also require a session token. A useful tell when triaging a leaked credential."
+    },
+    {
+      "front": "What always wins in IAM policy evaluation?",
+      "back": "An explicit Deny in any applicable policy. Evaluation starts at implicit deny, an explicit Deny can never be overridden, and otherwise the request needs an Allow that survives every restricting layer."
+    },
+    {
+      "front": "SCP vs permissions boundary",
+      "back": "An SCP is an Organizations guardrail that filters what any principal in an account may do and never grants anything. A permissions boundary attaches to a single user or role and caps what its identity policies can effectively grant."
+    },
+    {
+      "front": "Why is a broad iam:PassRole grant dangerous?",
+      "back": "It lets a caller hand a powerful role to a service they control - launching an EC2 instance or Lambda with an admin role - which escalates their own privileges. Scope PassRole to specific role ARNs."
+    },
+    {
+      "front": "What is ExternalId for?",
+      "back": "A condition in a role's trust policy used when a third-party SaaS assumes into your account. It defeats the confused-deputy problem, where the vendor is tricked into using its legitimate access on an attacker's behalf."
+    },
+    {
+      "front": "How does keyless CI authenticate to AWS?",
+      "back": "sts:AssumeRoleWithWebIdentity: the pipeline presents an OIDC token and the trust policy pins the issuer, the aud claim, and a sub condition naming the exact repo and branch. No stored access keys."
+    },
+    {
+      "front": "STS session duration limits",
+      "back": "One hour by default, up to twelve if the role's maximum session duration allows it. Role chaining - assuming one role from another - caps the session at one hour regardless."
+    },
+    {
+      "front": "Spot instance interruption notice",
+      "back": "Two minutes. Spot is spare capacity at a steep discount, fit for stateless workers, batch and CI, and unfit for anything that cannot be killed mid-flight."
+    },
+    {
+      "front": "gp3 vs gp2",
+      "back": "gp3 provisions IOPS and throughput independently of capacity; gp2 scaled performance with volume size, so you had to overbuy storage to get IOPS. gp3 is the sensible default."
+    },
+    {
+      "front": "What is IMDSv2 and why require it?",
+      "back": "A session-oriented instance metadata protocol: you PUT for a token, then send it with each request. The token exchange blocks SSRF from reading instance-profile credentials through 169.254.169.254."
+    },
+    {
+      "front": "What makes a subnet public?",
+      "back": "Its route table, nothing else. A default route to an Internet Gateway makes it public; a default route to a NAT Gateway makes it private with outbound-only access. There is no 'public' attribute."
+    },
+    {
+      "front": "Gateway vs interface VPC endpoint",
+      "back": "Gateway endpoints serve S3 and DynamoDB, are route table entries, and cost nothing. Interface endpoints place a PrivateLink ENI in your subnet for most other services and bill hourly plus per gigabyte."
+    },
+    {
+      "front": "Security group vs NACL: statefulness",
+      "back": "Security groups attach to an ENI, allow only, and are stateful - return traffic is automatically permitted. NACLs attach to a subnet, allow and deny in numbered order, and are stateless."
+    },
+    {
+      "front": "Why must a NACL allow ephemeral ports?",
+      "back": "Because it is stateless, the return path is a separate rule. Without an outbound (or inbound) allow for the ephemeral port range, the connection establishes and the responses are dropped."
+    },
+    {
+      "front": "S3 durability vs availability",
+      "back": "Eleven nines of designed annual durability by storing each object across at least three AZs; One Zone classes opt out and lose data if their AZ is lost. Availability is a separate, much weaker SLA that varies by class."
+    },
+    {
+      "front": "What happens when you delete an object in a versioned bucket?",
+      "back": "A delete marker becomes the current version and the previous version remains, still billing. Versioning can only be suspended, never removed, so pair it with noncurrent-version expiration."
+    },
+    {
+      "front": "AbortIncompleteMultipartUpload",
+      "back": "A lifecycle rule that discards multipart uploads that were never completed. They do not appear in an object listing but still cost money, so they accumulate silently without this rule."
+    },
+    {
+      "front": "RDS Multi-AZ vs read replica",
+      "back": "Multi-AZ is availability: a synchronous, non-readable standby that AWS fails over to by repointing the endpoint's DNS. A read replica is scaling: asynchronous, readable, possibly cross-Region, and always lagging."
+    },
+    {
+      "front": "RDS point-in-time recovery",
+      "back": "Automated backups (daily snapshot plus continuous transaction logs) allow restore to within about five minutes, over a retention window of up to 35 days. The restore creates a new instance; it never rewinds the original."
+    },
+    {
+      "front": "ALB vs NLB",
+      "back": "ALB is layer 7 for HTTP/HTTPS/gRPC with host, path and header routing rules. NLB is layer 4 for TCP/UDP/TLS with very high connection rates, preserved client source IP, and a static or Elastic IP per AZ."
+    },
+    {
+      "front": "Why does an ALB return sporadic 502s to healthy targets?",
+      "back": "The backend keep-alive timeout is shorter than the ALB idle timeout (60s default), so the ALB reuses a connection the server is closing. Make the backend keep-alive strictly larger."
+    },
+    {
+      "front": "ALIAS vs CNAME in Route 53",
+      "back": "ALIAS points at AWS targets such as an ALB, CloudFront or an S3 website endpoint, works at the zone apex where a CNAME is illegal, tracks the target's changing addresses, and is not billed per query."
+    },
+    {
+      "front": "Origin Access Control",
+      "back": "The CloudFront mechanism for reaching a private S3 origin: the bucket policy trusts the distribution rather than the world, so content is served publicly through CloudFront while the bucket stays closed."
+    },
+    {
+      "front": "How is Lambda CPU allocated?",
+      "back": "In proportion to configured memory - it is the only performance dial. Raising memory often makes a function both faster and cheaper, because duration falls faster than the per-millisecond price rises."
+    },
+    {
+      "front": "Reserved vs provisioned concurrency",
+      "back": "Reserved concurrency both caps a function's concurrency and guarantees it that capacity. Provisioned concurrency keeps execution environments initialised and warm to eliminate cold starts, and is billed for continuously."
+    },
+    {
+      "front": "Why do EKS clusters run out of IP addresses?",
+      "back": "The VPC CNI assigns every pod a real address from the subnet, and ENIs pre-allocate warm IPs. Large node counts exhaust small subnets - mitigate with bigger CIDRs, secondary CIDRs or prefix delegation."
+    },
+    {
+      "front": "Which EC2 metrics need the CloudWatch agent?",
+      "back": "Memory and disk utilisation, plus in-guest metrics generally, because the hypervisor cannot see inside the instance. CPU, network and EBS metrics are published by EC2 itself."
+    },
+    {
+      "front": "Where do surprise AWS bills usually come from?",
+      "back": "Data movement and forgotten resources: internet egress, cross-AZ traffic billed in both directions, NAT Gateway per-GB processing, idle public IPv4 addresses, unattached EBS volumes and log groups with no retention."
+    }
+  ]
+}

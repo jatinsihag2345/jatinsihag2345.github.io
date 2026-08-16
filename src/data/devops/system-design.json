@@ -1,0 +1,370 @@
+{
+  "subject": "Systems & Scalability for DevOps",
+  "summary": "This area covers how systems absorb more load and survive failure: scaling shapes, statelessness, load balancing, caching, replication and partitioning, asynchronous work, and the deploy and recovery practices that keep it all running. It is the operator's half of system design -- less about drawing boxes than about knowing which box fails first, what that failure looks like on a dashboard, and what it costs to fix. Interviewers probe it because they separate a candidate who reasons from mechanism from one reciting vocabulary, and because most incidents are one of these topics behaving as designed.",
+  "sections": [
+    {
+      "title": "1. Vertical vs Horizontal Scaling and the Ceiling Each Hits",
+      "content": "Vertical scaling gives one machine more CPU, memory, or faster storage; horizontal scaling adds machines behind something that distributes work. Vertical is operationally cheap -- no partitioning, no distributed failure modes -- and usually the correct first move. Its limits are concrete: the largest instance the vendor sells, a resize that normally needs a reboot, and a single failure domain that no amount of RAM removes.\n\nHorizontal scaling removes that ceiling, but only for work that can be split. Amdahl's law is the blunt version: if 5% of a request path is serialised on a shared resource -- one primary database, one lock, one queue -- no number of app servers takes you past roughly 20x. The shared resource you hit first is almost always the database, and right behind it, the connection limit to it.\n\nCapacity planning is queueing theory, not arithmetic. Little's law (concurrency = arrival rate x latency) tells you how many in-flight requests to support: 2000 rps at 150 ms is 300 concurrent, so a pool of 50 workers is already saturated. Past roughly 70-80% utilisation, queueing delay grows sharply, so headroom is what absorbs a retry storm, a slow dependency, or one instance dying. Autoscaling reacts over tens of seconds to minutes; it will not rescue you from a spike that arrives in five.",
+      "code": "apiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nspec:\n  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: api }\n  minReplicas: 4\n  maxReplicas: 40\n  metrics:\n    - type: Resource\n      resource:\n        name: cpu\n        target:\n          type: Utilization\n          averageUtilization: 60   # headroom on purpose; 90% queues\n  behavior:\n    scaleDown:\n      stabilizationWindowSeconds: 300   # do not flap right after a spike"
+    },
+    {
+      "title": "2. Statelessness: What It Actually Means",
+      "content": "\"Stateless\" does not mean the service holds no state -- it means no request depends on state that lives only on the instance that served an earlier request. That property is what lets a load balancer move traffic freely, an autoscaler add or kill instances, and a deploy replace every process without losing anything.\n\nThe state that quietly breaks it: in-memory sessions, in-process caches treated as authoritative rather than disposable, uploads written to local disk, background schedulers that assume they are the only copy running, and long-lived WebSocket connections holding conversation state. The fixes are unglamorous: sessions in Redis or a signed cookie, uploads to object storage, caches that can be dropped at any instant without changing correctness, and periodic work claimed through a lock or leader election.\n\nSticky sessions (cookie or source-IP affinity at the balancer) are the shortcut, and they cost you: load skews toward whichever instances collected the long-lived users, scaling out does not relieve pressure because existing users stay pinned, and every deploy dumps sessions. Treat stickiness as a cache-locality optimisation, never a correctness requirement.\n\nSigned tokens such as JWTs move session state to the client and remove a lookup, but revocation becomes the problem: a token is valid until it expires unless you keep a deny list, which reintroduces the shared store you were avoiding. Short expiry plus refresh tokens is the usual compromise.",
+      "code": "import json, secrets, redis\nr = redis.Redis(host=\"sessions\", decode_responses=True)\nTTL = 1800\n\ndef new_session(user_id: int) -> str:\n    sid = secrets.token_urlsafe(32)          # goes back as an HttpOnly, Secure cookie\n    r.setex(f\"sess:{sid}\", TTL, json.dumps({\"uid\": user_id}))\n    return sid\n\ndef load_session(sid: str):\n    raw = r.get(f\"sess:{sid}\")      # None => expired or revoked, re-authenticate\n    if raw is not None:\n        r.expire(f\"sess:{sid}\", TTL)      # sliding expiry\n    return raw and json.loads(raw)"
+    },
+    {
+      "title": "3. Load Balancing Algorithms and Where They Misbehave",
+      "content": "A load balancer does two jobs: pick a backend, and stop sending traffic to backends that are unwell. Layer 4 balancers forward TCP or UDP per connection -- fast and protocol-agnostic. Layer 7 balancers parse HTTP, so they can route on path or header, retry idempotent requests, and balance per request rather than per connection.\n\nRound robin assumes every request costs the same. It does not, so one expensive endpoint concentrates on whichever backend received it. Least connections tracks in-flight requests per backend and adapts to uneven cost, which makes it the better default for HTTP. Least-response-time schemes bias toward fast backends but can amplify a failure: a backend that rejects instantly looks fastest and attracts everything, so pair them with outlier ejection. Hashing on source IP, URL, or a header gives affinity, useful for cache locality; consistent hashing keeps most keys on the same backend when the pool changes instead of reshuffling everything.\n\nThe production bite is HTTP/2 and gRPC. Many streams multiplex over a single TCP connection, so a layer 4 balancer pins all of a client's requests to whichever backend won that connection, and newly added backends receive nothing. The fixes are a layer 7 proxy that balances per request, client-side load balancing, or bounding connection lifetime so clients periodically rebalance.",
+      "code": "upstream api {\n    least_conn;                     # better default than round robin for HTTP\n    server 10.0.1.11:8080 max_fails=3 fail_timeout=30s;\n    server 10.0.1.12:8080 max_fails=3 fail_timeout=30s;\n    keepalive 64;                   # reuse upstream connections\n}\n\n# affinity variant: same URI -> same backend, minimal reshuffle if the pool changes\nupstream cache_tier {\n    hash $request_uri consistent;\n    server 10.0.2.11:6081;\n    server 10.0.2.12:6081;\n}"
+    },
+    {
+      "title": "4. Caching Layers and the Invalidation Problem",
+      "content": "Caching trades freshness for latency and load. The layers stack: browser, CDN, reverse proxy, in-process memory, a shared cache such as Redis, and the database's own buffer pool. Each carries its own TTL and invalidation story, and a stale value at any one of them looks identical to a bug from the top.\n\nCache-aside is the common pattern: read the cache, miss, read the database, populate with a TTL. Write-through updates cache and store together (consistent, slower writes); write-behind buffers writes (fast, can lose data on crash). Whatever the pattern, invalidation has two honest strategies. TTL expiry always works and bounds staleness without coordination. Explicit invalidation is precise but genuinely distributed: you must find every key derived from the changed row, and a delete racing a repopulate can leave a stale value cached until its TTL. Versioned keys -- product:42:v3, or a hash of the inputs -- sidestep deletion, since you write a new key and old ones age out.\n\nThe classic outage is the stampede: a hot key expires, a thousand concurrent requests miss at once, and all of them reach the database. Mitigations: jittered TTLs so keys do not expire in lockstep, coalescing concurrent misses behind one recompute, and serving stale while one worker refreshes. And know your cold-start behaviour: a cache flush or a deploy that changes the key format sends 100% of traffic to an origin sized for 10%.",
+      "code": "import json, random, redis\nr = redis.Redis(decode_responses=True)\nBASE_TTL = 300\n\ndef get_product(pid: int):\n    key = f\"product:{pid}:v3\"       # version in the key: no deletes needed\n    hit = r.get(key)\n    if hit is not None:\n        return json.loads(hit)      # a cached \"null\" is a valid negative entry\n    # one caller recomputes; the rest fall through to the origin for a moment\n    if r.set(f\"lock:{key}\", \"1\", nx=True, ex=10):\n        try:\n            row = db_fetch(pid)\n            ttl = BASE_TTL + random.randint(0, 60)   # jitter: keys expire apart\n            r.setex(key, ttl, json.dumps(row))\n            return row\n        finally:\n            r.delete(f\"lock:{key}\")\n    return db_fetch(pid)"
+    },
+    {
+      "title": "5. CDNs: Caching at the Edge",
+      "content": "A CDN is a globally distributed reverse proxy. Users are steered to a nearby point of presence by anycast routing or DNS, TLS terminates there, and cacheable responses are served without crossing an ocean. Even uncacheable requests benefit: the TCP and TLS handshakes complete over a short round trip, and the CDN reuses warm long-haul connections back to your origin.\n\nWhat gets cached is decided by the cache key and the response headers. The key is typically method plus host plus path plus whichever query parameters and Vary headers the CDN is configured to consider, so a stray tracking parameter or Vary on User-Agent shatters one object into thousands of near-duplicates and destroys the hit ratio. Cache-Control drives lifetime: max-age for private browser caches, s-maxage for shared caches, private or no-store to keep personalised responses out of a shared cache entirely. stale-while-revalidate lets the edge serve a slightly old copy while refreshing in the background; stale-if-error keeps the site up when the origin is failing.\n\nInvalidation at the edge is purge-by-URL (hard to enumerate), purge-by-tag or surrogate key (tag responses by entity, purge the tag), or the approach that never needs purging -- content-hashed filenames with a one-year max-age, referenced from HTML with a short TTL. One production trap: without tiered caching every PoP misses independently, so the origin serves the same miss many times.",
+      "code": "# fingerprinted asset (app.9f2c1e.js): replaced by changing the URL, never revalidated\nCache-Control: public, max-age=31536000, immutable\n\n# HTML shell: short browser TTL, longer at the edge, survives a bad origin\nCache-Control: public, max-age=60, s-maxage=600, stale-while-revalidate=60, stale-if-error=86400\nETag: \"a3f19c\"\n\n# anything user-specific must never land in a shared cache\nCache-Control: private, no-store"
+    },
+    {
+      "title": "6. Replication and Read Replicas",
+      "content": "Replication copies writes from a primary to one or more replicas, for read capacity, standby capacity, and durability across failure domains. Physical replication ships the write-ahead log essentially byte for byte, producing an exact copy of the cluster; logical replication decodes the WAL into row-level changes, which lets you replicate a subset of tables or cross major versions, at higher CPU cost.\n\nAsynchronous replication acknowledges a commit as soon as the primary has it, so a failover loses whatever had not shipped yet -- that gap is your RPO. Synchronous replication waits for a standby, buying durability with write latency. PostgreSQL exposes the levels directly: synchronous_commit = on waits for the standby to flush WAL to disk, remote_apply also waits for it to become visible to queries there, local waits only for the local disk.\n\nReplication lag is the day-to-day reality: a long query on the replica blocking apply, single-threaded apply against a write-heavy primary, IO saturation, a bulk load. The bug it produces is a read-your-writes violation -- a user saves a profile, the next request lands on a lagging replica, and the change appears not to have saved. Fixes live in routing: send that user's reads to the primary for a window after a write, pin the session, or compare the replica's replay position against the log position returned by the write.",
+      "code": "-- on the primary: lag per replica, in bytes and as applied-time intervals\nSELECT client_addr, state, sync_state,\n       pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) AS replay_lag_bytes,\n       write_lag, flush_lag, replay_lag\nFROM pg_stat_replication;\n\n-- on a replica: how old is the data it can serve?\nSELECT now() - pg_last_xact_replay_timestamp() AS behind_primary;\n\n-- durable but not hostage to one standby:\n--   synchronous_standby_names = 'ANY 1 (standby_a, standby_b)'"
+    },
+    {
+      "title": "7. Sharding: Splitting the Write Path",
+      "content": "Sharding splits one dataset across independent database instances, each owning a slice of the keyspace. You reach for it when a single primary can no longer absorb the write rate, when the working set no longer fits in one machine's memory or disk, or when you want a failure to affect a fraction of users rather than all of them. It is the most expensive scaling decision here, so exhaust read replicas, caching, archiving, and a larger instance first.\n\nThe shard key decides everything. Hash routing spreads load evenly but destroys range scans and turns \"everything for this tenant\" into a fan-out. Range routing keeps scans cheap but concentrates writes on the newest range -- a timestamp key is the classic hot shard. Directory routing, a lookup table mapping entity to shard, is the most flexible and makes per-entity migration easy, at the cost of an extra hop and a component that must stay highly available.\n\nWhat you give up: cross-shard joins, cross-shard transactions (now two-phase commit or a saga with compensating actions), globally unique auto-increment IDs (use UUIDv7, ULID, or a snowflake-style allocator), and any secondary index that omits the shard key, since those become scatter-gather queries whose p99 is the slowest shard rather than the average. Resharding is what teams underestimate: the safe shape is dual-write to old and new, backfill history, verify by comparison, flip reads, then stop writing to the old place.",
+      "code": "# consistent hashing with virtual nodes: adding a shard moves ~1/N of keys, not all\nimport bisect, hashlib\n\nclass ShardRing:\n    def __init__(self, shards, vnodes=128):\n        self.ring = []\n        for s in shards:\n            for i in range(vnodes):\n                h = int(hashlib.blake2b(f\"{s}#{i}\".encode(), digest_size=8).hexdigest(), 16)\n                self.ring.append((h, s))\n        self.ring.sort()\n        self.points = [h for h, _ in self.ring]\n    def route(self, key: str) -> str:\n        h = int(hashlib.blake2b(key.encode(), digest_size=8).hexdigest(), 16)\n        return self.ring[bisect.bisect(self.points, h) % len(self.ring)][1]"
+    },
+    {
+      "title": "8. Message Queues and Backpressure",
+      "content": "A queue decouples producers from consumers, so a burst need not be served at the rate it arrives and failing work can be retried without holding an HTTP connection open. The cost is that you have converted a visible synchronous failure into an invisible backlog.\n\nDelivery semantics: essentially every broker gives at-least-once, because an acknowledgement can be lost after the work is already done. \"Exactly-once\" in practice means at-least-once delivery plus an idempotent consumer. Ordering is per-partition or per-group, never global -- Kafka orders within a partition chosen by the message key, SQS FIFO within a message group.\n\nBackpressure is what interviewers actually probe. An unbounded queue does not remove overload; it converts a throughput problem into an unbounded latency and memory problem, and by the time anyone notices, the backlog is work nobody wants the results of. Bounded queues force the decision at the edge: reject, shed low-priority work, or slow the producer. A one-million-message backlog draining at 2000/s net takes over eight minutes even if arrivals stop completely.\n\nOperationally: consumer lag, not queue depth alone, is the signal to alert on; a consumer that takes too long between polls is evicted from its group and triggers a rebalance, making throughput worse; a poison message loops forever unless a dead-letter queue with a redelivery limit catches it; and retries need backoff and jitter, or retry traffic becomes the outage.",
+      "code": "# lag per partition:  LAG = LOG-END-OFFSET - CURRENT-OFFSET\nkafka-consumer-groups.sh --bootstrap-server broker:9092 --describe --group billing-workers\n\n# one partition with growing lag while the rest are flat is usually a stuck or slow\n# consumer -- look for a poison message before adding consumers.\n# SQS equivalent guard: a redrive policy with maxReceiveCount and a dead-letter queue."
+    },
+    {
+      "title": "9. Idempotency Keys and Safe Retries",
+      "content": "When a client times out, it cannot tell whether the server never received the request, received it and crashed, or completed it and lost the response. The only safe client behaviour is to retry, and the only safe way to accept retries is idempotence: applying the operation twice has the same effect as applying it once.\n\nSome operations are naturally idempotent -- a PUT that replaces a whole resource, an upsert keyed by a business identifier, a conditional write guarded by a version (compare-and-set, or If-Match with an ETag). The ones that are not -- charge a card, send an email, decrement inventory -- need an idempotency key: a unique value the client generates once per logical operation and resends with every retry of it.\n\nThe mechanism is what matters. The server records the key and the outcome in the same transaction that performs the effect; otherwise a crash between the two reopens the duplicate window. A unique constraint on the key is what actually enforces uniqueness: two concurrent retries race, one inserts, the other hits a constraint violation and must return the stored response rather than fail. Store a hash of the request body so a key reused with different parameters is rejected, store the response so replays are identical, and expire keys after a bounded window.\n\nOn the client side: exponential backoff with full jitter, a cap on attempts, and a retry budget, so a struggling dependency does not get three times its normal load.",
+      "code": "CREATE TABLE idempotency_keys (\n  key           text PRIMARY KEY,     -- uniqueness enforced here, not in code\n  account_id    bigint      NOT NULL,\n  request_hash  text        NOT NULL, -- same key + different body => reject\n  response_code int,\n  response_body jsonb,\n  created_at    timestamptz NOT NULL DEFAULT now()\n);\n\n-- one transaction covers both the record and the effect:\n--   BEGIN;\n--     INSERT INTO idempotency_keys (key, account_id, request_hash) VALUES (...);\n--     -- unique_violation here means a duplicate: return the stored response\n--     ... perform the charge, write the ledger row ...\n--     UPDATE idempotency_keys SET response_code = 201, response_body = ...;\n--   COMMIT;"
+    },
+    {
+      "title": "10. Rate Limiting and Load Shedding",
+      "content": "Rate limiting exists because capacity is finite and demand is not. It protects a shared resource from one noisy tenant, bounds cost, and converts an overload that degrades everyone into a clean rejection for a few.\n\nFixed window counting per calendar minute is trivial and wrong at the boundary: a client can spend its whole quota at 0:59 and again at 1:00, briefly doubling the intended rate. A sliding window counter interpolating between the previous and current window is the usual compromise. Token bucket is the standard answer for APIs: tokens refill at a fixed rate up to a burst capacity, enforcing an average rate while tolerating short spikes. Leaky bucket instead smooths output to a constant drain rate, which is what you want in front of a fragile downstream.\n\nDistribution is the hard part. Per-instance limits are cheap but require dividing the global limit by instance count, and any imbalance in the load balancer makes that division wrong. A shared counter in Redis is accurate but adds a network hop to every request plus a dependency you must consciously decide to fail open or closed on. Choose the key carefully: IP punishes everyone behind a NAT, an account ID is fairer, and expensive endpoints deserve a weight rather than a flat count.\n\nRespond honestly -- 429 with Retry-After, never a 500 or a silent drop. Consider concurrency limits too: bounding in-flight requests reacts to real slowness, whereas a per-second limit tuned on a fast day is wrong on a slow one.",
+      "code": "# rate is the sustained refill, burst is the bucket depth; 10m of shared state\nlimit_req_zone $binary_remote_addr zone=perip:10m  rate=10r/s;\nlimit_req_zone $http_x_api_key     zone=perkey:10m rate=100r/s;\n\nserver {\n    location /api/ {\n        limit_req zone=perkey burst=200 nodelay;   # allow a burst, then enforce\n        limit_req_status 429;                      # not 503, and never a silent drop\n        limit_req_log_level warn;\n        proxy_pass http://api;\n    }\n}"
+    },
+    {
+      "title": "11. Health Checks: Liveness, Readiness, Startup",
+      "content": "Three questions get collapsed into one endpoint. Liveness: is this process broken in a way only a restart can fix? Readiness: should it receive traffic right now? Startup: has it finished booting? Kubernetes separates them because the consequences differ: a failed liveness probe kills the container, a failed readiness probe only removes it from the Service's endpoints.\n\nThe most common self-inflicted outage is a liveness probe that checks a dependency. The database blips for two minutes, every pod's liveness fails, the whole deployment restarts at once, and now you have cold caches and a connection stampede on top of the original problem. Liveness should be shallow and local: the process is alive and its request loop is not wedged. Readiness may be deeper, but the same coupling applies -- if every replica goes unready because one downstream is slow, you have removed all capacity instead of serving degraded responses.\n\nTune detection time deliberately: time to act is roughly periodSeconds x failureThreshold plus the probe timeout, and the load balancer stacks its own interval and unhealthy threshold on top.\n\nThe endpoint should be cheap and excluded from access logs and rate limits. Whether to serve it from the same thread pool as real traffic is a genuine tradeoff: sharing the pool means a saturated server correctly reports unready, while a separate admin listener distinguishes overloaded from crashed but sheds no load.",
+      "code": "startupProbe:              # slow boot gets up to 60 * 5s before liveness applies\n  httpGet: { path: /healthz, port: 8080 }\n  periodSeconds: 5\n  failureThreshold: 60\n\nlivenessProbe:             # shallow and local -- do not touch the database here\n  httpGet: { path: /healthz, port: 8080 }\n  periodSeconds: 10\n  timeoutSeconds: 2\n  failureThreshold: 3      # ~30s of failure before a restart\n\nreadinessProbe:            # may check what you genuinely cannot serve without\n  httpGet: { path: /readyz, port: 8080 }\n  periodSeconds: 5\n  failureThreshold: 2"
+    },
+    {
+      "title": "12. Zero-Downtime Deploys",
+      "content": "Zero downtime needs three things at once: more than one instance, a router that only sends traffic to instances reporting ready, and changes compatible with the version still running beside them. The third is where deploys break, because during a rollout both versions serve traffic against the same database.\n\nRolling updates replace instances gradually; maxSurge and maxUnavailable control how much extra capacity you may add and how much you may lose. Blue/green stands up a second environment and flips the router: instant rollback, double the infrastructure. Canary sends a small share of traffic to the new version and promotes on metrics -- error rate, latency percentiles, saturation -- the only strategy that catches a bad release before everyone sees it.\n\nDraining is the detail that bites. Removing an instance from the load balancer and telling the process to stop are separate actions, and in Kubernetes they happen concurrently: endpoint removal propagates asynchronously while SIGTERM has already been delivered. The mitigation is a preStop hook that sleeps briefly before shutdown, plus a termination grace period longer than the slowest in-flight request.\n\nSchema changes must be expand-then-contract: add the new nullable column, deploy code that writes both, backfill in batches, switch reads, drop the old column a release later. Never pair a rename with the code change, and set a lock_timeout, since an ALTER waiting on a long transaction queues every query behind it.",
+      "code": "spec:\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxSurge: 25%\n      maxUnavailable: 0             # never dip below current capacity\n  template:\n    spec:\n      terminationGracePeriodSeconds: 60   # longer than the slowest in-flight request\n      containers:\n        - name: api\n          lifecycle:\n            preStop:\n              # let endpoint removal propagate before shutdown starts\n              exec: { command: [\"sleep\", \"10\"] }"
+    },
+    {
+      "title": "13. Disaster Recovery: RTO, RPO and Multi-Region",
+      "content": "RPO is how much data you can afford to lose, measured in time; RTO is how long you can afford to be down. Both are business inputs, and they price the architecture: an RPO of 24 hours is a nightly snapshot, an RPO of five minutes is continuous WAL or binlog archiving, and an RPO near zero means synchronous replication into another failure domain.\n\nReplicas are not backups. A replica faithfully reproduces your DROP TABLE, your bad migration, and your application's corrupt writes, within seconds. Only point-in-time recovery protects against logical damage: a base backup plus the archived write-ahead log lets you restore to the instant before the mistake. Keep backups in a separate account with versioning or object lock, because ransomware and a leaked deploy credential both go for the backups first.\n\nThe number nobody measures is restore time. Copying and replaying several terabytes takes hours, not minutes, so an untested backup is a hypothesis. Run restore drills on a schedule, time them, and record the measured RTO rather than the aspirational one.\n\nMulti-region raises the ceiling and the complexity. Active-passive (pilot light or warm standby) is easier to operate: asynchronous replication to the second region, DNS or a global load balancer for steering, and honest acceptance that failing over loses the replication lag. Either way, audit the hidden dependencies: if your failover runbook needs a CI pipeline, a secrets store, or an identity provider that exists only in the region that just died, you do not have a second region.",
+      "code": "# postgresql.conf on the primary: continuous archiving is what makes PITR possible\narchive_mode = on\narchive_command = 'test ! -f /wal_archive/%f && cp %p /wal_archive/%f'\n\n# recovery settings when restoring a base backup to a point in time (PostgreSQL 12+)\nrestore_command = 'cp /wal_archive/%f %p'\nrecovery_target_time = '2026-08-14 03:14:00+00'\nrecovery_target_action = 'promote'\n\n# the skipped step: run this on a schedule and time it -- that duration is your RTO."
+    },
+    {
+      "title": "14. CAP Tradeoffs an Operator Actually Feels",
+      "content": "CAP says that when the network partitions, a distributed system must choose between refusing some requests (consistency) and answering with possibly stale or conflicting data (availability). PACELC adds the half operators live in: else -- when there is no partition -- you are still trading latency against consistency on every request.\n\nWhat this feels like on call: in a CP system, a partition or a lost quorum surfaces as write failures and leader elections: etcd, ZooKeeper, and consensus-backed databases stop accepting writes rather than diverge. An even-numbered cluster is therefore a trap -- four nodes tolerate the same single failure as three, and a 2-2 split leaves no majority. In an AP system nothing errors; both sides accept writes and you discover the conflicts afterwards. Last-write-wins silently discards one and trusts clocks less synchronised than you assume; CRDTs merge deterministically at the cost of a constrained data model.\n\nLeader-based databases sit between the two and fail in the ugliest way: if the old primary is not fenced before a replica is promoted, both accept writes and you get split brain with divergent history. Hence fencing tokens and leases rather than \"the monitor believes the primary is down\".\n\nThe rule is per-dataset, not per-company: money movement, inventory, uniqueness, and authorisation want consistency and should fail closed, while feeds, telemetry, sessions, and caches want availability and can be reconciled later. And most real incidents are not clean partitions but gray failures, where the system cannot even decide it is partitioned.",
+      "code": "# quorum arithmetic, the version that shows up in postmortems:\n#   3 nodes -> survives 1 loss   5 -> survives 2   4 -> still 1, and 2-2 has no majority\netcdctl endpoint status --cluster -w table\n\n# Dynamo-style quorums: R + W > N makes a read overlap the latest write\n#   N=3, W=2, R=2 -> one node may be down on either path\n#   N=3, W=1, R=1 -> fast, but reads can miss a recent write"
+    }
+  ],
+  "interviewQA": [
+    {
+      "q": "How do you decide between scaling a service vertically and horizontally?",
+      "a": "Vertical first, because it buys time without buying distributed failure modes: no partitioning, no cross-node consistency, no rebalancing. Its ceiling is concrete though -- the largest instance the vendor sells, a resize that normally needs a reboot, and a single failure domain that no amount of RAM removes. So even well below that ceiling I go horizontal for availability alone: one box is one outage. Horizontal only helps work that can actually be split, and Amdahl's law is the honest bound -- if 5% of the request path is serialised on a shared resource, one primary database, one lock, one queue, no number of app servers gets you past roughly 20x. In practice the first shared resource is the database, and immediately behind it the connection limit to it, which is why adding app servers sometimes makes latency worse rather than better.",
+      "followUps": [
+        "Which shared resource do you expect to saturate first, and how would you confirm it?",
+        "The app tier scales fine but the primary database is the bottleneck -- what are your options, in order?",
+        "When is vertical scaling still the right call for a large system?"
+      ]
+    },
+    {
+      "q": "How would you size a service? Walk me through the capacity math.",
+      "a": "Sizing is queueing theory, not division. Little's law gives concurrency = arrival rate x latency: 2000 rps at 150 ms is 300 requests in flight, so a 50-worker pool is already saturated no matter what CPU says. Then I refuse to plan to full utilisation -- past roughly 70-80%, queueing delay grows sharply rather than linearly, so the last slice of capacity is what absorbs a retry storm, a slow dependency, or one instance dying. I also size for the loss of a failure domain: if an availability zone going away must not hurt, capacity is N+1 in zones, not just in instances. And autoscaling is a cost tool, not a spike tool -- metric scrape, evaluation, scheduling and warm-up put it tens of seconds to minutes behind, so a spike arriving in five seconds is served by standing headroom or by a queue that absorbs it, never by the autoscaler.",
+      "followUps": [
+        "Why not run at 90% utilisation and save the money?",
+        "What would you actually scale a latency-sensitive service on, and why is CPU a poor signal?",
+        "How do you stop the autoscaler flapping right after a spike?"
+      ]
+    },
+    {
+      "q": "What does it actually mean for a service to be stateless, and what typically breaks it?",
+      "a": "Stateless does not mean the service holds no state; it means no request depends on state that exists only on the instance that served an earlier one. That property is what lets a balancer move traffic freely, an autoscaler add or kill instances, and a deploy replace every process without losing anything. What quietly breaks it: in-memory sessions, in-process caches treated as authoritative rather than disposable, uploads written to local disk, cron-style schedulers that assume they are the only copy, and long-lived WebSockets holding conversation state. The fixes are unglamorous -- sessions in Redis or a signed cookie, uploads to object storage, caches that can be dropped at any instant without changing correctness, periodic work claimed through a lock or leader election. Sticky sessions are the shortcut and they cost you: load skews toward whichever instances collected the long-lived users, scaling out does not relieve them, and every deploy dumps the sessions. Affinity is a cache-locality optimisation, never a correctness requirement.",
+      "followUps": [
+        "Where would you put session state, and what does a JWT change about that?",
+        "How do you revoke a signed token before it expires?",
+        "How do you run a scheduled job safely when there are twelve replicas?"
+      ]
+    },
+    {
+      "q": "Which load balancing algorithm would you pick for an HTTP service, and where do the alternatives misbehave?",
+      "a": "A balancer does two jobs: pick a backend, and stop sending traffic to backends that are unwell. Layer 4 forwards TCP or UDP per connection -- fast and protocol-agnostic, but it cannot see individual requests. Layer 7 parses HTTP, so it can route on path or header, retry idempotent requests, and balance per request. On algorithms: round robin assumes every request costs the same, so one expensive endpoint concentrates on whichever backend happened to receive it. Least connections tracks in-flight work per backend and adapts to uneven cost, which makes it my default for HTTP. Least-response-time biases toward fast backends but can amplify a failure -- a backend rejecting instantly looks fastest and attracts everything -- so I only use it with outlier ejection. Hashing on source IP, URI or a header buys affinity for cache locality, and consistent hashing keeps most keys on the same backend when the pool changes instead of reshuffling everything.",
+      "followUps": [
+        "What does outlier ejection give you that a health check does not?",
+        "When would you deliberately choose hashing over least connections?",
+        "How does this picture change for HTTP/2 or gRPC?"
+      ]
+    },
+    {
+      "q": "You scaled a gRPC service from 6 to 12 pods and the new pods receive almost no traffic. What is going on?",
+      "a": "Almost certainly connection pinning. HTTP/2 and gRPC multiplex many streams over one long-lived TCP connection, so a layer 4 balancer makes exactly one decision -- at connect time -- and every subsequent request rides that connection to the backend already chosen. New pods join the pool and get nothing, because no client opens a new connection; the old pods carry the whole load and the dashboards show a scale-out that changed nothing. Three fixes: put a layer 7 proxy in the path so balancing happens per request; use client-side load balancing, where the client resolves all endpoints and spreads streams itself; or bound connection lifetime on the server so clients periodically reconnect and re-pick, with jitter so they do not all reconnect together. The same pinning explains why traffic can stay unevenly distributed for hours after a rolling deploy.",
+      "followUps": [
+        "How would you confirm pinning is the cause from metrics alone?",
+        "What are the tradeoffs of client-side load balancing?",
+        "Why does bounding connection age need jitter?"
+      ]
+    },
+    {
+      "q": "Design the caching for a read-heavy product page. Which pattern, and how do you handle invalidation?",
+      "a": "Cache-aside is the default: read the cache, on a miss read the database and populate with a TTL. It is simple, and losing the cache costs latency rather than correctness. Write-through updates cache and store together -- consistent, slower writes; write-behind buffers writes -- fast, and it can lose data on a crash. Invalidation has only two honest strategies. TTL expiry always works, needs no coordination, and bounds staleness; the price is serving stale data for up to the TTL. Explicit invalidation is precise but genuinely distributed: you must find every key derived from the changed row, and a delete racing a repopulate can leave a stale value cached until it expires anyway. That is why I prefer versioned keys -- product:42:v3, or a hash of the inputs -- because you write a new key and old ones age out, so there is no delete to race. Remember the layers stack: browser, CDN, proxy, process memory, Redis, buffer pool, each with its own TTL.",
+      "followUps": [
+        "A user reports stale data -- how do you find which layer is serving it?",
+        "When is explicit invalidation worth the complexity?",
+        "How do you cache a negative result without creating a hole?"
+      ]
+    },
+    {
+      "q": "What is a cache stampede, and how do you protect an origin from one?",
+      "a": "A hot key expires and a thousand concurrent requests miss at the same instant, so all of them reach the database and the recompute cost multiplies by the concurrency. Three mitigations, usually together. Jitter the TTL, so keys written in the same second do not expire in lockstep. Coalesce concurrent misses: one caller takes a short lock and recomputes while the rest wait briefly or serve the previous value. And serve stale while revalidating in the background, which turns a latency spike into slightly older data. The bigger version is cold start -- a cache flush, a Redis failover, or a deploy that changes the key format sends 100% of traffic to an origin sized for maybe 10%, and the origin falls over before the cache can refill. Defences there are a warm-up path, rolling a key change gradually rather than flipping it, and rate limiting or shedding at the origin so partial service survives.",
+      "followUps": [
+        "How long should the recompute lock live, and what happens if its holder dies?",
+        "If the cache itself is down, do you fail open to the database or shed load?",
+        "How would you safely change a cache key format in production?"
+      ]
+    },
+    {
+      "q": "How does a CDN decide what to cache, and how would you raise a poor hit ratio?",
+      "a": "A CDN is a globally distributed reverse proxy: users reach a nearby point of presence by anycast or DNS, TLS terminates there, and cacheable responses never cross an ocean. Even uncacheable requests win, because the handshakes happen over a short round trip and the CDN reuses warm long-haul connections to the origin. Hit ratio is decided by the cache key -- method, host, path, plus whichever query parameters and Vary headers the CDN is configured to consider -- so a stray tracking parameter or Vary on User-Agent shatters one object into thousands of near-duplicates. Lifetime comes from Cache-Control: max-age for the private browser cache, s-maxage for shared caches, private or no-store for anything personalised. stale-while-revalidate serves a slightly old copy while refreshing; stale-if-error keeps the site up while the origin is broken. For invalidation I prefer content-hashed filenames with a one-year immutable max-age behind a short-TTL HTML shell, then surrogate-key purge for the rest.",
+      "followUps": [
+        "What is the risk of a long max-age on the HTML document itself?",
+        "How does tiered caching change origin load?",
+        "How would you keep a personalised response out of a shared cache?"
+      ]
+    },
+    {
+      "q": "A user saves their profile and the next page load shows the old value. What happened and how do you fix it?",
+      "a": "That is a read-your-writes violation caused by replication lag: the write committed on the primary, the follow-up read was routed to a replica that had not applied it yet. Asynchronous replication acknowledges a commit as soon as the primary has it, so replicas are always some interval behind, and lag grows for concrete reasons -- a long query on the replica blocking apply, single-threaded apply against a write-heavy primary, IO saturation, a bulk load. The fix is routing, not replication. Send that user's reads to the primary for a window after their write, pin the session, or compare the replica's replay position against the log position the write returned and fall back to the primary if it is behind. If durability rather than freshness is the concern, PostgreSQL's synchronous_commit = on waits for a standby to flush WAL and remote_apply also waits for it to be visible there -- but you pay that on every write.",
+      "followUps": [
+        "How would you monitor lag, and in what units would you alert?",
+        "When is synchronous replication's latency cost worth paying?",
+        "Why does a replica not protect you against a bad migration?"
+      ]
+    },
+    {
+      "q": "When would you shard a database, and how do you choose the shard key?",
+      "a": "I shard when a single primary can no longer absorb the write rate, when the working set no longer fits one machine's memory or disk, or when I want a failure to hit a fraction of users instead of all of them. It is the most expensive scaling decision available, so read replicas, caching, archiving cold data, and simply a bigger instance all come first. The shard key then decides everything. Hash routing spreads load evenly but destroys range scans and turns 'everything for this tenant' into a fan-out. Range routing keeps scans cheap but concentrates writes on the newest range -- a timestamp key is the classic hot shard. Directory routing, a lookup table from entity to shard, is the most flexible and makes per-entity migration easy, at the cost of an extra hop and a component that must stay highly available. I pick the key from the dominant access path, and I check that the largest tenant still fits inside one shard.",
+      "followUps": [
+        "What do you do when one tenant is too big for a single shard?",
+        "Which queries become scatter-gather, and why is their p99 so bad?",
+        "How do you generate unique IDs once there is no single sequence?"
+      ]
+    },
+    {
+      "q": "You need to go from 4 shards to 8 without downtime. Walk me through it.",
+      "a": "Never in one step. The safe shape is dual-write, backfill, verify, flip reads, then stop writing to the old place. Concretely: deploy a routing layer that can address both topologies; start writing every change to both; backfill history in batches with rate limiting so you do not starve live traffic; run a continuous comparison job over sampled and then full key ranges to prove the copies agree; move reads across behind a flag, per tenant or per key range, so rollback is instant; and only after a soak period stop the dual write and drop the old data. Two details people miss: dual-write is not atomic, so you need a reconciliation pass rather than trusting it, and this is exactly where consistent hashing with virtual nodes pays -- adding shards moves roughly 1/N of keys instead of reshuffling everything. Plan for the migration to run for weeks, not an evening.",
+      "followUps": [
+        "A write succeeds on the new shard and fails on the old -- now what?",
+        "What is your rollback plan after reads have already flipped?",
+        "How would you verify the two copies agree without reading everything twice?"
+      ]
+    },
+    {
+      "q": "When would you put a queue between two services, and what does it not solve?",
+      "a": "A queue decouples arrival rate from service rate, so a burst need not be served at the speed it arrives and failing work can be retried without holding an HTTP connection open. The cost is that a visible synchronous failure becomes an invisible backlog. On semantics: essentially every broker gives at-least-once, because an acknowledgement can be lost after the work is already done, so exactly-once in practice means at-least-once delivery plus an idempotent consumer. Ordering is per-partition or per-group, never global. Backpressure is the part people skip -- an unbounded queue does not remove overload, it converts a throughput problem into an unbounded latency and memory problem, and by the time anyone notices, the backlog is work nobody wants the results of. Bounded queues force the decision at the edge: reject, shed low-priority work, or slow the producer. Operationally I alert on consumer lag and projected drain time, not depth alone.",
+      "followUps": [
+        "One partition's lag is climbing while the rest are flat -- what is your first hypothesis?",
+        "How do you stop a poison message looping forever?",
+        "You added consumers and throughput did not improve. Why might that be?"
+      ]
+    },
+    {
+      "q": "How do you make a payment API safe to retry?",
+      "a": "When a client times out it cannot distinguish 'never arrived' from 'completed, response lost', so the only safe behaviour is to retry -- and the only safe way to accept retries is idempotence. Some operations are naturally idempotent: a PUT replacing a whole resource, an upsert keyed by a business identifier, a compare-and-set guarded by a version or If-Match. Charging a card is not, so the client generates an idempotency key once per logical operation and resends it with every retry of that operation. The mechanism is the whole answer: the server records the key and the outcome in the same transaction that performs the effect, or a crash between the two reopens the duplicate window. A unique constraint on the key is what actually enforces uniqueness -- two concurrent retries race, one inserts, the other takes a constraint violation and must return the stored response rather than error. I also store a hash of the request body so the same key with different parameters is rejected, and expire keys after a bounded window.",
+      "followUps": [
+        "What should the second concurrent request do while the first is still in flight?",
+        "How long do you keep idempotency keys, and what breaks when they expire?",
+        "How do you retry without turning a slow dependency into an outage?"
+      ]
+    },
+    {
+      "q": "Design rate limiting for a public API used by thousands of tenants.",
+      "a": "Rate limiting turns an overload that degrades everyone into a clean rejection for a few, and it bounds cost and blast radius from one noisy tenant. Fixed-window counting per calendar minute is trivial and wrong at the boundary -- a client can spend its whole quota at 0:59 and again at 1:00, briefly doubling the intended rate -- so I use a sliding-window counter or, more usually, a token bucket: tokens refill at the sustained rate up to a burst depth, enforcing an average while tolerating short spikes. A leaky bucket instead smooths output to a constant drain rate, which is what you want in front of a fragile downstream. Distribution is the hard part: per-instance limits are cheap but need the global limit divided by instance count, which any imbalance makes wrong, while a shared Redis counter is accurate but adds a hop and a dependency you must consciously decide to fail open or closed on. Key on account rather than IP, weight expensive endpoints, and answer 429 with Retry-After.",
+      "followUps": [
+        "Fail open or fail closed when the rate-limit store is unavailable?",
+        "Why might a concurrency limit beat a requests-per-second limit?",
+        "How do you stay fair to clients sitting behind one NAT?"
+      ]
+    },
+    {
+      "q": "What is the difference between liveness and readiness probes, and how do people get them wrong?",
+      "a": "Three different questions get collapsed into one endpoint. Liveness asks whether the process is broken in a way only a restart fixes. Readiness asks whether it should receive traffic right now. Startup asks whether it has finished booting. Kubernetes separates them because the consequences differ: failing liveness kills the container, failing readiness only removes it from the Service's endpoints. The classic self-inflicted outage is a liveness probe that checks the database -- the database blips for two minutes, every pod fails liveness, the whole deployment restarts at once, and now you have cold caches and a connection stampede on top of the original problem. Liveness stays shallow and local. Readiness may be deeper, but the same coupling applies: if every replica goes unready because one downstream is slow, you have removed all capacity instead of serving degraded responses. Detection time is roughly periodSeconds x failureThreshold plus the timeout, and the load balancer stacks its own interval on top.",
+      "followUps": [
+        "Should the health endpoint share a thread pool with real traffic?",
+        "How would you configure probes for a service that takes three minutes to warm up?",
+        "What belongs in readiness but not liveness for a service with a hard dependency?"
+      ]
+    },
+    {
+      "q": "What does it take to deploy with genuinely zero downtime?",
+      "a": "Three things at once: more than one instance, a router that only sends traffic to instances reporting ready, and changes compatible with the version still running beside them. Rolling updates replace instances gradually -- maxUnavailable set to 0 with a surge keeps capacity from dipping. Blue/green stands up a second environment and flips the router, so rollback is instant at double the infrastructure. Canary sends a small share of traffic to the new version and promotes on error rate, latency percentiles and saturation, and it is the only strategy that catches a bad release before everyone sees it. Draining is the detail that bites: removing an instance from the load balancer and telling the process to stop are separate actions, and in Kubernetes they happen concurrently -- endpoint removal propagates asynchronously while SIGTERM has already been delivered -- so you want a preStop sleep and a grace period longer than the slowest in-flight request. And schema changes must be expand-then-contract, never a rename paired with the code change.",
+      "followUps": [
+        "Walk me through adding a NOT NULL column with zero downtime.",
+        "Which metrics gate a canary promotion, and over what window?",
+        "Why set lock_timeout before running an ALTER TABLE?"
+      ]
+    },
+    {
+      "q": "How would you set RPO and RTO for a system, and what does each number cost?",
+      "a": "RPO is how much data you can afford to lose, measured in time; RTO is how long you can afford to be down. Both are business inputs, and they price the architecture: an RPO of 24 hours is a nightly snapshot, five minutes is continuous WAL or binlog archiving, and near zero means synchronous replication into another failure domain, paid for on every write. The first thing I would push back on is treating replicas as backups -- a replica faithfully reproduces your DROP TABLE, your bad migration and your application's corrupt writes within seconds. Only point-in-time recovery protects against logical damage: a base backup plus the archived write-ahead log restores you to the instant before the mistake. Backups belong in a separate account with versioning or object lock, because a leaked deploy credential goes for the backups first. And the number nobody measures is restore time -- replaying terabytes takes hours -- so I run timed restore drills and record the measured RTO, not the aspirational one.",
+      "followUps": [
+        "What hidden dependencies would break your regional failover runbook?",
+        "Active-active or active-passive for a second region, and why?",
+        "How do you test backups without a full production-sized restore every week?"
+      ]
+    },
+    {
+      "q": "How do CAP tradeoffs show up for someone on call?",
+      "a": "CAP only says that during a network partition you choose between refusing some requests and answering with possibly stale or conflicting data. PACELC adds the half operators actually live in: else, when there is no partition, you are still trading latency against consistency on every request. On call, a CP system surfaces as write failures and leader elections -- etcd, ZooKeeper or a consensus-backed database stops accepting writes rather than diverge -- and an even-numbered cluster is a trap, because four nodes tolerate the same single failure as three while a 2-2 split leaves no majority. An AP system errors on nothing; both sides accept writes and you find the conflicts afterwards, where last-write-wins silently discards one side and trusts clocks more than you should. Leader-based databases fail worst: if the old primary is not fenced before a replica is promoted you get split brain with divergent history. The choice is per-dataset -- money and uniqueness fail closed, feeds and telemetry stay available.",
+      "followUps": [
+        "How does a fencing token actually stop the old primary from writing?",
+        "What does R + W > N buy you in a Dynamo-style store?",
+        "What is a gray failure, and why is it harder than a clean partition?"
+      ]
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "Amdahl's law, in capacity terms",
+      "back": "If a fraction of the request path is serialised on a shared resource, speedup is capped at 1 divided by that fraction. 5% serialised means roughly 20x maximum, no matter how many app servers you add."
+    },
+    {
+      "front": "Little's law",
+      "back": "Concurrency = arrival rate x latency. 2000 rps at 150 ms means 300 requests in flight, so a 50-worker pool is already saturated regardless of what CPU shows."
+    },
+    {
+      "front": "Why target 60-70% utilisation instead of 90%?",
+      "back": "Past roughly 70-80%, queueing delay grows sharply rather than linearly. The spare capacity is what absorbs a retry storm, a slow dependency, or the loss of an instance."
+    },
+    {
+      "front": "What does 'stateless' actually mean?",
+      "back": "No request depends on state that lives only on the instance that served an earlier request. That is what lets a balancer move traffic, an autoscaler kill instances, and a deploy replace every process safely."
+    },
+    {
+      "front": "Four things that quietly break statelessness",
+      "back": "In-memory sessions, uploads written to local disk, in-process caches treated as authoritative rather than disposable, and schedulers or WebSocket handlers that assume only one copy is running."
+    },
+    {
+      "front": "What do sticky sessions cost you?",
+      "back": "Load skews toward the instances that collected long-lived users, scaling out does not relieve them because existing users stay pinned, and every deploy dumps the sessions. Treat affinity as cache locality, never correctness."
+    },
+    {
+      "front": "Layer 4 vs layer 7 load balancing",
+      "back": "L4 forwards TCP or UDP per connection: fast and protocol-agnostic, but blind to requests. L7 parses HTTP, so it can route on path or header, retry idempotent requests, and balance per request."
+    },
+    {
+      "front": "Why do new gRPC backends get no traffic behind an L4 balancer?",
+      "back": "HTTP/2 multiplexes many streams over one long-lived TCP connection, so the balancer picks a backend once at connect time. Fix with an L7 proxy, client-side load balancing, or a bounded max connection age."
+    },
+    {
+      "front": "Cache-aside pattern",
+      "back": "Read the cache; on a miss read the database and populate with a TTL. Simple, and losing the cache costs latency rather than correctness -- unlike write-behind, which can lose buffered writes on a crash."
+    },
+    {
+      "front": "TTL expiry vs explicit invalidation",
+      "back": "TTL always works, needs no coordination, and bounds staleness. Explicit invalidation is precise but distributed: you must find every derived key, and a delete racing a repopulate can leave a stale value cached anyway. Versioned keys such as product:42:v3 sidestep the race entirely, since old keys just age out."
+    },
+    {
+      "front": "Cache stampede and its three mitigations",
+      "back": "A hot key expires and every concurrent miss hits the origin at once. Jitter TTLs so keys expire apart, coalesce misses behind one recompute, and serve stale while a single worker refreshes."
+    },
+    {
+      "front": "What destroys a CDN hit ratio?",
+      "back": "Cache-key explosion. A stray tracking query parameter, or Vary on User-Agent, shatters one object into thousands of near-duplicates that each miss independently."
+    },
+    {
+      "front": "max-age vs s-maxage vs stale-if-error",
+      "back": "max-age governs the private browser cache, s-maxage the shared cache. stale-while-revalidate serves a slightly old copy while refreshing; stale-if-error keeps serving when the origin is failing."
+    },
+    {
+      "front": "Asynchronous vs synchronous replication",
+      "back": "Async acknowledges as soon as the primary has the commit, so failover loses whatever had not shipped -- that gap is your RPO. Sync waits for a standby, buying durability with write latency on every commit."
+    },
+    {
+      "front": "Read-your-writes violation",
+      "back": "A user writes, the next read lands on a lagging replica, and the change looks lost. Fix by routing: send that user's reads to the primary for a window, or compare the replica's replay position to the write's log position."
+    },
+    {
+      "front": "When is sharding justified?",
+      "back": "When one primary cannot absorb the write rate, the working set no longer fits one machine, or you want failures to hit a fraction of users. Exhaust read replicas, caching, archiving, and a bigger instance first."
+    },
+    {
+      "front": "Hash vs range shard keys",
+      "back": "Hash spreads load evenly but kills range scans and makes per-tenant queries a fan-out. Range keeps scans cheap but concentrates writes on the newest range -- a timestamp key is the classic hot shard."
+    },
+    {
+      "front": "Safe sequence for a live reshard",
+      "back": "Dual-write to old and new, backfill history in rate-limited batches, verify by comparison, flip reads behind a per-range flag, then stop writing to the old place after a soak."
+    },
+    {
+      "front": "Why is 'exactly-once' delivery a myth?",
+      "back": "An acknowledgement can be lost after the work is done, so brokers give at-least-once. Exactly-once in practice means at-least-once delivery plus an idempotent consumer."
+    },
+    {
+      "front": "What does an unbounded queue actually do under overload?",
+      "back": "It converts a throughput problem into an unbounded latency and memory problem. Bounded queues force the decision at the edge: reject, shed low-priority work, or slow the producer."
+    },
+    {
+      "front": "Why enforce idempotency with a unique constraint?",
+      "back": "Two concurrent retries race; the constraint lets exactly one insert win and forces the other to return the stored response. Application-level checks leave a window the database does not."
+    },
+    {
+      "front": "Why must the idempotency record and the effect share one transaction?",
+      "back": "Otherwise a crash between recording the key and performing the effect (or vice versa) reopens the duplicate window -- the retry either double-charges or is wrongly rejected."
+    },
+    {
+      "front": "The fixed-window rate limiting bug",
+      "back": "A client can spend its full quota at 0:59 and again at 1:00, briefly doubling the intended rate across the boundary. A sliding-window counter or token bucket avoids it."
+    },
+    {
+      "front": "Token bucket vs leaky bucket",
+      "back": "Token bucket refills at a sustained rate up to a burst depth, enforcing an average while tolerating spikes. Leaky bucket drains at a constant rate, smoothing output for a fragile downstream."
+    },
+    {
+      "front": "Liveness vs readiness probe",
+      "back": "Failing liveness restarts the container; failing readiness only removes it from the Service's endpoints. Liveness asks 'is this broken beyond recovery', readiness asks 'should it get traffic now'."
+    },
+    {
+      "front": "Why must a liveness probe not check the database?",
+      "back": "A brief database outage fails liveness on every pod at once, restarting the whole deployment and adding cold caches and a connection stampede to the original problem."
+    },
+    {
+      "front": "Why add a preStop sleep before shutdown?",
+      "back": "Endpoint removal and SIGTERM happen concurrently, so the balancer may still send requests to a terminating pod. A short sleep lets endpoint removal propagate before shutdown begins."
+    },
+    {
+      "front": "Expand-then-contract migration",
+      "back": "Add the new nullable column, deploy code that writes both, backfill in batches, switch reads, and drop the old column a release later. Never pair a rename with the code change."
+    },
+    {
+      "front": "RPO vs RTO",
+      "back": "RPO is how much data you can lose, in time; RTO is how long you can be down. Both are business inputs: a 24-hour RPO is a nightly snapshot, five minutes needs continuous WAL archiving."
+    },
+    {
+      "front": "Why is a replica not a backup?",
+      "back": "It reproduces your DROP TABLE and corrupt writes within seconds. Only point-in-time recovery -- a base backup plus archived write-ahead log -- restores to the instant before the mistake."
+    },
+    {
+      "front": "Why is a four-node consensus cluster a trap?",
+      "back": "Four nodes tolerate the same single failure as three, and a 2-2 split leaves no majority so writes stop entirely. Quorum systems want odd sizes: 3 survives 1 loss, 5 survives 2."
+    },
+    {
+      "front": "Split brain and fencing",
+      "back": "If the old primary is not fenced before a replica is promoted, both accept writes and history diverges. Fencing tokens or leases make the stale primary's writes rejected rather than merely unlikely."
+    }
+  ]
+}

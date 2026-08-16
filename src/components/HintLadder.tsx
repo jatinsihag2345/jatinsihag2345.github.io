@@ -66,6 +66,11 @@ const maxLoopDepth = (code: string): number => {
   let maxDepth = 0;
   for (const raw of code.split('\n')) {
     const line = raw.replace(/#.*/, '');
+    // A blank line (or one that was nothing but a comment) has indent 0, which would
+    // otherwise close every open loop — so normally-formatted code with a breather
+    // between an outer loop and its inner one measured as depth 1. Nothing that
+    // carries no code carries block structure either, so skip it outright.
+    if (!line.trim()) continue;
     const indent = (/^(\s*)/.exec(line) as RegExpExecArray)[1].length;
     while (stack.length && indent <= stack[stack.length - 1]) stack.pop();
     if (/^\s*(for|while)\b.*:\s*$/.test(line)) {

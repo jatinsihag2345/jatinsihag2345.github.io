@@ -21,6 +21,7 @@ import { ProblemDescriptionTab } from './ProblemDescriptionTab';
 import { EditorialTab } from './EditorialTab';
 import { SolutionsTab } from './SolutionsTab';
 import { SubmissionsTab } from './SubmissionsTab';
+import { SolutionGate, SolutionGateHoisted } from './SolutionGate';
 
 interface ProblemViewerProps {
   question: Question;
@@ -83,6 +84,10 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
       localStorage.getItem('gate-disabled') === '1' ||
       sessionStorage.getItem(`revealed-${question.id}`) === '1',
   );
+  // Tracked, not just read inline, because the "gate is off" line below needs to
+  // appear the moment the gate card turns itself off — and disappear again when
+  // the learner turns it back on without leaving the page.
+  const [gateDisabled, setGateDisabled] = useState<boolean>(() => localStorage.getItem('gate-disabled') === '1');
   const [plan, setPlan] = useState<string>(() => readText(`plan-${question.id}`));
   // Lifted from HintLadder so RecallRating can caveat the rating with the hint count.
   const [hintsUsed, setHintsUsed] = useState<number>(() => readHintsUsed(question.id));
@@ -99,6 +104,7 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
       localStorage.getItem('gate-disabled') === '1' ||
         sessionStorage.getItem(`revealed-${question.id}`) === '1',
     );
+    setGateDisabled(localStorage.getItem('gate-disabled') === '1');
     setPlan(readText(`plan-${question.id}`));
     setHintsUsed(readHintsUsed(question.id));
     setActiveTab('description');
@@ -116,6 +122,17 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
   const revealApproaches = () => {
     sessionStorage.setItem(`revealed-${question.id}`, '1');
     setApproachesRevealed(true);
+  };
+
+  /** The way back from "Turn this gate off", which is otherwise a one-way door:
+   *  nothing else in the app clears `gate-disabled`. The problem already on
+   *  screen stays open — re-gating it under the reader mid-sentence would hide
+   *  what they came for — so this visit is marked revealed and the gate returns
+   *  on the next problem. */
+  const reenableGate = () => {
+    localStorage.removeItem('gate-disabled');
+    sessionStorage.setItem(`revealed-${question.id}`, '1');
+    setGateDisabled(false);
   };
 
   const handlePlanChange = (next: string) => {
@@ -267,6 +284,50 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
             ))}
           </div>
           <div className="pane-body">
+            {/* ONE gate for both tabs. Editorial and Solutions each render their
+                own <SolutionGate>, and since all four panels stay mounted (below),
+                both were alive at once — two ComplexityQuiz/CalibrationPrompt
+                pairs, each writing its whole store back from what it read at
+                mount, so answering on the second tab wiped the first tab's
+                history. Hoisting the gate here makes it a single instance with a
+                single store, exactly as `plan` already is; the copies inside the
+                panels stand down via SolutionGateHoisted. It stays mounted while
+                the gate is up (hidden on Description) so a half-answered quiz
+                survives a tab switch, same reason the panels do. Approach-less
+                questions never gate — both tabs return SandboxFallback first. */}
+            {!approachesRevealed && question.approaches.length > 0 && (
+              <div style={{ display: activeTab === 'editorial' || activeTab === 'solutions' ? undefined : 'none' }}>
+                <SolutionGate
+                  question={question}
+                  plan={plan}
+                  onPlanChange={handlePlanChange}
+                  onReveal={revealApproaches}
+                  onDisableGate={() => setGateDisabled(true)}
+                />
+              </div>
+            )}
+            {/* "Turn this gate off" is app-wide and permanent, and Settings has no
+                control for it — so the way back lives where the gate used to be. */}
+            {gateDisabled && question.approaches.length > 0 && (activeTab === 'editorial' || activeTab === 'solutions') && (
+              <div
+                className="no-print"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
+                  marginBottom: '1.5rem', padding: '0.6rem 0.9rem', borderRadius: '10px',
+                  border: '1px dashed hsl(var(--border-color))', fontSize: '0.78rem',
+                  color: 'hsl(var(--text-muted))',
+                }}
+              >
+                <span>Recall gate is off — every problem opens straight to the solution.</span>
+                <button
+                  className="btn btn-secondary"
+                  style={{ marginLeft: 'auto', padding: '0.3rem 0.7rem', fontSize: '0.75rem' }}
+                  onClick={reenableGate}
+                >
+                  Turn the gate back on
+                </button>
+              </div>
+            )}
             {/* All four tabs stay MOUNTED (never conditionally unmount) — only CSS
                 visibility toggles which one shows. Two reasons: (1) print — the print
                 stylesheet forces every .tab-panel visible (see index.css), which only
@@ -275,31 +336,33 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
                 though the learner had already revealed them. (2) it keeps each tab's
                 own internal state (HintLadder's unlock count, DryRunSimulator's step,
                 etc.) alive across tab switches instead of resetting on every visit. */}
-            <div className="tab-panel" style={{ display: activeTab === 'description' ? undefined : 'none' }}>
-              <ProblemDescriptionTab question={question} onOpenEditorial={() => setActiveTab('editorial')} />
-            </div>
-            <div className="tab-panel" style={{ display: activeTab === 'editorial' ? undefined : 'none' }}>
-              <EditorialTab
-                question={question}
-                approachesRevealed={approachesRevealed}
-                onReveal={revealApproaches}
-                plan={plan}
-                onPlanChange={handlePlanChange}
-                onHintsUsed={setHintsUsed}
-              />
-            </div>
-            <div className="tab-panel" style={{ display: activeTab === 'solutions' ? undefined : 'none' }}>
-              <SolutionsTab
-                question={question}
-                approachesRevealed={approachesRevealed}
-                onReveal={revealApproaches}
-                plan={plan}
-                onPlanChange={handlePlanChange}
-              />
-            </div>
-            <div className="tab-panel" style={{ display: activeTab === 'submissions' ? undefined : 'none' }}>
-              <SubmissionsTab questionId={question.id} />
-            </div>
+            <SolutionGateHoisted.Provider value={true}>
+              <div className="tab-panel" style={{ display: activeTab === 'description' ? undefined : 'none' }}>
+                <ProblemDescriptionTab question={question} onOpenEditorial={() => setActiveTab('editorial')} />
+              </div>
+              <div className="tab-panel" style={{ display: activeTab === 'editorial' ? undefined : 'none' }}>
+                <EditorialTab
+                  question={question}
+                  approachesRevealed={approachesRevealed}
+                  onReveal={revealApproaches}
+                  plan={plan}
+                  onPlanChange={handlePlanChange}
+                  onHintsUsed={setHintsUsed}
+                />
+              </div>
+              <div className="tab-panel" style={{ display: activeTab === 'solutions' ? undefined : 'none' }}>
+                <SolutionsTab
+                  question={question}
+                  approachesRevealed={approachesRevealed}
+                  onReveal={revealApproaches}
+                  plan={plan}
+                  onPlanChange={handlePlanChange}
+                />
+              </div>
+              <div className="tab-panel" style={{ display: activeTab === 'submissions' ? undefined : 'none' }}>
+                <SubmissionsTab questionId={question.id} active={activeTab === 'submissions'} />
+              </div>
+            </SolutionGateHoisted.Provider>
           </div>
         </div>
 

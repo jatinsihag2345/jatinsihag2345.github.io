@@ -1,0 +1,370 @@
+{
+  "subject": "Scripting & Automation",
+  "summary": "Scripting is where most operational work actually lives: the glue between a CI system, a cloud API and a fleet of machines is usually a shell script or a small Python program someone wrote in an afternoon and everyone now depends on. Interviewers probe it because the failure modes are unglamorous and expensive — an unquoted variable that deletes the wrong directory, a pipeline that reports success because only its last stage was checked, a script that is not safe to re-run after a timeout. What they listen for is whether you write automation with an explicit contract: strict error handling, meaningful exit codes, idempotent operations, a real dry run, and output another program can consume.",
+  "sections": [
+    {
+      "title": "Strict mode: what set -euo pipefail buys and what it misses",
+      "content": "A shell script inherits defaults built for an interactive session, where a failed command must never kill your terminal. In a script that default is dangerous: the `mkdir` fails, the script continues, the `tar` unpacks into the wrong place and the deploy ships an empty release. `set -euo pipefail` is the conventional correction, and interviewers ask about it because everyone can recite the line and few can say what each flag does not cover.\n\n`set -e` (errexit) exits when a simple command returns non-zero. It is deliberately suppressed wherever the shell is already inspecting a status: the condition of `if`, `while` or `until`, anything left of `&&` or `||`, and anything after `!`. The suppression is contagious — a function called from an `if` condition runs with errexit effectively off for its whole body, so a failure buried three calls deep stops nothing. Assignments hide status too: `local x=$(false)` returns the status of `local`, which is zero.\n\n`set -u` (nounset) turns a mistyped variable name into an error instead of an empty string, which is what stops `rm -rf \"$PREFX/data\"` from meaning `rm -rf /data`. In bash before 4.4, expanding an empty array as `\"${arr[@]}\"` trips nounset, so older scripts write `\"${arr[@]:-}\"`.\n\n`set -o pipefail` makes a pipeline return the status of the rightmost command that failed rather than only the last one. Its cost is SIGPIPE: `grep pattern huge.log | head -1` now fails with 141, because grep is killed when head closes the pipe. Strict mode is a floor, not a guarantee.",
+      "code": "#!/usr/bin/env bash\nset -euo pipefail\n\n# errexit is OFF inside a condition: a failure inside check() is invisible here.\ncheck() { grep -q ready /var/run/app.state; }\nif check; then echo \"ready\"; fi\n\n# Capture a status without dying (initialise rc first):\nrc=0\ncurl -fsS --max-time 10 \"$url\" -o /tmp/body || rc=$?\ncase $rc in\n  0)  ;;\n  22) die \"server returned an HTTP error\" ;;   # curl -f saw 4xx/5xx\n  28) log WARN \"timed out\"; exit 75 ;;         # retryable\n  *)  die \"curl failed: rc=$rc\" ;;\nesac"
+    },
+    {
+      "title": "Exit codes as an interface",
+      "content": "An exit status is eight bits: 0 is success, 1 to 255 are everything else. That width is not trivia — `exit 256` wraps to 0 and reports success, so codes computed from arithmetic need clamping.\n\nSome values are conventions the shell synthesises rather than something the program returned. 127 means the command was not found; 126 means it was found but not executable (wrong permission bits, or a bad interpreter line). 128+N means the process was killed by signal N: 130 is Ctrl-C (SIGINT), 143 is SIGTERM, and 137 is SIGKILL — what an out-of-memory kill or a runtime hard-stop looks like. Reading 137 in a CI log as \"something killed it\" rather than \"the program returned 137\" is a common interview tell.\n\n`$?` holds the status of the most recent foreground pipeline only, so capture it immediately; any command in between, including a log call, overwrites it. For pipelines, bash exposes every stage in the `PIPESTATUS` array, index 0 being the leftmost.\n\nTreat your own codes as a published interface, because callers branch on them: systemd restarts on non-zero, cron mails on non-zero, Kubernetes records the code in the container status, CI marks the job red. Collapsing everything into `exit 1` discards the distinction that matters most in automation — whether a retry could help. \"Config is invalid\" and \"the API timed out\" deserve different codes. The `sysexits.h` list (64 usage, 75 temporary failure, 78 configuration error) is one ready-made convention; your own is fine if it is documented and stable.",
+      "code": "# Exit codes are a public API: document them and keep them stable.\nreadonly E_CONFIG=78 E_RETRYABLE=75          # sysexits.h conventions\n\ndeploy() {\n  validate_config || return \"$E_CONFIG\"      # terminal: retrying cannot help\n  curl -fsS --max-time 10 \"$HEALTH_URL\" >/dev/null || return \"$E_RETRYABLE\"\n}\n\nrc=0\nout=$(deploy) || rc=$?     # capture now; $? is gone after the next command runs\nif (( rc != 0 )); then log ERROR \"deploy rc=$rc\"; exit \"$rc\"; fi\n\nset -o pipefail            # PIPESTATUS holds every stage, leftmost first (bash)\nproducer | filter | consumer || log ERROR \"stages: ${PIPESTATUS[*]}\""
+    },
+    {
+      "title": "Traps, cleanup and signal handling",
+      "content": "`trap 'command' SIGNAL...` registers a handler the shell runs when a signal arrives, plus the pseudo-signals EXIT, ERR and DEBUG. EXIT is the workhorse: it runs whenever the shell exits, whether it fell off the end, called `exit`, or was stopped by errexit. It cannot run on SIGKILL or on power loss, so a trap is never the only safety net — anything that must not leak (temp directories, locks, cloud resources) also needs an external reaper such as a TTL or a lock with an expiry.\n\nTwo details separate working cleanup from decorative cleanup. Register the trap before or immediately after creating the resource, not after the risky work, so an early failure is still covered. And capture `$?` on the handler's first line if you care whether the script succeeded, because every command inside the handler overwrites it. Cleanup runs against a half-built world: it must tolerate things that were never created, and it must not itself fail.\n\nThe ERR pseudo-signal fires wherever errexit would trigger, which makes it the natural place to report the failing file, line and function from `BASH_SOURCE`, `LINENO` and `FUNCNAME`. It is not inherited by functions, command substitutions or subshells unless you also `set -E` (errtrace).\n\nFor signals: if bash is waiting on a foreground command when a trapped signal arrives, the handler is deferred until that command finishes, so a script blocked in a five-minute `sleep` will not react to SIGTERM promptly. The `wait` builtin is the exception — it is interrupted. That is why supervisor-style scripts start children in the background and `wait` on them.",
+      "code": "tmp=\"\"\ncleanup() {\n  local rc=$?                        # first line: the real exit status\n  [[ -n $tmp && -d $tmp ]] && rm -rf -- \"$tmp\"\n  if (( rc != 0 )); then log ERROR \"failed rc=$rc; log at $LOGFILE\"; fi\n  return 0                           # never change the script's exit status\n}\ntrap cleanup EXIT\ntrap 'log WARN \"interrupted\"; exit 130' INT     # 128 + SIGINT\ntrap 'log WARN \"terminated\";  exit 143' TERM    # 128 + SIGTERM\ntmp=$(mktemp -d)                     # created after the trap is armed\n\nset -E                               # otherwise ERR is not seen inside functions\ntrap 'log ERROR \"error at ${BASH_SOURCE[0]}:${LINENO} in ${FUNCNAME[0]:-main}\"' ERR\n\nlong_running_job &                   # background + wait, so TERM is handled now\nwait $!"
+    },
+    {
+      "title": "Quoting, word splitting and building commands safely",
+      "content": "The most common shell bug has one cause: after parameter expansion, the shell splits an unquoted result into words on the characters in `IFS`, then performs pathname expansion on each word. `$file` holding `my report.txt` becomes two arguments; a file named `*` expands to the directory listing. Double quotes suppress both steps, which is why `\"$file\"` is not style but the difference between correct and destructive.\n\nThe same rule governs argument lists. `\"$@\"` expands to one word per parameter with quoting preserved; `$*` joins everything into a single string using the first character of `IFS`. Build argument vectors as arrays and expand them as `\"${arr[@]}\"`, never as a string you hope re-splits the way you intended. Inside `[[ ... ]]` the shell does not word-split, one reason to prefer it over `[ ... ]` in bash.\n\nFilenames may contain spaces, quotes and newlines, so loops over discovered paths should be NUL-delimited: `find -print0` into `xargs -0`, or `while IFS= read -r -d ''`, where the empty `IFS=` preserves surrounding whitespace and `-r` stops backslashes being eaten. Note too that a pipeline runs its right-hand side in a subshell, so variables set inside `find | while read` are lost when the loop ends; process substitution `< <(...)` keeps the loop in the current shell.\n\nEvery extra layer of interpretation adds a round of quoting. `ssh host \"rm -rf $dir\"` is expanded locally and then parsed again by the remote shell. Pass data over a pipe or the environment instead of interpolating it into a command string, and treat `eval` as a last resort.",
+      "code": "# Build argv as an array, never as a string.\nargs=(--archive --delete)\nif [[ -n ${filter:-} ]]; then args+=(--include \"$filter\"); fi\nrsync \"${args[@]}\" -- \"$src/\" \"$dst/\"\n\n# NUL-delimited iteration survives spaces, quotes and newlines in filenames.\ncount=0\nwhile IFS= read -r -d '' f; do\n  process -- \"$f\"; (( ++count ))\ndone < <(find \"$src\" -type f -name '*.log' -print0)\necho \"$count\"      # correct; via `find ... | while read` the count is lost\n\n# The remote shell re-parses the string: pass data, don't interpolate it.\nprintf '%s\\0' \"${doomed[@]}\" | ssh \"$host\" 'xargs -0 rm -f --'\n\nrm -rf -- \"${target_dir:?target_dir is required}\"/*"
+    },
+    {
+      "title": "Argument parsing: getopts and hand-rolled long options",
+      "content": "Scripts grow options, and the parsing loop is where sloppiness turns into accidents: an unrecognised flag silently ignored, or an option value swallowed as a positional argument and then used as a deletion target.\n\n`getopts` is a POSIX shell builtin and handles short options only. The optstring names the letters; a colon after a letter means that option takes a value, delivered in `OPTARG`. A leading colon in the optstring switches on silent error reporting: instead of printing its own message, getopts sets the variable to `?` for an unknown option (with `OPTARG` holding the offending letter) and to `:` for a missing value, letting you print your own usage. `OPTIND` tracks position, so `shift $((OPTIND - 1))` leaves the positional arguments in `\"$@\"`. Parsing stops at the first non-option word or at `--`.\n\nThere is no builtin support for `--long` options. GNU `getopt(1)` from util-linux supports them and can reorder arguments, but macOS ships a BSD `getopt` that does not, so portable scripts hand-roll a `while`/`case` loop over `\"$@\"`.\n\nA few behaviours make a script safe for other people: an unknown option prints usage to stderr and exits non-zero rather than guessing; `-h`/`--help` prints usage to stdout and exits 0, so `script --help | less` works; required options are validated after the loop with a message naming the missing flag; `--` is honoured so paths beginning with a dash are possible; and destructive tools take named flags rather than relying on positional order.",
+      "code": "usage() { cat <<'EOF'\nUsage: deploy.sh --env ENV --version SHA [--dry-run] [-v]\n  --env ENV       staging | prod           (required)\n  --version SHA   git revision to deploy   (required)\n  --dry-run       print actions, change nothing\n  -h, --help      show this text\nEOF\n}\n\ntarget_env=\"\" version=\"\" dry_run=0 verbose=0\nwhile (( $# )); do\n  case $1 in\n    --env)        target_env=${2:?--env needs a value}; shift 2 ;;\n    --version)    version=${2:?--version needs a value}; shift 2 ;;\n    --dry-run)    dry_run=1; shift ;;\n    -v|--verbose) verbose=1; shift ;;\n    -h|--help)    usage; exit 0 ;;\n    --)           shift; break ;;\n    -*)           usage >&2; exit 64 ;;    # never guess at an unknown flag\n    *)            break ;;\n  esac\ndone\n: \"${target_env:?--env is required}\" \"${version:?--version is required}\"\n\n# Short options, with getopts. Leading ':' = you report the errors:\n#   while getopts \":e:vh\" opt; do case $opt in\n#     e)  target_env=$OPTARG ;;\n#     :)  die \"-$OPTARG requires a value\" ;;\n#     \\?) die \"unknown option -$OPTARG\" ;;\n#   esac; done\n#   shift $((OPTIND - 1))"
+    },
+    {
+      "title": "The output contract: stdout, stderr and exit status",
+      "content": "A script has three output channels with different jobs. Stdout carries the result — the thing another program consumes. Stderr carries narration: progress, warnings, errors. The exit status carries the verdict. Mixing them is what makes a script impossible to compose: if progress messages go to stdout, `data=$(./script)` captures the noise along with the data and `./script | jq .` breaks.\n\nThe rule is easy to state and easy to violate. Anything a caller might parse goes to stdout; everything else goes to stderr, including the cheerful messages on the happy path. A log helper that hardcodes `>&2` makes that automatic.\n\n`echo` is unreliable for anything beyond literal text. Whether `-n` and `-e` are honoured, and whether backslash escapes are interpreted, differs between the bash builtin, dash's builtin and `/bin/echo`, and a value starting with `-` can be eaten as a flag. `printf '%s\\n' \"$value\"` behaves the same everywhere.\n\n`set -x` (xtrace) is the cheapest debugger available, and setting `PS4` to include `${BASH_SOURCE}` and `${LINENO}` makes the trace navigable. The warning that belongs in an interview answer: xtrace prints expanded values, so it leaks tokens into CI logs — disable it around credential handling. Consider the collector too: under systemd both streams land in the journal, which timestamps them already, while under cron any output at all generates mail, which is why cron jobs are conventionally silent on success and loud on failure.",
+      "code": "log() {                          # log LEVEL MESSAGE... -> stderr, always\n  local level=$1; shift\n  printf '%s %-5s %s\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$level\" \"$*\" >&2\n}\ndie() { log ERROR \"$@\"; exit 1; }\n\nPS4='+ ${BASH_SOURCE[0]##*/}:${LINENO}: '\nif (( verbose )); then set -x; fi\n\nset +x                           # xtrace would print the secret it expands\ntoken=$(aws secretsmanager get-secret-value \\\n          --secret-id deploy/token --query SecretString --output text)\nif (( verbose )); then set -x; fi\n\nprintf '%s\\n' \"$result_json\"     # the only thing written to stdout"
+    },
+    {
+      "title": "Idempotent automation",
+      "content": "An operation is idempotent when applying it twice leaves the same state as applying it once. The stronger operational definition matters more: running it against a partially completed state finishes the job. Every real trigger is at-least-once — CI retries the job, an operator re-runs after a timeout that was only a slow response, a webhook is redelivered, a configuration run happens every thirty minutes forever.\n\nThe mechanism is to express desired state and converge to it rather than issuing deltas. `mkdir -p` rather than `mkdir`. `ln -sfn` rather than `ln -s`. User creation guarded by an existence check. Rendering an entire config file from a template rather than appending a line to it — appending is the canonical non-idempotent operation, and three runs give three copies of the same entry in `authorized_keys`, `/etc/hosts` or a shell profile.\n\nWrites must also be atomic, or an interrupted run leaves a truncated file that the next run treats as valid. Write a temporary file in the same directory and rename it over the target: rename within a filesystem is atomic, so a reader sees either the whole old file or the whole new one.\n\nCheck-then-act is a race, not a guarantee: between \"does it exist?\" and \"create it\", someone else creates it. Where the platform offers an atomic primitive — `mkdir` succeeding for exactly one caller, a conditional write, a create that fails if the object exists — use it, and treat \"already exists\" as success. Deterministic naming turns retries into no-ops: key an artifact by content hash or commit SHA and re-uploading is either skipped or writes identical bytes. Where an API accepts an idempotency key, pass a stable one so the server deduplicates the retry.",
+      "code": "# Not idempotent: three runs, three identical entries.\necho \"$pubkey\" >> ~/.ssh/authorized_keys\n\n# Idempotent: render the whole desired file, then swap it in atomically.\ninstall -d -m 700 \"$HOME/.ssh\"\ntmp=$(mktemp \"$HOME/.ssh/authorized_keys.XXXXXX\")\nrender_authorized_keys > \"$tmp\"\nchmod 600 \"$tmp\"\nmv -f -- \"$tmp\" \"$HOME/.ssh/authorized_keys\"   # atomic within one filesystem\n\nid -u appuser >/dev/null 2>&1 || useradd -r -d /srv/app -s /usr/sbin/nologin appuser\n\n# mkdir is atomic: exactly one concurrent caller wins the race.\nif mkdir /var/lock/migrate.d 2>/dev/null; then\n  trap 'rmdir /var/lock/migrate.d' EXIT\n  run_migrations\nfi"
+    },
+    {
+      "title": "Dry-run design",
+      "content": "A dry run is a promise: if you run this for real, this is what will happen. The promise only holds if the dry-run path and the real path are the same code with a single switch at the point of effect. Scattering `if [[ $DRY_RUN == 1 ]]` across ten call sites guarantees one of them eventually drifts and mutates something during what the operator believed was a preview. Funnel every mutating call through one wrapper and put the check there; read-only calls keep executing, because that is how the plan gets computed.\n\nPlan and apply is the stronger form of the same idea: phase one reads current state and builds an explicit change set, phase two applies exactly that change set. Terraform's plan file and Kubernetes' `--dry-run=server` are both this pattern, and the server-side variant is more honest than a client-side one because validation, defaulting and admission control actually run.\n\nThe limits are worth saying out loud, because interviewers listen for them. A dry run cannot account for what other actors do between plan and apply, which is why serious tools add state locking and a saved plan. It predicts API calls, not their consequences — a config that applies cleanly can still crash the process that reads it. And a plan computed from a stale cache is fiction.\n\nErgonomics decide whether it gets used. Make dry run the default for destructive tools and require an explicit `--apply`. Print counts, not just lines: \"would delete 412 objects\" makes a wrong prefix obvious in a way that 412 individual lines does not.",
+      "code": "DRY_RUN=${DRY_RUN:-1}      # safe by default; the caller opts in to changes\n\nrun() {                    # the ONLY place a mutating command is executed\n  if (( DRY_RUN )); then\n    printf 'DRYRUN:'; printf ' %q' \"$@\"; printf '\\n'\n    return 0\n  fi\n  \"$@\"\n}\n\nmapfile -t stale < <(list_stale_objects)   # read-only: runs in both modes (bash 4+)\nlog INFO \"plan: delete ${#stale[@]} objects under $prefix\"\nif (( ${#stale[@]} > 500 )); then\n  die \"refusing to delete ${#stale[@]} objects; check the prefix filter\"\nfi\n\nfor key in \"${stale[@]}\"; do\n  run aws s3api delete-object --bucket \"$bucket\" --key \"$key\"\ndone"
+    },
+    {
+      "title": "Structured output and composability",
+      "content": "A script that prints a nicely aligned table is a dead end. The next person parses it with `awk '{print $3}'`, and the parse breaks the day a column is added or a value contains a space. Emitting JSON on stdout makes the script a component: `jq` filters it, another script consumes it, CI stores it as an artifact, a test asserts against it.\n\nTwo rules make that work. JSON goes on stdout and nothing else does — logs to stderr. And the shape is an interface: adding fields is safe, renaming or repurposing them breaks consumers, so include a small schema or version field once anyone outside your team depends on it.\n\nFor a stream of records, prefer newline-delimited JSON, one object per line. It starts producing before the work finishes, survives truncation, appends cleanly to a file, and can be consumed incrementally by `jq -c` or a `read` loop. Reserve a single top-level array for small, bounded results.\n\nBuilding JSON in shell by interpolating strings is a bug waiting for a quote, a backslash or a newline in a value. Use `jq -n` with `--arg` for strings and `--argjson` for values that are already JSON, and let jq own the escaping. On the consuming side, ask the tools you call for machine output — `kubectl -o json`, `aws --output json`, `docker inspect --format '{{json .}}'` — rather than grepping human formatting, which is explicitly not a stable interface. `jq -r` emits raw strings for shell consumption, and `jq -e` sets the exit status from the result (non-zero when the last output was `false` or `null`), which lets a jq expression act as an assertion.",
+      "code": "# Generate JSON safely: jq owns quoting, escaping and unicode.\njq -n --arg service \"$service\" \\\n      --arg version \"$sha\" \\\n      --argjson replicas \"$replicas\" \\\n      '{schema: \"deploy/v1\", service: $service, version: $version, replicas: $replicas}'\n\n# Newline-delimited JSON: streamable, appendable, cheap to filter.\nfor pod in \"${pods[@]}\"; do\n  kubectl get pod \"$pod\" -o json | jq -c '{name: .metadata.name, phase: .status.phase}'\ndone\n\n# jq as a predicate: -e makes the expression decide the exit status.\nif ! kubectl get deploy web -o json | jq -e '.status.readyReplicas >= 3' >/dev/null; then\n  die \"web has fewer than three ready replicas\"\nfi"
+    },
+    {
+      "title": "Writing scripts other people can safely run",
+      "content": "The real audience for an operations script is someone running it at three in the morning with no context, under pressure, on a machine you have never seen. Predictability beats cleverness at every decision.\n\nMake it self-describing: a `--help` that matches actual behaviour, and a no-argument invocation that prints usage instead of doing something. Do the preflight before the first mutation — check required binaries with `command -v`, check required environment with `${VAR:?message}`, and make the error name the fix rather than only the symptom. Failing halfway through is far worse than refusing to start.\n\nNever let production be the default. Make the target an explicit required flag, and echo the resolved identity before acting: the current kube context, the AWS account, the database host. A large share of destructive incidents come from a correct script pointed at the wrong context. Confirm destructive actions, but only when there is a human to answer — check that stdin is a terminal before prompting and provide `--yes` for automation, otherwise the script hangs a CI job forever on a prompt nobody sees.\n\nPrevent overlapping runs: two copies of a cron job racing on the same resource is a classic outage, and a bare lock file has a check-then-act race where `flock` takes a kernel lock atomically. Make the script location-independent by resolving its own directory rather than assuming the working directory. Keep no secrets in the file. And make it re-runnable: idempotent, interruptible, and explicit at the end about what it changed.",
+      "code": "# Re-exec under an exclusive lock so two runs can never overlap (util-linux flock).\n[[ -n ${FLOCKED:-} ]] || exec env FLOCKED=1 flock -n /var/lock/rotate.lock \"$0\" \"$@\"\n\nhere=$(cd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")\" && pwd)   # do not assume cwd\n\nfor dep in jq aws kubectl; do\n  command -v \"$dep\" >/dev/null || die \"missing dependency: $dep\"\ndone\n: \"${DEPLOY_TOKEN:?set DEPLOY_TOKEN — see runbooks/deploy.md}\"\nlog INFO \"context=$(kubectl config current-context)\"\n\nif [[ $target_env == prod && ${assume_yes:-0} -eq 0 ]]; then\n  [[ -t 0 ]] || die \"refusing to touch prod non-interactively without --yes\"\n  read -r -p \"type the cluster name to continue: \" answer\n  [[ $answer == \"$cluster\" ]] || die \"aborted\"\nfi"
+    },
+    {
+      "title": "When Bash stops paying and Python starts",
+      "content": "Bash is a process-orchestration language. It is genuinely excellent at the job it was designed for: start programs, wire their stdin and stdout together, branch on exit status, with no dependencies beyond what is already installed. That is why bootstrap scripts, container entrypoints and CI glue stay in shell, and why \"rewrite it in Python\" is the wrong reflex for a thirty-line script.\n\nIt is poor at everything else. There is effectively one data type, the string. Arrays do not nest, there are no floats, there are no exceptions or error objects, and there is no test framework in a base image. Its standard library is whichever coreutils the host happens to ship, so `sed -i`, `date -d`, `readlink -f` and `xargs -r` behave differently between GNU and BSD, and a script that works in CI fails on a developer's Mac.\n\nThe signals to switch are concrete. You need a dictionary or a list of records. You are producing or consuming non-trivial JSON or YAML. You need retries with backoff, timeouts and partial-failure handling. You are calling an API with pagination. You need concurrency beyond backgrounding jobs and `wait`. You are reaching for `eval`, or returning values through globals. You want unit tests. The file has passed a couple of hundred lines, or a second author.\n\nThe move has a real cost: an interpreter version to pin, dependencies to install, slower shelling out. Keep the program a single file where you can, pin dependencies, and use a virtualenv. A thin shell wrapper around a Python program is a perfectly good shape. The answer an interviewer wants is \"shell for wiring, Python once there is logic\" — not a line count.",
+      "code": "# Fine in bash: wiring processes together and branching on exit status.\ndocker build -t \"$image\" . && docker push \"$image\"\n\n# A warning sign: pagination and error handling hand-rolled in shell.\ntoken=\"\"\nwhile :; do\n  page=$(curl -fsS \"$api/instances?token=$token\") || exit 75\n  jq -r '.items[].id' <<<\"$page\"\n  token=$(jq -r '.nextToken // empty' <<<\"$page\")\n  [[ -n $token ]] || break\ndone\n# Now add backoff, per-request timeouts, 429-vs-500 handling and partial-failure\n# collection: ordinary code in Python, a hand-built subsystem in bash."
+    },
+    {
+      "title": "subprocess: shelling out from Python",
+      "content": "`subprocess.run` is the modern entry point. Pass the command as a list of arguments and it reaches `execve` directly: no shell parses it, so word splitting, globbing, backticks and `;` simply do not happen. That single choice removes the entire command-injection class, which is why the list form is the default advice even when nothing looks user-controlled.\n\n`shell=True` passes one string to `/bin/sh -c`. It is only needed for shell features — pipes, redirection, globs — and it makes quoting your problem again; if you must, wrap interpolated values in `shlex.quote`, though building the pipeline in Python is usually better.\n\nThe arguments that matter: `check=True` raises `CalledProcessError` instead of silently continuing, and that exception carries `returncode`, `cmd` and the captured `stdout`/`stderr`. `capture_output=True` collects both streams, `text=True` decodes them to `str`, and `timeout=` kills the child and raises `TimeoutExpired` — omit it and one hung command hangs the whole automation. `env=` replaces the entire environment rather than adding to it, so pass `{**os.environ, \"KUBECONFIG\": path}` unless a bare environment is what you want.\n\nTwo mechanics catch people. Captured output is buffered in memory, so a build emitting gigabytes needs `Popen` and iteration over the pipe instead. And if you read one pipe while the other fills its fixed-size OS buffer, the child blocks writing while you block reading — the deadlock `communicate()` exists to avoid. Make failures diagnosable: include the command, the return code and the captured stderr in whatever you raise.",
+      "code": "import json, os, shlex, subprocess\n\ndef run(cmd: list[str], **kw) -> subprocess.CompletedProcess:\n    log.debug(\"exec: %s\", shlex.join(cmd))        # shlex.join: Python 3.8+\n    return subprocess.run(cmd, check=True, capture_output=True,\n                          text=True, timeout=300, **kw)\n\ntry:\n    r = run([\"kubectl\", \"get\", \"pods\", \"-n\", ns, \"-o\", \"json\"],\n            env={**os.environ, \"KUBECONFIG\": kubeconfig})   # extend, don't replace\nexcept subprocess.CalledProcessError as e:\n    raise SystemExit(f\"kubectl failed (rc={e.returncode}): {e.stderr.strip()}\")\nexcept subprocess.TimeoutExpired:\n    raise SystemExit(\"kubectl timed out after 300s\")\npods = json.loads(r.stdout)\n\n# Long output: stream it instead of buffering the whole log in memory.\nwith subprocess.Popen([\"make\", \"build\"], stdout=subprocess.PIPE,\n                      stderr=subprocess.STDOUT, text=True) as p:\n    for line in p.stdout:\n        log.info(\"build | %s\", line.rstrip())"
+    },
+    {
+      "title": "The Python ops script skeleton: argparse, pathlib, logging",
+      "content": "Three standard-library modules turn a script into a tool, with nothing to install.\n\n`argparse` builds the interface from declarations. `add_argument` takes `type=` (any callable, so `pathlib.Path` or your own validator works), `choices=`, `default=`, `required=` and `action=\"store_true\"` for flags. It generates `--help` for free, and on a parse error it prints usage to stderr and exits with status 2 — the same convention shells use for misuse. `add_subparsers` gives git-style subcommands; `add_mutually_exclusive_group` expresses \"one of these, not both\". Reading defaults from the environment lets the same tool serve a human and a CI job.\n\n`pathlib` replaces string arithmetic on paths. `Path(\"/srv\") / name` joins correctly, `read_text()` and `write_text()` cover the common cases, `mkdir(parents=True, exist_ok=True)` is the idempotent `mkdir -p`, and `resolve()` normalises and follows symlinks. For durability, write a temporary file in the same directory and then `os.replace(tmp, dest)`, an atomic rename that overwrites.\n\n`logging` replaces `print` for diagnostics. Take a module-level logger with `getLogger(__name__)` and configure once in `main()` with `basicConfig(level=..., format=...)`, which installs a handler writing to stderr — so stdout stays free for machine-readable output. Levels let a single `-v` flag move the whole program between INFO and DEBUG without touching call sites, and `logger.exception()` inside an `except` block records the traceback with your message. Pass values as `%s` arguments rather than pre-formatting with an f-string, so filtered-out records cost nothing.",
+      "code": "import argparse, json, logging, os, sys\nfrom pathlib import Path\n\nlog = logging.getLogger(\"deploy\")\n\ndef parse_args(argv=None) -> argparse.Namespace:\n    p = argparse.ArgumentParser(description=\"Deploy a service revision.\")\n    p.add_argument(\"--env\", choices=[\"staging\", \"prod\"],\n                   default=os.environ.get(\"DEPLOY_ENV\"),\n                   help=\"target environment (default: $DEPLOY_ENV)\")\n    p.add_argument(\"--manifest\", type=Path, required=True)   # type= is any callable\n    p.add_argument(\"-v\", \"--verbose\", action=\"store_true\")\n    g = p.add_mutually_exclusive_group()\n    g.add_argument(\"--apply\", action=\"store_true\")\n    g.add_argument(\"--dry-run\", action=\"store_true\")\n    return p.parse_args(argv)            # bad input: usage to stderr, exit 2\n\ndef main(argv=None) -> int:\n    args = parse_args(argv)\n    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,\n                        format=\"%(asctime)s %(levelname)-5s %(name)s %(message)s\")\n    if not args.env:                     # validate after parsing\n        log.error(\"--env is required (or set DEPLOY_ENV)\")\n        return 2\n    out = Path(\"/var/lib/deploy\") / f\"{args.env}.json\"\n    out.parent.mkdir(parents=True, exist_ok=True)   # idempotent mkdir -p\n    tmp = out.with_name(out.name + \".tmp\")\n    tmp.write_text(json.dumps({\"env\": args.env}))\n    os.replace(tmp, out)                 # atomic: no reader sees a partial file\n    return 0\n\nif __name__ == \"__main__\":\n    sys.exit(main())"
+    },
+    {
+      "title": "Talking to APIs: requests, boto3 and retries",
+      "content": "Most automation eventually calls an HTTP API, and the defaults are not built for unattended scripts.\n\n`requests` has no default timeout. A call without one waits indefinitely on a server that accepts the connection and never answers, and a cron job stuck that way is invisible until the copies pile up. Always pass `timeout=`; a tuple sets connect and read timeouts separately. `raise_for_status()` converts 4xx and 5xx into exceptions instead of letting you parse an error page as data. Use a `Session` for connection reuse and shared headers, and mount an `HTTPAdapter` carrying a `Retry` object to get backoff on connection errors and on a chosen set of status codes. Retry only where it is safe: repeating a GET is free, repeating a POST can double-charge someone unless the API accepts an idempotency key. Distinguish retryable failures (429, 5xx, connection reset) from terminal ones (400, 401, 403, 404), and honour `Retry-After` on 429.\n\n`boto3` resolves credentials through a chain — environment variables, shared config and credentials files with profiles, then container or instance metadata roles — so scripts should inherit a role rather than carry static keys. Two things trip people up. First, list operations are paginated and truncate silently; a script calling `list_objects_v2` once looks correct while quietly ignoring everything past the first page, so use a paginator. Second, errors arrive as `ClientError` and the useful detail is a string in the response, so you branch on `e.response[\"Error\"][\"Code\"]`, not on exception classes. Botocore retries internally, tunable through `Config(retries=...)`, and waiters poll for state transitions so you do not hand-roll sleep loops.",
+      "code": "import boto3, requests\nfrom botocore.config import Config\nfrom botocore.exceptions import ClientError\nfrom requests.adapters import HTTPAdapter\nfrom urllib3.util.retry import Retry\n\nhttp = requests.Session()\nretry = Retry(total=5, backoff_factor=0.5,\n              status_forcelist=[429, 500, 502, 503, 504],\n              allowed_methods=[\"GET\", \"HEAD\", \"PUT\", \"DELETE\"])   # urllib3 >= 1.26\nhttp.mount(\"https://\", HTTPAdapter(max_retries=retry))\n\nr = http.get(f\"{api}/deployments/{deploy_id}\", timeout=(3.05, 30))  # connect, read\nr.raise_for_status()\n\ns3 = boto3.client(\"s3\", config=Config(retries={\"max_attempts\": 10, \"mode\": \"standard\"}))\nkeys = []\nfor page in s3.get_paginator(\"list_objects_v2\").paginate(Bucket=bucket, Prefix=prefix):\n    keys += [o[\"Key\"] for o in page.get(\"Contents\", [])]   # Contents absent if empty\n\ntry:\n    s3.head_object(Bucket=bucket, Key=key)\nexcept ClientError as e:\n    if e.response[\"Error\"][\"Code\"] not in (\"404\", \"NoSuchKey\"):\n        raise\n    log.info(\"not uploaded yet: %s\", key)"
+    }
+  ],
+  "interviewQA": [
+    {
+      "q": "What does `set -euo pipefail` actually do, and what does it not protect you from?",
+      "a": "`set -e` exits when a simple command returns non-zero, `set -u` makes expanding an unset variable an error instead of an empty string, and `set -o pipefail` makes a pipeline return the status of the rightmost failing stage rather than only the last one. Together they replace the interactive-shell defaults, which exist so a typo never kills your terminal, with script-appropriate ones. What they miss matters more. errexit is deliberately suppressed anywhere the shell is already consuming a status: the condition of `if`, `while` or `until`, the left side of `&&` or `||`, and anything after `!` — and that suppression is inherited, so a function called from an `if` condition runs with errexit effectively off for its whole body. Assignments hide status too: `local x=$(false)` returns the status of `local`, which is zero. Before bash 4.4, `\"${arr[@]}\"` on an empty array trips nounset. And pipefail turns SIGPIPE into failure, so `grep x big.log | head -1` now exits 141. Strict mode is a floor, not error handling.",
+      "followUps": [
+        "Why does `local x=$(false)` not trigger errexit, and how do you fix it?",
+        "What breaks when you add pipefail to a script full of `| head -1`?",
+        "How would you catch a failure inside a function called from an `if` condition?"
+      ]
+    },
+    {
+      "q": "A command in my script failed but the script kept going, even with `set -e`. How do you debug that?",
+      "a": "Almost always the failing command ran in a context where errexit is disabled. The shell suppresses it wherever a status is already being tested: the condition of `if`, `while` and `until`, the left operand of `&&` or `||`, and any command preceded by `!`. The suppression is contagious — if a function is invoked as an `if` condition, errexit is off for its entire body, so a failure three calls deep just sets a status nobody reads. Other common causes: `x=$(cmd)` returns the assignment's status when a declaration builtin like `local`, `declare` or `export` is in front; without pipefail only the last stage of a pipeline counts; and `cmd || true` swallows it on purpose. The fix is to stop using errexit as control flow. Capture status explicitly with `rc=0; cmd || rc=$?` and branch on `rc`; add `set -E` with an ERR trap so failures are at least reported with `BASH_SOURCE` and `LINENO`; and split declaration from assignment as `local x; x=$(cmd)`.",
+      "followUps": [
+        "Show how you would capture curl's exit code and treat 28 differently from 22.",
+        "What does `set -E` change about the ERR trap?",
+        "When is `|| true` a legitimate thing to write?"
+      ]
+    },
+    {
+      "q": "A CI job shows exit code 137. What does that tell you, and how do exit codes work generally?",
+      "a": "137 is 128+9: the process was killed by SIGKILL. In CI or Kubernetes that is almost always the OOM killer, or a hard stop after a graceful-shutdown timeout expired. The important part is that the program did not choose to return 137 — the shell synthesised it — so I go looking at memory limits, `dmesg`/OOM events, and the container's `lastState.terminated.reason`, not at the application's error paths. The general rule: status is one byte, 0 success and 1-255 failure, so `exit 256` wraps to 0 and falsely reports success. Some values are conventions the shell produces: 127 means command not found (a typo, a missing binary, or a stripped PATH under cron), 126 means found but not executable — wrong permission bits or a bad interpreter line. 128+N means killed by signal N, so 130 is Ctrl-C and 143 is SIGTERM. `$?` holds only the most recent foreground pipeline's status, so capture it on the very next line; for pipelines, bash fills `PIPESTATUS`, index 0 leftmost, which identifies the stage that actually failed.",
+      "followUps": [
+        "A container exits 137 right after a deploy — what do you check first?",
+        "Why is 127 common under cron but not in your interactive shell?",
+        "How do you get every stage's status out of a pipeline?"
+      ]
+    },
+    {
+      "q": "How do you design the exit codes of a script that CI, cron and systemd all consume?",
+      "a": "I treat them as a published interface, because machines branch on them: systemd applies its `Restart=` policy, cron mails on any non-zero, Kubernetes records the code in the container status, CI turns the job red. The single most valuable distinction to encode is whether a retry could help. 'Config file is invalid' and 'the API timed out' are both failures, but one is terminal and one is transient, and collapsing both into `exit 1` forces the caller to scrape log text to tell them apart. So I pick a small documented set and keep it stable — often the `sysexits.h` conventions: 64 usage error, 78 configuration error, 75 temporary failure — and put the table in `--help` or the file header. The wrapper can then do the right thing: retry 75 with backoff, page on 78, print usage on 64. Two practical rules: never repurpose a code once callers exist, since that is a silent breaking change; and avoid emitting codes at or above 126, because 126, 127 and 128+N already mean something specific to the shell.",
+      "followUps": [
+        "Which codes would you have a CI retry step treat as retryable?",
+        "Why avoid returning 128 or above from your own script?",
+        "How do you propagate a child process's exit code unchanged through a wrapper?"
+      ]
+    },
+    {
+      "q": "How do you make sure a script cleans up after itself?",
+      "a": "`trap handler EXIT` runs the handler whenever the shell exits — falling off the end, an explicit `exit`, or errexit firing — so it is the right home for removing temp directories, releasing locks and restoring state. Three details separate working cleanup from decorative cleanup. Arm the trap before or immediately after creating the resource, never after the risky work, or an early failure leaks. Capture `$?` on the handler's first line if the outcome matters, because every command inside the handler overwrites it. And write the handler to run against a half-built world: guard each step with an existence test, tolerate things that were never created, never let the handler itself fail, and `return 0` so it cannot change the script's exit status. The limitation worth stating out loud: EXIT cannot run on SIGKILL, a power cut or a hard container stop, so anything that must not leak needs an external backstop too — a TTL on the cloud resource, a lock with an expiry, a tmpfiles rule, a reaper job.",
+      "followUps": [
+        "How do you also handle Ctrl-C and SIGTERM alongside EXIT?",
+        "What does the ERR pseudo-signal give you that EXIT does not, and why is `set -E` needed?",
+        "Your trap deletes a temp dir, but the script is killed -9. What is your backstop?"
+      ]
+    },
+    {
+      "q": "Why might a bash script appear to ignore SIGTERM, and how do you fix it?",
+      "a": "Bash only runs a trap handler between commands. If the script is blocked in a foreground command when the signal arrives, the handler is deferred until that command returns, so a script sitting in `sleep 300` looks like it is ignoring SIGTERM for up to five minutes — which is exactly how a pod burns through its termination grace period and gets SIGKILLed, exiting 137. The exception is the `wait` builtin, which a trapped signal interrupts. So the supervisor pattern is: start the long-running work in the background, `wait` on its PID, and in the TERM handler forward the signal to the child and wait again so it can shut down cleanly. The other classic case is a shell entrypoint: writing `./app` as the last line leaves bash as PID 1 with the app as its child, so the runtime signals bash and the app never hears it. `exec ./app` replaces the shell process, making the application PID 1 and the direct recipient of signals — the right answer whenever the wrapper has no cleanup of its own to do.",
+      "followUps": [
+        "Why does `exec` matter specifically for a container entrypoint?",
+        "How do you forward SIGTERM to a background child and wait for it to exit?",
+        "What exit status should a script report after handling SIGINT?"
+      ]
+    },
+    {
+      "q": "Why is `rm -rf $dir/*` dangerous, and what are the quoting rules behind it?",
+      "a": "After parameter expansion the shell splits the unquoted result into words on the characters in `IFS`, then performs pathname expansion on each word. So `$dir` holding `my data` becomes two arguments and `rm` deletes the wrong things, and if `$dir` is unset or empty the line collapses toward `rm -rf /*`. Double quotes suppress both steps, so `\"$dir\"` is not style, it is the difference between correct and destructive. The same rule governs argument lists: `\"$@\"` expands to one word per parameter with quoting preserved, while `$*` flattens everything into a single string joined by the first character of `IFS`. Build argument vectors as arrays and expand them as `\"${arr[@]}\"` rather than a string you hope re-splits the way you meant. Inside `[[ ... ]]` no word splitting happens, one reason to prefer it to `[ ... ]` in bash. The defensive form of that line is `rm -rf -- \"${dir:?dir is required}\"/*`: the `:?` refuses to run when the variable is unset or empty, and `--` stops a path beginning with a dash being read as a flag.",
+      "followUps": [
+        "What exactly is the difference between `\"$@\"` and `\"$*\"`?",
+        "Why does `--` matter before user-supplied paths?",
+        "When is leaving an expansion unquoted actually the correct choice?"
+      ]
+    },
+    {
+      "q": "How do you loop over files found by `find` without breaking on unusual filenames?",
+      "a": "Filenames may contain spaces, quotes and even newlines, so anything line-oriented is wrong for discovered paths; the only byte that cannot appear in a filename is NUL. So I use NUL delimiters: `find ... -print0` into `xargs -0`, or `while IFS= read -r -d ''`, where the empty `IFS=` preserves leading and trailing whitespace on each name and `-r` stops backslashes being interpreted as escapes. The second half of the answer is the subshell trap. Each stage of a pipeline runs in its own subshell, so `find ... | while read ...; do (( count++ )); done` silently throws `count` away when the loop ends, because it was incremented in a child process. Feeding the loop with process substitution — `done < <(find ... -print0)` — keeps the loop body in the current shell so its variables survive; `shopt -s lastpipe` is an alternative in non-interactive bash. For simple cases `find -exec cmd {} +` skips the shell entirely and batches arguments, which is both safe and faster.",
+      "followUps": [
+        "Why is NUL the only truly safe delimiter for filenames?",
+        "How would you parallelise that loop safely?",
+        "What does `find -exec {} +` do differently from `-exec {} \\;`?"
+      ]
+    },
+    {
+      "q": "What is wrong with `ssh host \"rm -rf $dir\"`, and how should you pass data to another interpreter?",
+      "a": "Every extra interpreter adds another round of quoting, and each round is a chance for data to be re-parsed as syntax. Here `$dir` is expanded locally, and the resulting string is then handed to a remote shell that parses it again — so a directory name containing a space, a semicolon, backticks or `$(...)` runs something you never intended, and locally correct quoting does not survive the second parse. The fix is to stop putting data into command strings. Pass the data over stdin and have the remote side read it: `printf '%s\\0' \"${paths[@]}\" | ssh host 'xargs -0 rm -f --'`, where the remote command is a fixed literal in single quotes and the variable content never reaches the parser. Environment variables work too where the transport allows it. The same reasoning covers `sudo -u`, `docker exec sh -c`, `bash -c`, crontab lines and CI YAML that interpolates a variable into a `run:` block. `eval` is the extreme case, since it re-parses its argument as shell source; treat it as a last resort, and use `printf %q` or `${var@Q}` if a value genuinely must survive a re-parse.",
+      "followUps": [
+        "How would you pass a secret to a remote command without it showing up in `ps`?",
+        "Where does CI variable interpolation into a run block become injection?",
+        "What exactly does `printf %q` guarantee?"
+      ]
+    },
+    {
+      "q": "How do you parse arguments in a shell script, and what makes a parsing loop safe?",
+      "a": "`getopts` is a POSIX builtin and handles short options only. The optstring names the letters, and a colon after a letter means that option takes a value, delivered in `OPTARG`. A leading colon in the optstring switches on silent error reporting: getopts sets the variable to `?` for an unknown option, with the letter in `OPTARG`, and to `:` for a missing value, so you print your own usage instead of its message. `OPTIND` tracks position, so `shift $((OPTIND - 1))` leaves the positional arguments in `\"$@\"`; parsing stops at the first non-option word or at `--`. There is no builtin support for `--long` options. GNU `getopt(1)` from util-linux does them and can reorder arguments, but macOS ships a BSD `getopt` that cannot, so portable scripts hand-roll a `while (( $# ))` loop with a `case` over `$1`. What makes it safe: an unknown flag prints usage to stderr and exits non-zero rather than being ignored, `-h/--help` prints to stdout and exits 0, `--` is honoured, required options are validated after the loop by name, and destructive targets are named flags rather than positional order.",
+      "followUps": [
+        "Why does `--help` go to stdout while a usage error goes to stderr?",
+        "What exit code do you use for a usage error, and why that one?",
+        "How do you let an option be set from the environment as well as the command line?"
+      ]
+    },
+    {
+      "q": "What is the contract between a script's stdout, stderr and exit status?",
+      "a": "Three channels with three jobs: stdout carries the result another program consumes, stderr carries narration — progress, warnings, errors — and the exit status carries the verdict. Mixing them is what makes a script impossible to compose. If progress messages go to stdout then `data=$(./script)` captures the noise along with the data, and `./script | jq .` dies on the first friendly message. So the rule is that anything a caller might parse goes to stdout and everything else goes to stderr, including the cheerful messages on the happy path; a `log()` helper that hardcodes `>&2` makes that automatic rather than a thing you remember. Two adjacent points I would raise. Use `printf '%s\\n' \"$v\"` instead of `echo`, because whether `-n` and `-e` are honoured and whether backslash escapes are interpreted differs between bash's builtin, dash's builtin and `/bin/echo`, and a value starting with `-` can be swallowed as a flag. And know the collector: under cron any output at all generates mail, which is why cron jobs are silent on success and loud on failure.",
+      "followUps": [
+        "How would you add a `--json` output mode without breaking existing callers?",
+        "Why is `echo` unreliable across shells?",
+        "`set -x` is on and you are about to read a token — what do you do?"
+      ]
+    },
+    {
+      "q": "What does it mean for a script to be idempotent, and how do you achieve it?",
+      "a": "Idempotent means applying it twice leaves the same state as applying it once. The operationally useful version is stronger: run against a partially completed state, it finishes the job. That matters because every real trigger is at-least-once — CI retries the job, an operator re-runs after a timeout that was really a slow response, a webhook is redelivered, a configuration run repeats every thirty minutes. The mechanism is to express desired state and converge, not issue deltas: `mkdir -p` rather than `mkdir`, `ln -sfn` rather than `ln -s`, `useradd` guarded by an `id -u` check, and rendering an entire config file from a template rather than appending a line to it. Appending is the canonical non-idempotent operation — three runs give three copies of the same entry in `authorized_keys` or `/etc/hosts`. Writes also have to be atomic or an interrupted run leaves a truncated file the next run treats as valid: write a temp file in the same directory and rename it over the target, since rename within a filesystem is atomic, so a reader sees either the whole old file or the whole new one.",
+      "followUps": [
+        "Why must the temp file live in the same directory as the target?",
+        "Is check-then-create idempotent? What is the failure mode?",
+        "How do you make a POST to a third-party API safe to retry?"
+      ]
+    },
+    {
+      "q": "How would you design a `--dry-run` mode for a destructive script?",
+      "a": "A dry run is a promise: this is what a real run would do. The promise only holds if the dry and real paths are the same code with a single switch at the point of effect, so I funnel every mutating call through one `run()` wrapper and put the check inside it. Read-only calls keep executing, because that is how the plan gets computed. Scattering `if [[ $DRY_RUN == 1 ]]` across ten call sites guarantees one eventually drifts and mutates during what the operator believed was a preview. Plan-and-apply is the stronger form of the same idea: phase one reads current state and builds an explicit change set, phase two applies exactly that set. Terraform's plan file and `kubectl --dry-run=server` are both this, and the server-side variant is more honest because validation, defaulting and admission control actually run. The limits are worth saying: it cannot account for what other actors do between plan and apply, it predicts API calls, not their consequences, and a plan built from a stale cache is fiction. Ergonomically, default to dry run, require `--apply`, and print counts, not just lines.",
+      "followUps": [
+        "Why is `--dry-run=server` more trustworthy than the client-side one?",
+        "How do you stop the world changing between plan and apply?",
+        "The plan says 'would delete 40,000 objects'. What guardrail catches that?"
+      ]
+    },
+    {
+      "q": "Why emit JSON from a script instead of a nicely formatted table?",
+      "a": "A pretty aligned table is a dead end. The next person parses it with `awk '{print $3}'`, and the parse breaks the day a column is added or a value contains a space. JSON on stdout makes the script a component: jq filters it, another script consumes it, CI stores it as an artifact, a test asserts against it. Two rules make that work. JSON is the only thing on stdout, with all logging on stderr. And the shape is an interface — adding fields is safe, renaming or repurposing them breaks consumers — so include a small schema or version field once anyone outside the team depends on it. For a stream of records I prefer newline-delimited JSON, one object per line: it starts producing before the work finishes, survives truncation, appends cleanly and is consumed incrementally; a top-level array is for small bounded results. Never build JSON by string interpolation — one quote, backslash or newline in a value and it is invalid. Use `jq -n --arg` for strings and `--argjson` for values that are already JSON, and ask the tools you call for machine output rather than grepping human formatting.",
+      "followUps": [
+        "When is a single top-level array better than NDJSON?",
+        "What does `jq -e` do, and where would you use it?",
+        "How do you evolve the output shape without breaking old consumers?"
+      ]
+    },
+    {
+      "q": "What makes a script safe for someone else to run at 3am during an incident?",
+      "a": "I assume the reader has no context, is under pressure, and is on a machine I have never seen, so predictability beats cleverness everywhere. Preflight before the first mutation: `command -v` for every binary the script calls, `${VAR:?message that names the fix}` for required environment, and argument validation — refusing to start is far better than failing halfway through. Never let production be the default: make the target an explicit required flag, and echo the resolved identity before acting — kube context, AWS account, database host — because a large share of destructive incidents are a correct script pointed at the wrong context. Confirm destructive actions only when a human can answer: test `[[ -t 0 ]]` and offer `--yes`, otherwise the script hangs a CI job forever on a prompt nobody can see. Prevent overlapping runs with `flock` rather than a lock file: check-then-create is a race, while flock takes a kernel lock atomically and drops it if the holder dies. Resolve the script's own directory instead of assuming cwd, keep secrets out of the file, and make it re-runnable.",
+      "followUps": [
+        "Why is a bare lock file unsafe, and what does `flock -n` change?",
+        "What happens to a flock if the holder is killed with -9?",
+        "What belongs in `--help` for an on-call reader specifically?"
+      ]
+    },
+    {
+      "q": "When do you stop writing bash and switch to Python?",
+      "a": "Bash is a process-orchestration language and excellent at that job: start programs, wire stdin and stdout together, branch on exit status, with no dependencies beyond what is installed. That is why container entrypoints, bootstrap scripts and CI glue stay in shell, and why 'rewrite it in Python' is the wrong reflex for a thirty-line script. It is poor at everything else. There is effectively one data type, the string; arrays do not nest; there are no floats, no exceptions, no test framework in a base image. Its standard library is whichever coreutils the host shipped, so `sed -i` and `readlink -f` differ between GNU and BSD and a script that passes in CI fails on a developer's Mac. The switch signals are concrete: you need a dictionary or a list of records; you are producing or consuming non-trivial JSON or YAML; you need retries with backoff, timeouts and partial-failure handling; you are paginating an API; you need concurrency beyond background jobs and `wait`; you are reaching for `eval`; you want unit tests. Shell for wiring, Python once there is logic — not a line count.",
+      "followUps": [
+        "What is the cost of moving to Python, and how do you keep it low?",
+        "Name a portability bug you have hit between GNU and BSD tools.",
+        "Would you rewrite a working 500-line bash script? Why or why not?"
+      ]
+    },
+    {
+      "q": "How do you shell out from Python safely, and what are the common mistakes?",
+      "a": "`subprocess.run` with the command as a list reaches `execve` directly: no shell parses it, so word splitting, globbing and `;` never happen. That removes the whole command-injection class, which is why the list form is the default even when nothing looks user-controlled. `shell=True` passes one string to `/bin/sh -c`, needed only for shell features like pipes or globs; then quoting is your problem again and interpolated values need `shlex.quote`, though building the pipeline in Python is usually better. The arguments that matter: `check=True` raises `CalledProcessError` carrying `returncode`, `stdout` and `stderr` instead of failing silently; `capture_output=True` with `text=True` decodes output; and `timeout=` kills the child and raises `TimeoutExpired` — without it one hung command hangs the whole automation. `env=` replaces the environment rather than extending it, so pass `{**os.environ, ...}`. Two traps: captured output is buffered in memory, so stream with `Popen` for huge logs; and reading one pipe while the other fills its OS buffer deadlocks, which `communicate()` avoids.",
+      "followUps": [
+        "When is `shell=True` genuinely justified?",
+        "How do you stream a build's output line by line instead of buffering it?",
+        "Why can reading `p.stdout` deadlock when stderr is a separate pipe?"
+      ]
+    },
+    {
+      "q": "What do you change from the defaults when a script calls an HTTP API or AWS?",
+      "a": "`requests` has no default timeout, so a call can wait forever on a server that accepts the connection and never answers, and a cron job stuck that way is invisible until copies pile up. I always pass `timeout=`, a tuple when connect and read need different limits, and call `raise_for_status()` so 4xx and 5xx raise instead of being parsed as data. A `Session` gives connection reuse and shared headers, and mounting an `HTTPAdapter` with a `Retry` adds backoff on connection errors and a chosen `status_forcelist`. Retry only where it is safe: repeating a GET is free, a POST can double-charge unless the API takes an idempotency key. Distinguish retryable failures (429, 5xx, resets) from terminal ones (400, 401, 403, 404), and honour `Retry-After`. For boto3, credentials resolve through a chain — environment, shared config profiles, then container or instance role — so scripts should inherit a role, not carry static keys. Two traps: list operations paginate and truncate silently, so use a paginator; and errors arrive as `ClientError`, so you branch on `e.response[\"Error\"][\"Code\"]`.",
+      "followUps": [
+        "Which HTTP methods would you put in `allowed_methods` for retries, and why?",
+        "How do you tell a truncated `list_objects_v2` result from a complete one?",
+        "What does a botocore waiter save you from writing by hand?"
+      ]
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "Where is `set -e` (errexit) suppressed?",
+      "back": "In the condition of `if`, `while` and `until`, on the left of `&&` or `||`, and after `!`. The suppression is inherited, so a function called from an `if` condition has errexit off for its whole body."
+    },
+    {
+      "front": "Why doesn't `local x=$(false)` trigger errexit?",
+      "back": "The exit status is that of the `local` builtin, which succeeds, not that of the command substitution. Split it: `local x; x=$(cmd)`."
+    },
+    {
+      "front": "What does `set -o pipefail` cost you?",
+      "back": "Pipelines now fail when an early stage is killed by SIGPIPE. `grep pattern huge.log | head -1` exits 141 because grep dies when head closes the pipe."
+    },
+    {
+      "front": "Exit codes 126, 127 and 128+N",
+      "back": "127 = command not found; 126 = found but not executable (permission bits or a bad interpreter line); 128+N = killed by signal N, so 130 is SIGINT, 143 is SIGTERM and 137 is SIGKILL."
+    },
+    {
+      "front": "`$?` versus `PIPESTATUS`",
+      "back": "`$?` holds only the most recent foreground pipeline's status and is overwritten by the next command, so capture it immediately. Bash's `PIPESTATUS` array holds every stage's status, index 0 leftmost."
+    },
+    {
+      "front": "The sysexits.h codes worth knowing",
+      "back": "64 = usage error, 78 = configuration error, 75 = temporary failure. The last one is the useful one: it tells a caller a retry might succeed."
+    },
+    {
+      "front": "When does an EXIT trap not run?",
+      "back": "On SIGKILL, a power cut or a hard container stop. Anything that must not leak also needs an external reaper: a TTL, a lock with an expiry, or a cleanup job."
+    },
+    {
+      "front": "First line of a cleanup handler?",
+      "back": "`local rc=$?` — every command inside the handler overwrites the status. The handler must also tolerate a half-built world and never fail itself."
+    },
+    {
+      "front": "What does `set -E` (errtrace) do?",
+      "back": "It makes the ERR trap inherited by functions, command substitutions and subshells. Without it, an ERR trap never fires inside a function."
+    },
+    {
+      "front": "Why doesn't a script in `sleep 300` react to SIGTERM?",
+      "back": "Trap handlers run between commands, so a foreground command defers them. The `wait` builtin is the exception, which is why supervisor scripts background their work and `wait` on it."
+    },
+    {
+      "front": "Why `exec` in a container entrypoint script?",
+      "back": "It replaces the shell process, so the application becomes PID 1 and receives SIGTERM directly instead of it stopping at a shell that ignores it."
+    },
+    {
+      "front": "What happens to an unquoted `$var`?",
+      "back": "The shell word-splits it on the characters in `IFS`, then glob-expands each word. `\"$var\"` suppresses both — the difference between correct and destructive."
+    },
+    {
+      "front": "`\"$@\"` versus `\"$*\"`",
+      "back": "`\"$@\"` expands to one word per parameter with quoting preserved; `\"$*\"` joins them all into a single string using the first character of `IFS`."
+    },
+    {
+      "front": "Safe way to iterate over filenames",
+      "back": "NUL delimiters, since NUL is the only byte a filename cannot contain: `find -print0` into `xargs -0`, or `while IFS= read -r -d ''`."
+    },
+    {
+      "front": "Why does a counter set inside `find | while read` vanish?",
+      "back": "Each pipeline stage runs in a subshell, so the variable is set in a child process. Use process substitution — `done < <(find ...)` — to keep the loop in the current shell."
+    },
+    {
+      "front": "What does a leading colon in a `getopts` optstring do?",
+      "back": "It enables silent error reporting: getopts sets the option variable to `?` for an unknown option and `:` for a missing value, with the letter in `OPTARG`, so you print your own usage. Afterwards, `shift $((OPTIND - 1))` leaves the positionals in `\"$@\"`."
+    },
+    {
+      "front": "The stdout / stderr rule for scripts",
+      "back": "Stdout carries only what a caller might parse; everything else — progress, warnings, errors, happy-path chatter — goes to stderr. Exit status carries the verdict."
+    },
+    {
+      "front": "Why `printf` instead of `echo`?",
+      "back": "Handling of `-n`, `-e` and backslash escapes differs between bash's builtin, dash's builtin and `/bin/echo`, and a value starting with `-` can be eaten as a flag. `printf '%s\\n' \"$v\"` is consistent."
+    },
+    {
+      "front": "The danger of `set -x` in CI",
+      "back": "Xtrace prints expanded values, so it writes secrets into the build log. Disable it around credential handling and re-enable afterwards."
+    },
+    {
+      "front": "The canonical non-idempotent operation",
+      "back": "Appending to a file: three runs leave three copies of the same entry in `authorized_keys` or `/etc/hosts`. Render the whole file from a template instead."
+    },
+    {
+      "front": "How do you write a file atomically?",
+      "back": "Write a temp file in the same directory as the target, then rename over it. Rename within a filesystem is atomic, so a reader sees either the whole old file or the whole new one."
+    },
+    {
+      "front": "Why is check-then-act unsafe for locks?",
+      "back": "Another process can act between the check and the create. Use an atomic primitive: `mkdir` succeeds for exactly one caller, and `flock` takes a kernel lock that is released automatically if the holder dies."
+    },
+    {
+      "front": "The one rule of dry-run design",
+      "back": "Funnel every mutating call through a single wrapper and put the check there. Read-only calls still execute, because that is how the plan is computed."
+    },
+    {
+      "front": "Why is `kubectl --dry-run=server` better than client-side?",
+      "back": "The request reaches the API server, so validation, defaulting and admission control actually run. A client-side dry run only checks the manifest locally."
+    },
+    {
+      "front": "Why newline-delimited JSON for a stream of records?",
+      "back": "One object per line starts producing before the work finishes, survives truncation, appends cleanly to a file and can be consumed incrementally. A single top-level array is for small bounded results."
+    },
+    {
+      "front": "How do you build JSON in a shell script?",
+      "back": "`jq -n --arg name \"$v\"` for strings and `--argjson` for values that are already JSON, letting jq own escaping. `jq -e` sets the exit status from the result, so an expression can act as an assertion."
+    },
+    {
+      "front": "Which three stdlib modules turn a Python script into a tool?",
+      "back": "`argparse` (generates `--help`, exits 2 with usage on stderr for bad input), `pathlib` (`mkdir(parents=True, exist_ok=True)`, `os.replace` for atomic writes), and `logging` (`basicConfig` writes to stderr, keeping stdout free)."
+    },
+    {
+      "front": "Signals that bash has stopped paying",
+      "back": "You need nested data or records, non-trivial JSON/YAML, retries with backoff and timeouts, API pagination, real concurrency, unit tests — or you are reaching for `eval`."
+    },
+    {
+      "front": "Why pass a list to `subprocess.run` instead of a string?",
+      "back": "The list form goes straight to `execve` with no shell, so word splitting, globbing, backticks and `;` never happen — the whole command-injection class disappears."
+    },
+    {
+      "front": "The `subprocess.run` arguments that matter",
+      "back": "`check=True` raises `CalledProcessError` (carrying returncode, stdout, stderr), `capture_output=True` with `text=True` decodes output, `timeout=` kills a hung child, and `env=` replaces the environment so pass `{**os.environ, ...}`."
+    },
+    {
+      "front": "Two `requests` defaults to override in automation",
+      "back": "There is no default timeout, so always pass `timeout=`; and errors are not raised, so call `raise_for_status()` rather than parsing an error page as data."
+    },
+    {
+      "front": "Two boto3 traps",
+      "back": "List operations paginate and truncate silently, so use `get_paginator`. Errors arrive as `ClientError`, so branch on `e.response[\"Error\"][\"Code\"]` rather than on exception classes."
+    }
+  ]
+}

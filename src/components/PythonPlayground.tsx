@@ -14,12 +14,20 @@ import { ResizeHandle, useSplitRatio } from './ResizeHandle';
 /** Editor over console, the ratio every online judge opens with. */
 const DEFAULT_ROW_SPLIT = 0.62;
 
-/** One passing attempt, kept so the learner can see how their solution evolved.
+/** One kept attempt, so the learner can see how their solution evolved.
  *  Exported so SubmissionsTab.tsx (ProblemViewer's split-pane left column) can read
  *  the same `snap-<questionId>` list read-only — same data, no shared state. */
 export interface Snapshot {
   on: number;
   code: string;
+  /**
+   * True for a run that passed the shipped tests, false for the working copy
+   * `startResolve()` stashes here before wiping the editor. Optional because every
+   * entry written before this field existed has no flag: those are read as passing,
+   * which is what the two screens showing them already claimed — a stored history
+   * must keep rendering, so the missing field is tolerated, never dropped.
+   */
+  passed?: boolean;
 }
 
 export const isSnapshotList = (v: unknown): v is Snapshot[] =>
@@ -34,6 +42,40 @@ export const relTime = (ts: number): string => {
   const hrs = Math.round(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.round(hrs / 24)}d ago`;
+};
+
+/**
+ * Handle a Tab press inside `el`, in place. Exported because BugHunt's editor owes the
+ * learner the same manners — one implementation, so the two can never drift again.
+ *
+ * Two things this must get right, both of which the old inline version got wrong:
+ *  - A non-empty selection means "shift these lines right", NOT "replace them". The
+ *    previous `code.slice(0, s) + '    ' + code.slice(en)` deleted every selected line.
+ *  - The edit goes through setRangeText so the browser records it on the textarea's own
+ *    undo stack (same reason CodeEditor.applyEdit exists); assigning a whole new value
+ *    through React wipes Cmd/Ctrl+Z, which is what made the deletion unrecoverable.
+ * The caller persists `el.value` afterwards.
+ */
+export const indentSelection = (el: HTMLTextAreaElement, s: number, en: number): void => {
+  if (s === en) {
+    el.setRangeText('    ', s, s, 'end');
+    return;
+  }
+  const text = el.value;
+  const from = text.lastIndexOf('\n', s - 1) + 1;
+  // A selection ending exactly at a line start (what Shift+Down leaves) does not reach
+  // into that line, so it must not be indented with the rest.
+  const tailFrom = text[en - 1] === '\n' ? en - 1 : en;
+  const nl = text.indexOf('\n', tailFrom);
+  const to = nl === -1 ? text.length : nl;
+  const indented = text
+    .slice(from, to)
+    .split('\n')
+    .map(line => (line === '' ? line : '    ' + line)) // a blank line gains no trailing space
+    .join('\n');
+  el.setRangeText(indented, from, to, 'preserve');
+  // Keep the same lines selected: Tab again goes one level deeper, as in any editor.
+  el.setSelectionRange(from, from + indented.length);
 };
 
 /** The seven loop shapes interviews are built from, insertable at the caret's current
@@ -329,6 +371,11 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
   const [resolveDone, setResolveDone] = useState<number | null>(null);
   const [gradedAs, setGradedAs] = useState<'easy' | 'shaky' | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Has the caret ever actually been inside the editor? See insertSnippet.
+  const caretSeen = useRef(false);
+  // The two dropdown triggers: Escape has to hand focus back to the button it came from.
+  const snippetsBtnRef = useRef<HTMLButtonElement>(null);
+  const historyBtnRef = useRef<HTMLButtonElement>(null);
   const splitRef = useRef<HTMLDivElement>(null);
   const rowSplit = useSplitRatio(STORAGE_KEYS.codeSplitRatio, DEFAULT_ROW_SPLIT);
   // Guards a slow run finishing after the user has opened a different question —
@@ -368,7 +415,20 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
     setStash(null);
     setResolveDone(null);
     setGradedAs(null);
+    // A new question reloads the editor's contents, so any caret position the learner
+    // had picked belongs to the previous one.
+    caretSeen.current = false;
   }, [questionId, starter, storageKey, myTestSeed]);
+
+  // The textarea is the same DOM node for this panel's whole life, so one listener
+  // covers every question: the first focus is the moment its caret becomes real.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const mark = () => { caretSeen.current = true; };
+    el.addEventListener('focus', mark);
+    return () => el.removeEventListener('focus', mark);
+  }, []);
 
   useEffect(() => {
     onPyodideProgress(msg => setStatus(msg));
@@ -382,8 +442,14 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
   /** Drop a snippet at the caret, re-indented to the caret's current depth. */
   const insertSnippet = (snippet: string) => {
     const el = textareaRef.current;
-    const pos = el ? el.selectionStart : code.length;
-    const end = el ? el.selectionEnd : code.length;
+    // A textarea that has never been focused reports selectionStart/End as 0, which is
+    // indistinguishable from a deliberate caret at the top of the file — so trust the
+    // caret only once it has genuinely been in there. (activeElement cannot answer this:
+    // clicking the Snippets button moved focus off the editor a moment ago.) Without
+    // this the snippet is spliced in front of the starter stub, mangling both.
+    const hasCaret = !!el && caretSeen.current;
+    const pos = hasCaret ? el.selectionStart : code.length;
+    const end = hasCaret ? el.selectionEnd : code.length;
     const lineStart = code.lastIndexOf('\n', pos - 1) + 1;
     // Indentation of the line the caret sits on — the inserted block joins that block.
     const indent = /^\s*/.exec(code.slice(lineStart, pos))?.[0] ?? '';
@@ -391,12 +457,22 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
       .split('\n')
       .map((l, i) => (i === 0 || l === '' ? l : indent + l))
       .join('\n');
-    persist(code.slice(0, pos) + body + code.slice(end));
-    const after = pos + body.length;
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(after, after);
-    });
+    // A snippet is a block of statements, so it always starts its own line and never
+    // leaves the following line glued to its tail, wherever the caret happened to be.
+    const lead = pos > 0 && code[pos - 1] !== '\n' ? '\n' + indent : '';
+    const tail = end < code.length && code[end] !== '\n' ? '\n' : '';
+    const insert = lead + body + tail;
+    const after = pos + lead.length + body.length;
+    if (el) {
+      // setRangeText, not a whole-value rewrite: keeps the browser's undo stack, so a
+      // snippet dropped in the wrong place is one Cmd/Ctrl+Z away from gone.
+      el.focus();
+      el.setRangeText(insert, pos, end, 'preserve');
+      el.setSelectionRange(after, after);
+      persist(el.value);
+    } else {
+      persist(code.slice(0, pos) + insert + code.slice(end));
+    }
   };
 
   /* ---- Feature 9: TestWriter ---------------------------------------------------- */
@@ -530,7 +606,17 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
       const key = `snap-${questionId}`;
       const prev = readJson<Snapshot[]>(key, [], isSnapshotList);
       if (!prev.some(s => s.code === code)) {
-        const stashed: Snapshot[] = [{ on: Date.now(), code }, ...prev].slice(0, 10);
+        // passed:false — this is whatever was in the editor, verified by nothing. The
+        // history and the Submissions tab both label rows from this list, so the flag
+        // is what stops unrun code being presented as an accepted run.
+        const stashed: Snapshot[] = [{ on: Date.now(), code, passed: false }, ...prev];
+        if (stashed.length > 10) {
+          // Over the cap, the oldest STASH is dropped before any passing run — an
+          // unverified stash must never evict a green one. Index 0 is the stash being
+          // added, so it is only sacrificed when the list holds nothing else to drop.
+          const oldestStash = stashed.map(s => s.passed === false).lastIndexOf(true);
+          stashed.splice(oldestStash > 0 ? oldestStash : stashed.length - 1, 1);
+        }
         writeJson(key, stashed);
         setSnaps(stashed);
       }
@@ -583,7 +669,7 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
       const key = `snap-${ranFor}`;
       const prev = readJson<Snapshot[]>(key, [], isSnapshotList);
       if (!prev.some(s => s.code === code)) {
-        const nextSnaps: Snapshot[] = [{ on: Date.now(), code }, ...prev].slice(0, 10);
+        const nextSnaps: Snapshot[] = [{ on: Date.now(), code, passed: true }, ...prev].slice(0, 10);
         writeJson(key, nextSnaps);
         setSnaps(nextSnaps); // safe: the stale-run guard above already returned
       }
@@ -612,9 +698,8 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
       e.preventDefault();
       const el = e.currentTarget;
       const { selectionStart: s, selectionEnd: en } = el;
-      const next = code.slice(0, s) + '    ' + code.slice(en);
-      persist(next);
-      requestAnimationFrame(() => el.setSelectionRange(s + 4, s + 4));
+      indentSelection(el, s, en);
+      persist(el.value);
     }
     // Cmd/Ctrl+Enter runs, the convention every online judge uses.
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -692,9 +777,13 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
           <div
             style={{ position: 'relative' }}
             onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSnippetsOpen(false); }}
-            onKeyDown={e => { if (e.key === 'Escape') setSnippetsOpen(false); }}
+            // Escape unmounts whichever menu item has focus, so the focus has to be put
+            // back on the trigger by hand or it falls to <body> and Tab restarts at the
+            // top of the document.
+            onKeyDown={e => { if (e.key === 'Escape') { setSnippetsOpen(false); snippetsBtnRef.current?.focus(); } }}
           >
             <button
+              ref={snippetsBtnRef}
               className="btn btn-secondary"
               style={{ padding: '0.3rem 0.7rem', fontSize: '0.72rem' }}
               aria-haspopup="menu"
@@ -724,9 +813,10 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
           <div
             style={{ position: 'relative' }}
             onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHistoryOpen(false); }}
-            onKeyDown={e => { if (e.key === 'Escape') setHistoryOpen(false); }}
+            onKeyDown={e => { if (e.key === 'Escape') { setHistoryOpen(false); historyBtnRef.current?.focus(); } }}
           >
             <button
+              ref={historyBtnRef}
               className="btn btn-secondary"
               style={{ padding: '0.3rem 0.7rem', fontSize: '0.72rem' }}
               aria-haspopup="menu"
@@ -747,11 +837,13 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
                     role="menuitem"
                     className="code-menu-item"
                     style={menuItemStyle}
-                    onClick={() => { setPreviewSnap(s); setHistoryOpen(false); }}
+                    // Same reason as the Escape handler above: picking an item unmounts
+                    // it, and the trigger is the only sensible place for the focus to land.
+                    onClick={() => { setPreviewSnap(s); setHistoryOpen(false); historyBtnRef.current?.focus(); }}
                   >
                     <span style={{ fontWeight: 600 }}>{relTime(s.on)}</span>
                     <span style={{ color: 'hsl(var(--text-muted))', marginLeft: '0.4rem', fontFamily: 'var(--font-mono)', fontSize: '0.68rem' }}>
-                      {s.code.split('\n').length} lines
+                      {s.code.split('\n').length} lines{s.passed === false ? ' · stashed' : ''}
                     </span>
                   </button>
                 ))}
@@ -985,7 +1077,9 @@ export const PythonPlayground: React.FC<PythonPlaygroundProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', background: 'hsl(var(--bg-secondary) / 0.5)', borderBottom: '1px solid hsl(var(--border-color))' }}>
               <History size={13} color="hsl(var(--text-muted))" />
               <span style={{ flex: 1, minWidth: '140px', fontSize: '0.72rem', color: 'hsl(var(--text-muted))' }}>
-                Passing attempt from {relTime(previewSnap.on)} — read-only preview
+                {/* A stash was never run against the tests — calling it a passing attempt
+                    is the one thing this preview must not do. */}
+                {previewSnap.passed === false ? 'Stashed before a re-solve' : 'Passing attempt'} from {relTime(previewSnap.on)} — read-only preview
               </span>
               <button
                 className="btn btn-secondary"

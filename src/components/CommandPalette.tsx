@@ -179,13 +179,23 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  /** Whatever had focus before ⌘K opened us. ⌘K fires from anywhere, including
+   *  mid-sentence in the Notes textarea, so closing must put the caret back
+   *  instead of dropping focus on <body> — the same contract ShortcutsModal keeps. */
+  const prevFocus = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (open) {
+      prevFocus.current = document.activeElement as HTMLElement | null;
       setQuery('');
       setCursor(0);
       // Focus after the overlay paints.
       requestAnimationFrame(() => inputRef.current?.focus());
+    } else if (prevFocus.current?.isConnected) {
+      // isConnected: choosing a hit navigates, which unmounts whatever had focus —
+      // there is nothing to return to, and the new screen owns focus from here.
+      prevFocus.current.focus();
     }
   }, [open]);
 
@@ -254,6 +264,24 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
     else if (e.key === 'ArrowDown') { e.preventDefault(); setCursor(c => (hits.length ? Math.min(c + 1, hits.length - 1) : 0)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setCursor(c => Math.max(c - 1, 0)); }
     else if (e.key === 'Enter' && hits[cursor]) { e.preventDefault(); choose(hits[cursor]); }
+    else if (e.key === 'Tab') {
+      // aria-modal="true" is a promise. Without a wrap, Tab walks straight out of
+      // the palette onto the sidebar behind the dimmed overlay — where Escape is
+      // dead and every click is swallowed by the backdrop. Same first/last wrap
+      // GuidedTour uses.
+      const card = dialogRef.current;
+      if (!card) return;
+      const focusables = card.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (!card.contains(active)) { e.preventDefault(); first.focus(); return; }
+      if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+    }
   };
 
   // Keep the highlighted row in view while arrowing through. Looked up by the
@@ -284,6 +312,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
       }}
     >
       <div
+        ref={dialogRef}
         onClick={e => e.stopPropagation()}
         onKeyDown={onKeyDown}
         role="dialog"

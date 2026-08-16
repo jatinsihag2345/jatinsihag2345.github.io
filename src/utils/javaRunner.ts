@@ -55,6 +55,16 @@ let consoleEl: HTMLElement | null = null;
 export const isJavaReady = (): boolean => ready !== null && cheerpjBooted;
 let cheerpjBooted = false;
 
+// A <script> that has already fired `error` never fires another event, so a dead tag
+// left in the head would make every later attempt await a promise that can never
+// settle — the button would sit on "Running…" forever. Dropping the element on failure
+// is what lets `loadJava`'s `ready = null` retry actually mean something.
+const dropOnError = (el: HTMLScriptElement, reject: (e: Error) => void) =>
+  el.addEventListener('error', () => {
+    el.remove();
+    reject(new Error('CheerpJ failed to load'));
+  });
+
 const loadScript = (src: string): Promise<void> =>
   new Promise((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
@@ -62,7 +72,7 @@ const loadScript = (src: string): Promise<void> =>
       if (existing.dataset.loaded === '1') resolve();
       else {
         existing.addEventListener('load', () => resolve());
-        existing.addEventListener('error', () => reject(new Error('CheerpJ failed to load')));
+        dropOnError(existing, reject);
       }
       return;
     }
@@ -70,7 +80,7 @@ const loadScript = (src: string): Promise<void> =>
     el.src = src;
     el.async = true;
     el.addEventListener('load', () => { el.dataset.loaded = '1'; resolve(); });
-    el.addEventListener('error', () => reject(new Error('CheerpJ failed to load')));
+    dropOnError(el, reject);
     document.head.appendChild(el);
   });
 
@@ -159,7 +169,8 @@ export const runJava = async (source: string, expect?: string): Promise<JavaRunR
   } catch {
     return fail(
       'The Java runtime could not be loaded. It is fetched from CheerpJ\'s CDN, so this ' +
-      'usually means no connection — Python still runs fully offline.',
+      'usually means no connection — Python runs offline once its own runtime has been ' +
+      'fetched once.',
     );
   }
 
