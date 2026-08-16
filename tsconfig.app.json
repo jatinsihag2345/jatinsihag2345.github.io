@@ -4,13 +4,15 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    "types": ["vite/client", "vite-plugin-pwa/client"],
     "skipLibCheck": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
+    /* Off deliberately — see src/data/json-modules.d.ts. Literal-typing the multi-MB
+       content files cost minutes per cold build and bought nothing. */
+    "resolveJsonModule": false,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,

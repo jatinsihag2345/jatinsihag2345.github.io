@@ -1,0 +1,1396 @@
+{
+ "dsa-1": [
+  {
+   "input": "matrix = [[0,1,2,0],[3,4,5,2],[1,3,1,5]]",
+   "output": "[[0,0,0,0],[0,4,5,0],[0,3,1,0]]",
+   "explanation": "The two zeros sit at (0,0) and (0,3), so row 0 and columns 0 and 3 are all cleared, leaving only 4, 5, 3 and 1 untouched."
+  },
+  {
+   "input": "matrix = [[1,2],[3,4]]",
+   "output": "[[1,2],[3,4]]",
+   "explanation": "No cell holds 0 in the original matrix, so no row or column is cleared and the matrix comes back unchanged."
+  }
+ ],
+ "dsa-2": [
+  {
+   "input": "head = [1,2]",
+   "output": "[2,1]",
+   "explanation": "The two links are flipped so node 2 becomes the head and node 1 now points at nothing."
+  },
+  {
+   "input": "head = []",
+   "output": "[]",
+   "explanation": "There is nothing to reverse, so an empty list comes straight back out."
+  }
+ ],
+ "dsa-idx-3": [
+  {
+   "input": "numRows = 1",
+   "output": "[[1]]",
+   "explanation": "Only row 0 is requested, and the very first row of Pascal's triangle is the single value 1."
+  },
+  {
+   "input": "numRows = 6",
+   "output": "[[1],[1,1],[1,2,1],[1,3,3,1],[1,4,6,4,1],[1,5,10,10,5,1]]",
+   "explanation": "Each interior entry of the last row comes from the row above it: 5 = 1+4, 10 = 4+6 and 10 = 6+4."
+  }
+ ],
+ "dsa-idx-4": [
+  {
+   "input": "nums = [3,2,1]",
+   "output": "[1,2,3]",
+   "explanation": "The array is fully descending, so it is already the last permutation and wraps around to the smallest one."
+  },
+  {
+   "input": "nums = [1,3,5,4,2]",
+   "output": "[1,4,2,3,5]",
+   "explanation": "The pivot is 3 (the last value smaller than its right neighbour); it swaps with the smallest larger value to its right, 4, and the suffix 5,3,2 is reversed to 2,3,5."
+  }
+ ],
+ "dsa-idx-5": [
+  {
+   "input": "nums = [5,4,-1,7,8]",
+   "output": "23",
+   "explanation": "The whole array is worth taking because the single -1 dip is outweighed by what follows: 5+4-1+7+8 = 23."
+  },
+  {
+   "input": "nums = [-3,-1,-7]",
+   "output": "-1",
+   "explanation": "Every element is negative and a subarray must be non-empty, so the best choice is the single largest element, -1."
+  }
+ ],
+ "dsa-idx-6": [
+  {
+   "input": "nums = [2,0,1]",
+   "output": "[0,1,2]",
+   "explanation": "One of each colour in the worst starting order is settled into the 0s, 1s, 2s grouping in a single pass."
+  },
+  {
+   "input": "nums = [2,2,2]",
+   "output": "[2,2,2]",
+   "explanation": "Every element is the same colour, so the array is already grouped and no swap changes anything."
+  }
+ ],
+ "dsa-idx-20": [
+  {
+   "input": "nums = [3,2,4], target = 6",
+   "output": "[1,2]",
+   "explanation": "nums[1] + nums[2] = 2 + 4 = 6; index 0 is skipped because 3 + 3 would reuse the same element."
+  },
+  {
+   "input": "nums = [3,3], target = 6",
+   "output": "[0,1]",
+   "explanation": "The two 3s sit at different positions, so pairing index 0 with index 1 is legal and sums to 6."
+  }
+ ],
+ "dsa-idx-22": [
+  {
+   "input": "nums = [0,3,7,2,5,8,4,6,0,1]",
+   "output": "9",
+   "explanation": "The values 0 through 8 are all present, giving a run of length 9; the duplicate 0 does not extend it."
+  },
+  {
+   "input": "nums = []",
+   "output": "0",
+   "explanation": "There are no values at all, so no consecutive run exists and the length is 0."
+  }
+ ],
+ "dsa-idx-26": [
+  {
+   "input": "head = [1,2,3,4,5,6]",
+   "output": "[4,5,6]",
+   "explanation": "With an even length there are two middle nodes, 3 and 4, and the rule returns the second one, so the chain from 4 onward comes back."
+  },
+  {
+   "input": "head = [1]",
+   "output": "[1]",
+   "explanation": "A one-node list is its own middle, so the head itself is returned."
+  }
+ ],
+ "dsa-idx-27": [
+  {
+   "input": "list1 = [5], list2 = [1,2,3]",
+   "output": "[1,2,3,5]",
+   "explanation": "The ranges do not overlap, so all of list2 is emitted first and the leftover node 5 is appended at the end."
+  },
+  {
+   "input": "list1 = [], list2 = [0]",
+   "output": "[0]",
+   "explanation": "One list is empty, so the merged result is simply the other list, spliced on unchanged."
+  }
+ ],
+ "dsa-idx-32": [
+  {
+   "input": "head = [3,2,0,-4], pos = -1",
+   "output": "False",
+   "explanation": "No node links backwards, so the fast pointer runs off the end of the list and the walk terminates."
+  },
+  {
+   "input": "head = [1], pos = 0",
+   "output": "True",
+   "explanation": "The single node points at itself, the smallest possible loop, so slow and fast meet immediately."
+  }
+ ],
+ "dsa-idx-39": [
+  {
+   "input": "nums = [0,1,1]",
+   "output": "[]",
+   "explanation": "The only possible triplet sums to 0+1+1 = 2, so no combination reaches zero and the answer is empty."
+  },
+  {
+   "input": "nums = [0,0,0,0]",
+   "output": "[[0,0,0]]",
+   "explanation": "Several index combinations give 0+0+0, but the same value-triplet is reported only once."
+  }
+ ],
+ "dsa-idx-40": [
+  {
+   "input": "height = [4,2,0,3,2,5]",
+   "output": "9",
+   "explanation": "The bars of height 4 and 5 act as outer walls, so the columns between them hold 2, 4, 1 and 2 units of water for a total of 9."
+  },
+  {
+   "input": "height = [1,2,3,4,5]",
+   "output": "0",
+   "explanation": "The skyline only ever rises, so no bar has a taller wall on both its left and right, and every drop of rain runs off the side."
+  }
+ ],
+ "dsa-idx-43": [
+  {
+   "input": "start[] = [10,12,20], end[] = [20,25,30]",
+   "output": "1",
+   "explanation": "After booking the meeting that finishes earliest (10-20), the 12-25 request overlaps it and the 20-30 request begins at the exact instant it ends, which the strict rule rejects."
+  },
+  {
+   "input": "start[] = [1,1,1], end[] = [9,9,9]",
+   "output": "1",
+   "explanation": "All three requests occupy the identical interval 1 to 9, so booking any one of them keeps the single room busy for the other two."
+  }
+ ],
+ "dsa-idx-48": [
+  {
+   "input": "arr = [1, 2, 1]",
+   "output": "[0,1,1,2,2,3,3,4]",
+   "explanation": "The two separate 1s form different subsets that happen to share a sum, and such repeats are kept rather than merged, so all 2^3 = 8 sums are listed in ascending order."
+  },
+  {
+   "input": "arr = [5]",
+   "output": "[0,5]",
+   "explanation": "A one-element array has only two subsets, the empty one summing to 0 and {5} summing to 5."
+  }
+ ],
+ "dsa-idx-54": [
+  {
+   "input": "nums = [1,2]",
+   "output": "[[1,2],[2,1]]",
+   "explanation": "Two distinct values admit exactly 2! = 2 orderings: either value can occupy the first slot, and the remaining one fills the second."
+  },
+  {
+   "input": "nums = [1]",
+   "output": "[[1]]",
+   "explanation": "A single element can only be arranged one way, so the answer is a list containing that one permutation, not the bare value."
+  }
+ ],
+ "dsa-idx-55": [
+  {
+   "input": "n = 1",
+   "output": "[['Q']]",
+   "explanation": "A lone queen on a 1x1 board has nothing to attack, so the single placement is a valid solution."
+  },
+  {
+   "input": "n = 2",
+   "output": "[]",
+   "explanation": "On a 2x2 board any two squares share a row, a column or a diagonal, so no arrangement is conflict-free and the list of solutions comes back empty."
+  }
+ ],
+ "dsa-idx-63": [
+  {
+   "input": "nums = [5,1,3], target = 3",
+   "output": "2",
+   "explanation": "The midpoint value 1 is smaller than nums[0] = 5, which proves the left half is not sorted, so the search commits to the sorted right half where 3 sits at index 2."
+  },
+  {
+   "input": "nums = [4,5,6,7,0,1,2], target = 3",
+   "output": "-1",
+   "explanation": "3 lies in the gap between the two ascending runs and appears nowhere in the array, so the window collapses without a match and -1 is returned."
+  }
+ ],
+ "dsa-idx-70": [
+  {
+   "input": "s = \"([)]\"",
+   "output": "False",
+   "explanation": "The ')' arrives while '[' is still the most recent unclosed bracket, so the pairs cross each other instead of nesting."
+  },
+  {
+   "input": "s = \"{[()]}\"",
+   "output": "True",
+   "explanation": "Every opener is closed by the same bracket type in the exact reverse of the order it was opened, so the stack drains completely."
+  }
+ ],
+ "dsa-idx-71": [
+  {
+   "input": "nums1 = [2,4], nums2 = [1,2,3,4]",
+   "output": "[3,-1]",
+   "explanation": "Scanning right from 2 inside nums2 the first strictly larger value is 3, while 4 is the last element of nums2 and has nothing to its right."
+  },
+  {
+   "input": "nums1 = [5,4,3,2,1], nums2 = [5,4,3,2,1]",
+   "output": "[-1,-1,-1,-1,-1]",
+   "explanation": "nums2 is strictly decreasing, so no element has any larger value to its right and every query answers -1."
+  }
+ ],
+ "dsa-idx-94": [
+  {
+   "input": "root = [4,2,6,1,3,5,7]",
+   "output": "[1,2,3,4,5,6,7]",
+   "explanation": "Visiting left subtree, then node, then right subtree at every level walks this balanced search tree in ascending order."
+  },
+  {
+   "input": "root = []",
+   "output": "[]",
+   "explanation": "An empty tree has no nodes to visit, so the traversal returns the empty list rather than failing."
+  }
+ ],
+ "dsa-idx-125": [
+  {
+   "input": "root = [4,2,7,1,3], val = 7",
+   "output": "[7]",
+   "explanation": "7 is larger than the root 4, so the search steps right once and lands on the leaf 7, which is returned as a subtree that has no children."
+  },
+  {
+   "input": "root = [4,2,7,1,3], val = 5",
+   "output": "None",
+   "explanation": "5 is larger than 4 so the search goes right to 7, then smaller than 7 so it goes left into an empty child, and the missing key is signalled by returning None."
+  }
+ ],
+ "dsa-idx-139": [
+  {
+   "input": "V = 5, AdjList = [[1,2], [0,3], [0,4], [1], [2]]",
+   "output": "[0,1,2,3,4]",
+   "explanation": "BFS records vertex 0, then its whole first layer 1 and 2, and only afterwards the layer beyond it, 3 discovered from 1 and 4 discovered from 2."
+  },
+  {
+   "input": "V = 3, AdjList = [[1], [0], []]",
+   "output": "[0,1]",
+   "explanation": "No edge leads from 0 to vertex 2, so it is never enqueued and is left out of the traversal entirely."
+  }
+ ],
+ "dsa-idx-140": [
+  {
+   "input": "V = 5, AdjList = [[1,2], [0,3], [0,4], [1], [2]]",
+   "output": "[0,1,3,2,4]",
+   "explanation": "From 0 the walk commits to neighbour 1 and exhausts that branch by reaching 3 before it ever backtracks to take 2 and then 4."
+  },
+  {
+   "input": "V = 1, AdjList = [[]]",
+   "output": "[0]",
+   "explanation": "The lone vertex is marked and recorded on entry and has no edges to follow, so the traversal ends immediately."
+  }
+ ],
+ "dsa-idx-166": [
+  {
+   "input": "text1 = \"abc\", text2 = \"def\"",
+   "output": "0",
+   "explanation": "The two strings share no characters at all, so the longest common subsequence is empty and its length is 0."
+  },
+  {
+   "input": "text1 = \"bsbininm\", text2 = \"jmjkbkjkv\"",
+   "output": "1",
+   "explanation": "Only \"b\" and \"m\" are shared, but text1 has b before m while text2 has m before b, so no common subsequence of length 2 exists and the best is a single character."
+  }
+ ],
+ "dsa-idx-172": [
+  {
+   "input": "nums = [0,1,0,3,2,3]",
+   "output": "4",
+   "explanation": "The longest strictly increasing subsequence is [0,1,2,3] (indices 0,1,4,5), so the answer is 4."
+  },
+  {
+   "input": "nums = [7,7,7,7,7,7,7]",
+   "output": "1",
+   "explanation": "Equal values are not strictly increasing, so no chain can extend past a single 7 and the answer is 1."
+  }
+ ],
+ "dsa-idx-185": [
+  {
+   "input": "insert(\"apple\"), then search(\"app\"), startsWith(\"app\"), search(\"apple\")",
+   "output": "[False,True,True]",
+   "explanation": "\"app\" was only ever stored as part of \"apple\" so its node is not marked as a word end: search(\"app\") is False while startsWith(\"app\") is True, and the full word \"apple\" is still found."
+  },
+  {
+   "input": "insert(\"cat\"), insert(\"car\"), insert(\"card\"), then search(\"car\"), search(\"ca\"), startsWith(\"ca\"), startsWith(\"cart\")",
+   "output": "[True,False,True,False]",
+   "explanation": "The three words share the \"ca\" path, so \"car\" is found as a whole word while \"ca\" is only a prefix (True for startsWith, False for search), and \"cart\" has no path at all."
+  }
+ ],
+ "dsa-idx-7": [
+  {
+   "input": "prices = [2,10,1]",
+   "output": "8",
+   "explanation": "The best trade is buy at 2 on day 0 and sell at 10 on day 1 for a profit of 8; the cheaper price 1 on day 2 is useless because no day comes after it to sell on."
+  }
+ ],
+ "dsa-idx-9": [
+  {
+   "input": "intervals = [[1,10],[2,3],[4,5]]",
+   "output": "[[1,10]]",
+   "explanation": "Both [2,3] and [4,5] sit entirely inside [1,10], so they are absorbed without shrinking the block's right edge, leaving one interval."
+  }
+ ],
+ "dsa-idx-11": [
+  {
+   "input": "nums = [1,4,4,2,4]",
+   "output": "4",
+   "explanation": "Here n = 4 and the value 4 occupies indices 1, 2 and 4, so it is the repeated number even though it appears more than twice."
+  }
+ ],
+ "dsa-idx-12": [
+  {
+   "input": "nums = [4,3,6,2,1,1] (n = 6)",
+   "output": "[1,5]",
+   "explanation": "The array should be a shuffle of 1..6: 1 appears twice (indices 4 and 5) while 5 never appears, so R = 1 and M = 5."
+  }
+ ],
+ "dsa-idx-13": [
+  {
+   "input": "arr = [3,3,3]",
+   "output": "0",
+   "explanation": "An inversion needs arr[i] strictly greater than arr[j], and every pair here is equal, so the count is 0."
+  }
+ ],
+ "dsa-idx-14": [
+  {
+   "input": "matrix = [[1],[3]], target = 3",
+   "output": "True",
+   "explanation": "A single-column matrix flattens to [1,3]; the binary search lands on virtual index 1, which un-flattens to row 1, column 0, holding the target 3."
+  }
+ ],
+ "dsa-idx-24": [
+  {
+   "input": "A = [0, 0, 0], B = 0",
+   "output": "6",
+   "explanation": "Every element is 0, so all 3*4/2 = 6 subarrays XOR to 0 and each one is counted."
+  }
+ ],
+ "dsa-idx-25": [
+  {
+   "input": "s = \"pwwkew\"",
+   "output": "3",
+   "explanation": "The answer is \"wke\", with the length of 3; note that \"pwke\" is a subsequence, not a substring."
+  }
+ ],
+ "dsa-idx-28": [
+  {
+   "input": "head = [1,2,3], n = 3",
+   "output": "[2,3]",
+   "explanation": "n equals the length of the list, so the node 3 positions from the end is the head itself and the new head becomes 2."
+  }
+ ],
+ "dsa-idx-29": [
+  {
+   "input": "l1 = [9,9,9,9], l2 = [9,9,9,9,9,9]",
+   "output": "[8,9,9,9,0,0,1]",
+   "explanation": "9999 + 999999 = 1009998, and the carry out of the last digit makes the answer longer than either input."
+  }
+ ],
+ "dsa-idx-31": [
+  {
+   "input": "listA = [1,9,1,2,4], listB = [3,2,4], skipA = 3, skipB = 1",
+   "output": "2",
+   "explanation": "The lists have very different lengths but share the same tail nodes 2 -> 4, so the first common node is the one holding 2."
+  }
+ ],
+ "dsa-idx-33": [
+  {
+   "input": "head = [1,2,3,4,5], k = 5",
+   "output": "[5,4,3,2,1]",
+   "explanation": "k equals the list length, so there is exactly one full group and the entire list is reversed with nothing left over."
+  }
+ ],
+ "dsa-idx-34": [
+  {
+   "input": "head = [1,2,3,2,1]",
+   "output": "True",
+   "explanation": "With an odd length the middle 3 pairs with itself, and 1 matches 1 and 2 matches 2 around it, so the list reads the same both ways."
+  }
+ ],
+ "dsa-idx-35": [
+  {
+   "input": "head = [1], pos = 0 (the node points to itself)",
+   "output": "1",
+   "explanation": "The single node's next pointer loops back to itself, so the very first node visited twice - and therefore the start of the cycle - is that node, holding 1."
+  }
+ ],
+ "dsa-idx-37": [
+  {
+   "input": "head = [1,2,3], k = 3",
+   "output": "[1,2,3]",
+   "explanation": "k is a multiple of the length (3 % 3 = 0), so every node returns to its original position and the list is unchanged."
+  }
+ ],
+ "dsa-idx-41": [
+  {
+   "input": "nums = [2,2,2,2]",
+   "output": "1",
+   "explanation": "Every element is the same value, so only one unique element survives: the function returns k = 1 and nums[:1] is [2]."
+  }
+ ],
+ "dsa-idx-42": [
+  {
+   "input": "nums = [0,0,0]",
+   "output": "0",
+   "explanation": "The array contains no 1 at all, so the longest run of consecutive 1s has length 0."
+  }
+ ],
+ "dsa-idx-44": [
+  {
+   "input": "arr = [900, 1100, 1235], dep = [1000, 1200, 1240]",
+   "output": "1",
+   "explanation": "Each train leaves before the next one arrives, so no two are ever at the station together and a single platform is reused all day."
+  },
+  {
+   "input": "arr = [900, 910], dep = [910, 920]",
+   "output": "2",
+   "explanation": "The second train arrives at the exact minute the first departs, and touching endpoints count as an overlap (arr <= dep), so 2 platforms are required rather than 1."
+  }
+ ],
+ "dsa-idx-45": [
+  {
+   "input": "Jobs = [(1,2,100), (2,1,19), (3,2,27), (4,1,25), (5,1,15)]  # (id, deadline, profit)",
+   "output": "[2,127]",
+   "explanation": "Taking the two richest jobs, 1 (profit 100) at slot 2 and 3 (profit 27) at slot 1, earns 127; no schedule that squeezes in the cheaper deadline-1 jobs can beat it."
+  },
+  {
+   "input": "Jobs = [(1,1,10), (2,1,20)]  # (id, deadline, profit)",
+   "output": "[1,20]",
+   "explanation": "Both jobs expire after slot 1, so only one can run; the greedy choice keeps the more profitable job 2 and discards job 1."
+  }
+ ],
+ "dsa-idx-46": [
+  {
+   "input": "W = 15, arr = [Item(100, 20), Item(60, 10)], n = 2  # Item(value, weight)",
+   "output": "85.0",
+   "explanation": "Value-to-weight ratio decides the order, not raw value: 60/10 = 6.0 beats 100/20 = 5.0, so take that item whole (60) plus 5/20 of the other (25) for 85.0."
+  },
+  {
+   "input": "W = 0, arr = [Item(60, 10)], n = 1  # Item(value, weight)",
+   "output": "0.0",
+   "explanation": "The knapsack has no capacity, so even a fraction of the item cannot be carried and the total value is 0.0."
+  }
+ ],
+ "dsa-idx-47": [
+  {
+   "input": "coins = [5, 1, 2, 10], V = 13",
+   "output": "(3, [10, 2, 1])",
+   "explanation": "The denominations arrive unsorted, so the algorithm sorts them descending first and then peels off 10, 2 and 1 to make 13 with 3 coins."
+  },
+  {
+   "input": "coins = [5, 10], V = 3",
+   "output": "(0, [])",
+   "explanation": "No denomination is small enough to fit into 3, so nothing is picked and the function reports 0 coins with an empty list rather than signalling failure."
+  }
+ ],
+ "dsa-idx-49": [
+  {
+   "input": "nums = [3, 1, 2]",
+   "output": "[[],[1],[1,2],[1,2,3],[1,3],[2],[2,3],[3]]",
+   "explanation": "With no repeated values nothing is skipped, so the full power set of 2^3 = 8 subsets is returned, listed in ascending order because the input is sorted first."
+  },
+  {
+   "input": "nums = [2, 2, 2]",
+   "output": "[[],[2],[2,2],[2,2,2]]",
+   "explanation": "All three elements are identical, so subsets differ only by how many 2s they hold, giving n + 1 = 4 distinct subsets instead of 2^3 = 8."
+  }
+ ],
+ "dsa-idx-50": [
+  {
+   "input": "candidates = [2, 3, 5], target = 8",
+   "output": "[[2,2,2,2],[2,3,3],[3,5]]",
+   "explanation": "Reusing candidates freely, 8 can be built as four 2s, a 2 with two 3s, or 3 plus 5, and those are the only three unique combinations."
+  },
+  {
+   "input": "candidates = [2, 4], target = 3",
+   "output": "[]",
+   "explanation": "Every candidate is even, so no repetition of 2s and 4s can ever sum to the odd target 3 and the result is an empty list."
+  }
+ ],
+ "dsa-idx-51": [
+  {
+   "input": "candidates = [2, 5, 2, 1, 2], target = 5",
+   "output": "[[1,2,2],[5]]",
+   "explanation": "Two of the three 2s can join the 1 to reach 5, and 5 alone works; the duplicate-skip stops [1, 2, 2] from being reported once per choice of which 2s were used."
+  },
+  {
+   "input": "candidates = [2, 4, 6], target = 5",
+   "output": "[]",
+   "explanation": "Every candidate is even, so no subset of them can sum to the odd target 5 and an empty list is returned."
+  }
+ ],
+ "dsa-idx-52": [
+  {
+   "input": "s = \"aba\"",
+   "output": "[['a', 'b', 'a'], ['aba']]",
+   "explanation": "Cutting between every character gives three single-letter palindromes, and the whole string is itself a palindrome, so there are exactly two valid partitions."
+  },
+  {
+   "input": "s = \"abc\"",
+   "output": "[['a', 'b', 'c']]",
+   "explanation": "No substring of length 2 or more reads the same backwards, so the only valid partition is the all-singletons cut."
+  }
+ ],
+ "dsa-idx-53": [
+  {
+   "input": "n = 3, k = 6",
+   "output": "'321'",
+   "explanation": "There are 3! = 6 permutations of [1, 2, 3], so k = 6 asks for the very last one, which is the digits in descending order."
+  },
+  {
+   "input": "n = 1, k = 1",
+   "output": "'1'",
+   "explanation": "The set [1] has only one permutation, so the first and only answer is \"1\"."
+  }
+ ],
+ "dsa-idx-57": [
+  {
+   "input": "graph = [[0, 1, 1], [1, 0, 1], [1, 1, 0]], m = 2, N = 3",
+   "output": "False",
+   "explanation": "The three vertices form a triangle where every pair is adjacent, so two colours are not enough and the backtracking search exhausts all assignments."
+  },
+  {
+   "input": "graph = [[0, 1, 1, 1], [1, 0, 1, 1], [1, 1, 0, 1], [1, 1, 1, 0]], m = 4, N = 4",
+   "output": "True",
+   "explanation": "In this complete graph on 4 vertices every vertex touches every other, so each needs its own colour and exactly 4 colours succeed."
+  }
+ ],
+ "dsa-idx-58": [
+  {
+   "input": "m = [[1, 1, 0], [0, 1, 0], [1, 1, 1]], n = 3",
+   "output": "['RDDR']",
+   "explanation": "The open cells form a single corridor: right, down, down, then right to (2, 2), and the branch to (2, 0) is a dead end, so only one path exists."
+  },
+  {
+   "input": "m = [[1, 1], [1, 0]], n = 2",
+   "output": "[]",
+   "explanation": "The destination cell (1, 1) is blocked, so the rat can never finish the journey and no paths are returned."
+  }
+ ],
+ "dsa-idx-59": [
+  {
+   "input": "s = \"leetcode\", wordDict = [\"leet\", \"code\"]",
+   "output": "True",
+   "explanation": "\"leetcode\" splits exactly into \"leet\" + \"code\", and both pieces are in the dictionary."
+  },
+  {
+   "input": "s = \"catsandog\", wordDict = [\"cats\", \"dog\", \"sand\", \"and\", \"cat\"]",
+   "output": "False",
+   "explanation": "Every prefix split leaves an unusable remainder (\"cats\"+\"and\" leaves \"og\", \"cat\"+\"sand\" leaves \"og\"), so no full segmentation exists."
+  }
+ ],
+ "dsa-idx-60": [
+  {
+   "input": "n = 4, m = 69",
+   "output": "-1",
+   "explanation": "2^4 = 16 and 3^4 = 81, so 69 is not a perfect 4th power and there is no integer root."
+  },
+  {
+   "input": "n = 2, m = 10000",
+   "output": "100",
+   "explanation": "100 * 100 = 10000 exactly, so the 2nd root of 10000 is 100."
+  }
+ ],
+ "dsa-idx-61": [
+  {
+   "input": "matrix = [[1, 3, 8], [2, 3, 4], [1, 2, 5]]",
+   "output": "3",
+   "explanation": "Flattened and sorted the 9 values are [1, 1, 2, 2, 3, 3, 4, 5, 8], whose middle element is 3 even though 3 appears twice."
+  },
+  {
+   "input": "matrix = [[1, 2, 3, 4, 5]]",
+   "output": "3",
+   "explanation": "A single sorted row is already the flattened array, so the median is its middle element 3."
+  }
+ ],
+ "dsa-idx-62": [
+  {
+   "input": "nums = [3, 3, 7, 7, 10, 11, 11]",
+   "output": "10",
+   "explanation": "Pairs sit at even/odd index pairs (0,1) and (2,3) before 10, but 10 at index 4 breaks the pairing, so it is the single element."
+  },
+  {
+   "input": "nums = [1]",
+   "output": "1",
+   "explanation": "With only one element there are no pairs at all, so that element is the single one."
+  }
+ ],
+ "dsa-idx-64": [
+  {
+   "input": "nums1 = [1, 2], nums2 = [3, 4]",
+   "output": "2.5",
+   "explanation": "The merged array is [1, 2, 3, 4]; with an even total length the median averages the two middle values, (2 + 3) / 2 = 2.5."
+  },
+  {
+   "input": "nums1 = [], nums2 = [1]",
+   "output": "1.0",
+   "explanation": "One array may be empty, so the merged array is just [1] and its only element is the median."
+  }
+ ],
+ "dsa-idx-65": [
+  {
+   "input": "arr1 = [100, 112, 256, 349, 770], arr2 = [72, 86, 113, 119, 265, 445, 892], k = 7",
+   "output": "256",
+   "explanation": "The merged order is [72, 86, 100, 112, 113, 119, 256, ...], so the 7th value counting from 1 is 256."
+  },
+  {
+   "input": "arr1 = [], arr2 = [1, 2, 3], k = 2",
+   "output": "2",
+   "explanation": "With one array empty the merged sequence is just [1, 2, 3], whose 2nd element is 2."
+  }
+ ],
+ "dsa-idx-66": [
+  {
+   "input": "push(10), push(20), push(30), then pop(), pop(), top(), size()",
+   "output": "[30,20,10,1]",
+   "explanation": "LIFO order means the two pops return the most recent pushes 30 then 20, leaving 10 as the top with size 1."
+  },
+  {
+   "input": "on a brand-new stack: pop(), top(), isEmpty(), size()",
+   "output": "[-1,-1,True,0]",
+   "explanation": "An empty stack returns the sentinel -1 from pop() and top() instead of raising, and reports itself empty with size 0."
+  }
+ ],
+ "dsa-idx-67": [
+  {
+   "input": "enqueue(5), enqueue(6), enqueue(7), then dequeue(), dequeue(), front(), size()",
+   "output": "[5,6,7,1]",
+   "explanation": "FIFO order means the dequeues return the oldest elements 5 then 6, leaving 7 at the front with size 1."
+  },
+  {
+   "input": "on a brand-new queue: dequeue(), front(), isEmpty(), size()",
+   "output": "[-1,-1,True,0]",
+   "explanation": "An empty queue returns the sentinel -1 from dequeue() and front() instead of raising, and reports itself empty with size 0."
+  }
+ ],
+ "dsa-idx-68": [
+  {
+   "input": "push(1), push(2), push(3), then top(), pop(), pop(), top(), empty()",
+   "output": "[3,3,2,1,False]",
+   "explanation": "Each push rotates the queue so the newest value sits at the front, giving stack order 3, 2 on the pops and leaving 1 on top."
+  },
+  {
+   "input": "on a brand-new stack: empty(), pop(), top()",
+   "output": "[True,-1,-1]",
+   "explanation": "With the backing queue empty the stack reports empty and both pop() and top() return the sentinel -1 rather than raising."
+  }
+ ],
+ "dsa-idx-69": [
+  {
+   "input": "push(1), push(2), push(3), pop(), push(4), then peek(), pop(), pop(), pop(), empty()",
+   "output": "[2,2,3,4,True]",
+   "explanation": "The first pop() drains 1, and pushing 4 afterwards still lands behind 2 and 3, so FIFO order 2, 3, 4 is preserved and the queue ends empty."
+  },
+  {
+   "input": "on a brand-new queue: empty(), pop(), peek()",
+   "output": "[True,-1,-1]",
+   "explanation": "With both stacks empty the queue reports empty and pop() and peek() return the sentinel -1 rather than raising."
+  }
+ ],
+ "dsa-idx-72": [
+  {
+   "input": "stack = [3, 1, 4, 1, 5]  (bottom to top)",
+   "output": "[1,1,3,4,5]",
+   "explanation": "Duplicates are kept, so both 1s settle at the bottom and the stack ends ascending from bottom to top with 5 on top."
+  },
+  {
+   "input": "stack = [-2, 5, -7, 0]  (bottom to top)",
+   "output": "[-7,-2,0,5]",
+   "explanation": "Negative values sort the same way, leaving the smallest value -7 at the bottom and the largest 5 on top."
+  }
+ ],
+ "dsa-idx-73": [
+  {
+   "input": "arr = [10, 20, 30]",
+   "output": "[30,20,10]",
+   "explanation": "Size 1 picks the array maximum 30, size 2 compares min(10,20)=10 and min(20,30)=20 giving 20, and size 3 is the whole-array minimum 10."
+  },
+  {
+   "input": "arr = [7, 7, 7]",
+   "output": "[7,7,7]",
+   "explanation": "Every window of every size has minimum 7, so all answers are 7 even though the values are duplicates."
+  }
+ ],
+ "dsa-idx-74": [
+  {
+   "input": "LRUCache(1), put(1, 10), put(2, 20), then get(1), get(2)",
+   "output": "[-1,20]",
+   "explanation": "With capacity 1 the cache holds a single entry, so storing key 2 evicts key 1 immediately and get(1) returns the -1 miss sentinel while get(2) returns 20."
+  },
+  {
+   "input": "LRUCache(2), put(1, 1), put(2, 2), put(1, 10), put(3, 3), then get(1), get(2), get(3)",
+   "output": "[10,-1,3]",
+   "explanation": "Overwriting key 1 counts as using it, so when key 3 needs room the least recently used entry is key 2 and that is the one evicted."
+  }
+ ],
+ "dsa-idx-75": [
+  {
+   "input": "heights = [2, 4]",
+   "output": "4",
+   "explanation": "The width-2 rectangle is capped at the shorter bar for area 2 x 2 = 4, which only ties the single bar of height 4, so the answer is 4."
+  },
+  {
+   "input": "heights = [3, 3, 3, 3]",
+   "output": "12",
+   "explanation": "All bars are equally tall, so the best rectangle spans the full width: 4 x 3 = 12."
+  }
+ ],
+ "dsa-idx-76": [
+  {
+   "input": "nums = [9, 8, 7, 6], k = 2",
+   "output": "[9,8,7]",
+   "explanation": "The array is strictly decreasing, so each window of size 2 is maximised by its left element, giving 9, 8 and 7."
+  },
+  {
+   "input": "nums = [1, 2, 3, 4], k = 4",
+   "output": "[4]",
+   "explanation": "With k equal to the array length there is exactly one window, covering everything, and its maximum is 4."
+  }
+ ],
+ "dsa-idx-77": [
+  {
+   "input": "grid = [[2,1,1],[0,1,1],[1,0,1]]",
+   "output": "-1",
+   "explanation": "The fresh orange at the bottom-left is cut off by empty cells, so it can never rot and the answer is -1."
+  },
+  {
+   "input": "grid = [[0,2]]",
+   "output": "0",
+   "explanation": "There are no fresh oranges to begin with, so zero minutes are needed."
+  }
+ ],
+ "dsa-idx-78": [
+  {
+   "input": "MinStack(), push(5), push(5), pop(), then top(), getMin()",
+   "output": "[5,5]",
+   "explanation": "The minimum 5 was pushed twice, so popping one copy still leaves a 5 behind and getMin() must stay 5 rather than becoming undefined."
+  },
+  {
+   "input": "MinStack(), push(1), push(9), push(4), then top(), getMin()",
+   "output": "[4,1]",
+   "explanation": "The smallest value was pushed first and never removed, so top() reports the most recent 4 while getMin() still reports 1."
+  }
+ ],
+ "dsa-idx-79": [
+  {
+   "input": "prices = [31, 41, 48, 59, 79] fed one per call to next()",
+   "output": "[1,2,3,4,5]",
+   "explanation": "Each price is a new all-time high, so every span swallows all previous days and the answers count up 1, 2, 3, 4, 5."
+  },
+  {
+   "input": "prices = [10, 10, 10] fed one per call to next()",
+   "output": "[1,2,3]",
+   "explanation": "The rule counts days that are less than or equal to today, so equal prices still extend the span to 1, 2 and 3."
+  }
+ ],
+ "dsa-idx-80": [
+  {
+   "input": "s = \"     \"",
+   "output": "''",
+   "explanation": "The string holds nothing but spaces, so there are no words to reverse and the result is the empty string."
+  }
+ ],
+ "dsa-idx-81": [
+  {
+   "input": "s = \"forgeeksskeegfor\"",
+   "output": "'geeksskeeg'",
+   "explanation": "The longest run reading the same both ways is \"geeksskeeg\", an even-length palindrome centred between the two s characters."
+  }
+ ],
+ "dsa-idx-84": [
+  {
+   "input": "strs = [\"interspecies\", \"interstellar\", \"interstate\"]",
+   "output": "'inters'",
+   "explanation": "All three share \"inters\", and they diverge at the next character (p, t, t), so the prefix cannot grow any further."
+  }
+ ],
+ "dsa-idx-85": [
+  {
+   "input": "text = \"abcabcabd\", pattern = \"abcabd\"",
+   "output": "3",
+   "explanation": "The only match starts at index 3, where text[3:9] is \"abcabd\"; the earlier \"abc\" at index 0 breaks at the fourth character."
+  }
+ ],
+ "dsa-idx-86": [
+  {
+   "input": "s = \"aaaa\"",
+   "output": "[0,3,2,1]",
+   "explanation": "Every suffix is also a prefix, so z counts the remaining characters at each index: 3, 2, 1, with z[0] left at 0 by convention."
+  }
+ ],
+ "dsa-idx-87": [
+  {
+   "input": "text = \"abcabab\", pattern = \"abab\"",
+   "output": "3",
+   "explanation": "The partial match at index 0 fails at \"abc\", and the leftmost full occurrence of \"abab\" begins at index 3."
+  }
+ ],
+ "dsa-idx-88": [
+  {
+   "input": "s = \"aba\"",
+   "output": "0",
+   "explanation": "The whole string is already a palindrome, so nothing has to be prepended."
+  }
+ ],
+ "dsa-idx-89": [
+  {
+   "input": "s = \"aacc\", t = \"ccac\"",
+   "output": "False",
+   "explanation": "Both strings have the same length and the same set of letters, but s has two a's and t only one, so the counts do not match."
+  }
+ ],
+ "dsa-idx-90": [
+  {
+   "input": "n = 5",
+   "output": "'111221'",
+   "explanation": "Term 4 is \"1211\", which is read as \"one 1, one 2, two 1s\" and therefore written as \"111221\"."
+  }
+ ],
+ "dsa-idx-92": [
+  {
+   "input": "s = \"aaaa\"",
+   "output": "'aaaa'",
+   "explanation": "The entire string is itself a palindrome, so the longest palindromic prefix is the whole of s."
+  }
+ ],
+ "dsa-idx-93": [
+  {
+   "input": "haystack = \"mississippi\", needle = \"issip\"",
+   "output": "4",
+   "explanation": "\"issip\" first matches starting at index 4 (\"miss[issip]pi\"); the earlier partial match at index 1 fails at the final character."
+  }
+ ],
+ "dsa-idx-98": [
+  {
+   "input": "root = []",
+   "output": "0",
+   "explanation": "An empty tree has no nodes on any root-to-leaf path, so its depth is 0."
+  }
+ ],
+ "dsa-idx-99": [
+  {
+   "input": "root = []",
+   "output": "True",
+   "explanation": "An empty tree is height-balanced by definition, since there is no node whose subtree heights could differ."
+  }
+ ],
+ "dsa-idx-100": [
+  {
+   "input": "root = [1,2,null,4,5,8,null,9]",
+   "output": "4",
+   "explanation": "The longest path is 8 -> 4 -> 2 -> 5 -> 9 with 4 edges, and it never passes through the root."
+  }
+ ],
+ "dsa-idx-101": [
+  {
+   "input": "root = [-3]",
+   "output": "-3",
+   "explanation": "A path must contain at least one node, so with only a single negative node the best possible sum is -3 rather than 0."
+  }
+ ],
+ "dsa-idx-102": [
+  {
+   "input": "p = [1,2,1], q = [1,1,2]",
+   "output": "False",
+   "explanation": "The two trees have identical shape but the children are swapped, so the values at the left child differ (2 vs 1)."
+  }
+ ],
+ "dsa-idx-103": [
+  {
+   "input": "root = [1,2,3,4,null,null,5]",
+   "output": "[[1],[3,2],[4,5]]",
+   "explanation": "Level 0 reads left to right ([1]), level 1 is reversed ([3,2]), and level 2 flips back to left to right ([4,5])."
+  }
+ ],
+ "dsa-idx-104": [
+  {
+   "input": "root = [1,2]",
+   "output": "[1,2]",
+   "explanation": "The root is printed first, and node 2 is a leaf, so it is skipped by the left boundary and reported once in the leaf pass."
+  }
+ ],
+ "dsa-idx-105": [
+  {
+   "input": "root = [1,2,null,3]",
+   "output": "[[3],[2],[1]]",
+   "explanation": "Each left move shifts the column by -1, so the chain 1 -> 2 -> 3 occupies columns 0, -1 and -2, and reading columns left to right gives 3, then 2, then 1."
+  }
+ ],
+ "dsa-idx-106": [
+  {
+   "input": "root = [1,2,null,null,4]",
+   "output": "[2,1]",
+   "explanation": "Node 4 lands back in column 0 but at depth 2, so the shallower root 1 still blocks it; only columns -1 and 0 are occupied, showing 2 and 1."
+  }
+ ],
+ "dsa-idx-107": [
+  {
+   "input": "root = [1,2,null,null,4]",
+   "output": "[2,4]",
+   "explanation": "Node 4 shares column 0 with the root but sits deeper, so from below it hides the root; column -1 shows 2 and column 0 shows 4."
+  }
+ ],
+ "dsa-idx-108": [
+  {
+   "input": "root = [1,2,null,3]",
+   "output": "[1,2,3]",
+   "explanation": "In a left-only chain each level holds exactly one node, so every node is the rightmost of its level and all of them are visible."
+  }
+ ],
+ "dsa-idx-109": [
+  {
+   "input": "root = [1,2,3,4,5,6,7]",
+   "output": "[1,2,4]",
+   "explanation": "The first node met at each depth going left to right is 1, then 2, then 4, so nodes 3, 5, 6 and 7 are hidden behind them."
+  }
+ ],
+ "dsa-idx-110": [
+  {
+   "input": "root = [1,2,2,null,3,3,null]",
+   "output": "True",
+   "explanation": "The left child's right subtree (3) mirrors the right child's left subtree (3), so reflecting the tree reproduces it exactly."
+  }
+ ],
+ "dsa-idx-111": [
+  {
+   "input": "root = [1,2,3,4,5], target = 5",
+   "output": "[1,2,5]",
+   "explanation": "Reaching 5 means going root -> left child 2 -> right child 5, and the failed detour into 4 is undone by backtracking so it never appears in the path."
+  }
+ ],
+ "dsa-idx-112": [
+  {
+   "input": "root = [3,5,1,6,2,0,8,null,null,7,4], p = 7, q = 4",
+   "output": "2",
+   "explanation": "Nodes 7 and 4 are the two children of node 2, so 2 is the deepest node having both as descendants."
+  }
+ ],
+ "dsa-idx-113": [
+  {
+   "input": "root = [1,2,null,3,null,4]",
+   "output": "1",
+   "explanation": "Every level of this left-leaning chain contains exactly one node, so the leftmost and rightmost end-nodes coincide and each level has width 1."
+  }
+ ],
+ "dsa-idx-115": [
+  {
+   "input": "root = [3,5,1,6,2,0,8,null,null,7,4], target = 7, k = 3",
+   "output": "[6,3]",
+   "explanation": "From leaf 7 the fire of distance must climb upward: 2 is at distance 1, 5 and 4 at distance 2, and at distance 3 sit 6 and the root 3."
+  },
+  {
+   "input": "root = [3,5,1,6,2,0,8,null,null,7,4], target = 5, k = 0",
+   "output": "[5]",
+   "explanation": "A distance of 0 means no edge is traversed at all, so the only node that qualifies is the target itself."
+  }
+ ],
+ "dsa-idx-116": [
+  {
+   "input": "root = [1,2,null,3,null,4], target = 4",
+   "output": "3",
+   "explanation": "In the chain 1-2-3-4 the fire starts at the bottom and can only travel upward one edge per second, reaching 3 at t=1, 2 at t=2 and the root 1 at t=3."
+  },
+  {
+   "input": "root = [7], target = 7",
+   "output": "0",
+   "explanation": "The target is the only node, so the whole tree is already alight the moment the fire starts."
+  }
+ ],
+ "dsa-idx-117": [
+  {
+   "input": "root = [1,2,3,4,5,6,7]",
+   "output": "7",
+   "explanation": "The left and right spines both have height 3, so the tree is perfect and the count is 2^3 - 1 = 7 without visiting a single node individually."
+  }
+ ],
+ "dsa-idx-118": [
+  {
+   "input": "preorder = [1,2,3], inorder = [3,2,1]",
+   "output": "[1, 2, None, 3]",
+   "explanation": "Root 1 is first in preorder and last in inorder, so every remaining value sits in its left subtree; repeating that gives the left-skewed chain 1 -> 2 -> 3."
+  },
+  {
+   "input": "preorder = [1], inorder = [1]",
+   "output": "[1]",
+   "explanation": "With a single value there is nothing to the left or right of the root in inorder, so the tree is just the node 1."
+  }
+ ],
+ "dsa-idx-119": [
+  {
+   "input": "inorder = [1,2,3], postorder = [3,2,1]",
+   "output": "[1, None, 2, None, 3]",
+   "explanation": "The last postorder value 1 is the root and it is first in inorder, so everything else lies to its right, producing the right-skewed chain 1 -> 2 -> 3."
+  },
+  {
+   "input": "inorder = [1], postorder = [1]",
+   "output": "[1]",
+   "explanation": "A single value is both the root and the whole traversal, so the reconstructed tree is the lone node 1."
+  }
+ ],
+ "dsa-idx-120": [
+  {
+   "input": "root = [1,2,null,3]",
+   "output": "'1,2,#,3,#,#,#'",
+   "explanation": "The level-order walk writes each value it meets and a '#' for every missing child, so this left-leaning chain records 1, 2, the root's absent right child, then 3 and its two absent children."
+  },
+  {
+   "input": "root = []",
+   "output": "''",
+   "explanation": "An empty tree has no nodes to write, so it serializes to the empty string, which deserialize recognises and turns back into None."
+  }
+ ],
+ "dsa-idx-121": [
+  {
+   "input": "root = [4,2,6,1,3,5,7]",
+   "output": "[1,2,3,4,5,6,7]",
+   "explanation": "Inorder on a BST always comes out sorted, and the temporary threads Morris creates are cut again so the tree is left unchanged."
+  },
+  {
+   "input": "root = []",
+   "output": "[]",
+   "explanation": "With no root the while loop never runs, so the traversal is empty rather than an error."
+  }
+ ],
+ "dsa-idx-122": [
+  {
+   "input": "root = [4,2,6,1,3,5,7]",
+   "output": "[4,2,1,3,6,5,7]",
+   "explanation": "Preorder records a node the first time it is reached, so the root 4 comes before its whole left subtree (2,1,3) and then its right subtree (6,5,7)."
+  },
+  {
+   "input": "root = []",
+   "output": "[]",
+   "explanation": "With no root there is nothing to thread or visit, so the traversal is empty rather than an error."
+  }
+ ],
+ "dsa-idx-125b": [
+  {
+   "input": "root = [8,4,12,2,6,10,14], key = 12",
+   "output": "12",
+   "explanation": "The key itself is present in the tree, and a value is allowed to be its own floor, so the search stops at 12."
+  },
+  {
+   "input": "root = [8,4,12,2,6,10,14], key = 1",
+   "output": "-1",
+   "explanation": "The smallest value in the tree is 2, so nothing is <= 1 and no candidate floor is ever recorded."
+  }
+ ],
+ "dsa-idx-126": [
+  {
+   "input": "root = [8,4,12,2,6,10,14], key = 4",
+   "output": "4",
+   "explanation": "The key exists in the tree, and a value may be its own ceil, so the walk stops as soon as it lands on 4."
+  },
+  {
+   "input": "root = [8,4,12,2,6,10,14], key = 15",
+   "output": "-1",
+   "explanation": "The largest value in the tree is 14, so nothing is >= 15 and the ceil stays at its initial -1."
+  }
+ ],
+ "dsa-idx-127": [
+  {
+   "input": "root = [4,2,7,1,3], val = 0",
+   "output": "[4, 2, 7, 1, 3, None, None, 0]",
+   "explanation": "0 is smaller than every value, so the search walks 4 -> 2 -> 1 and hangs the new node as the left child of the leaf 1."
+  },
+  {
+   "input": "root = [], val = 9",
+   "output": "[9]",
+   "explanation": "Inserting into an empty tree has no node to compare against, so the new node becomes the root that is returned."
+  }
+ ],
+ "dsa-idx-128": [
+  {
+   "input": "root = [5,3,6,2,4,null,7], key = 2",
+   "output": "[5, 3, 6, None, 4, None, 7]",
+   "explanation": "2 is a leaf, so the node is simply detached by returning its (empty) right child to the parent, leaving the rest of the BST untouched."
+  },
+  {
+   "input": "root = [1], key = 1",
+   "output": "[]",
+   "explanation": "The only node has no children, so deleting it returns None and the tree becomes empty."
+  }
+ ],
+ "dsa-idx-129": [
+  {
+   "input": "root = [1,null,2,null,3], k = 2",
+   "output": "2",
+   "explanation": "This degenerate right-skewed BST has inorder [1,2,3], so the 2nd pop off the stack is 2 and the walk stops there without touching 3."
+  }
+ ],
+ "dsa-idx-132": [
+  {
+   "input": "preorder = [5,4,3]",
+   "output": "[5, 4, None, 3]",
+   "explanation": "Every value is smaller than the one before it, so each node hangs off its predecessor's LEFT: 5 is the root, 4 is 5's left child and 3 is 4's left child, producing a completely left-skewed chain (the None marks that 5 has no right child)."
+  }
+ ],
+ "dsa-idx-134": [
+  {
+   "input": "root = [1, null, 2, null, 3]\noperations: next(), next(), next(), hasNext()",
+   "output": "[1,2,3,False]",
+   "explanation": "This right-skewed tree (1 -> right 2 -> right 3) is already in sorted order, so the three next() calls return 1, 2 and 3, and hasNext() is False once the stack empties — note the stack never holds more than one node here, which is exactly why the iterator needs only O(h) memory."
+  }
+ ],
+ "dsa-idx-146": [
+  {
+   "input": "V = 4, adj = [[2], [2], [3], []]  (edges: 0->2, 1->2, 2->3)",
+   "output": "[1,0,2,3]",
+   "explanation": "Vertices 0 and 1 are two independent roots that both feed into 2, which feeds into 3; the DFS starts at 0 and finishes 3, then 2, then 0 before it ever visits 1, so reversing the finish order puts 1 first — every edge still points left-to-right (0 at index 1 before 2 at index 2, 1 at index 0 before 2, and 2 before 3), and other orders such as [0, 1, 2, 3] would be equally valid."
+  }
+ ],
+ "dsa-idx-147": [
+  {
+   "input": "V = 4, adj = [[2], [2], [3], []]  (edges: 0->2, 1->2, 2->3)",
+   "output": "[0,1,2,3]",
+   "explanation": "In-degrees start as [0, 0, 2, 1], so both roots 0 and 1 enter the queue immediately and are emitted in index order; vertex 2 only becomes available after BOTH of them are placed (its in-degree drops 2 -> 1 -> 0), and 3 follows once 2 is placed."
+  }
+ ],
+ "dsa-idx-148": [
+  {
+   "input": "graph = [[], [], [3], [2]]  (vertices 0 and 1 isolated, single edge 2-3)",
+   "output": "True",
+   "explanation": "The graph is disconnected, so the BFS restarts on every component: isolated vertices 0 and 1 have no edges to violate, and the lone edge 2-3 simply puts 2 on RED and 3 on BLUE — with no odd cycle anywhere, the whole graph is bipartite."
+  }
+ ],
+ "dsa-idx-149": [
+  {
+   "input": "V = 1, edges = [], src = 0",
+   "output": "[0]",
+   "explanation": "The smallest possible DAG: the source is the only vertex, and reaching where you already stand costs nothing, so there is no edge to relax and dist = [0]."
+  }
+ ],
+ "dsa-idx-150": [
+  {
+   "input": "V = 4, adj = [[[1,4],[2,1]], [[0,4],[3,1]], [[0,1],[3,1]], [[1,1],[2,1]]], src = 0",
+   "output": "[0,3,1,2]",
+   "explanation": "The direct edge 0-1 costs 4, but the route 0 -> 2 -> 3 -> 1 costs 1 + 1 + 1 = 3, so Dijkstra settles 2 (dist 1), then 3 (dist 2), and only then relaxes edge 3-1 to pull vertex 1 down from 4 to 3 before it is ever finalized."
+  }
+ ],
+ "dsa-idx-152": [
+  {
+   "input": "mat = [[0, 2, INF], [INF, 0, -1], [INF, INF, 0]]  (INF = 10^8)",
+   "output": "[[0,2,1],[100000000,0,-1],[100000000,100000000,0]]",
+   "explanation": "Allowing vertex 1 as a stopover lets the path 0 -> 1 -> 2 combine into 2 + (-1) = 1, so mat[0][2] drops from INF to 1 — negative edge weights are perfectly fine here as long as no negative cycle exists, and vertex 2 has no outgoing edges so every remaining sentinel stays put."
+  }
+ ],
+ "dsa-idx-153": [
+  {
+   "input": "V = 2, edges = [[0, 1, 7], [0, 1, 2]]  (two parallel edges between 0 and 1)",
+   "output": "2",
+   "explanation": "Both edges join the same pair, so after vertex 0 enters the tree the heap holds offers of weight 7 and 2 for vertex 1 and pops the cheaper one first — vertex 1 joins for 2, and the stale 7 offer is skipped because 1 is already visited."
+  }
+ ],
+ "dsa-idx-154": [
+  {
+   "input": "V = 3, edges = [[0, 1, 10], [1, 2, 1], [2, 0, 1]]  (a triangle)",
+   "output": "2",
+   "explanation": "Scanning by weight accepts 1-2 (1) and 2-0 (1), which already connects all three vertices with V-1 = 2 edges, so the heaviest edge 0-1 (10) is dropped — its endpoints share a DSU root by then and it would only close a cycle."
+  }
+ ],
+ "dsa-idx-161": [
+  {
+   "input": "amount = 0, coins = [7]",
+   "output": "1",
+   "explanation": "There is exactly one way to make 0 — take no coins at all — which is why the DP seeds dp[0] = 1, the base case every larger amount is ultimately counted from."
+  }
+ ],
+ "dsa-idx-162": [
+  {
+   "input": "W = 10, weights = [1, 2, 4, 5], values = [5, 4, 8, 6]",
+   "output": "19",
+   "explanation": "Taking items 0, 2 and 3 uses weight 1 + 4 + 5 = 10, exactly filling the knapsack for value 5 + 8 + 6 = 19."
+  },
+  {
+   "input": "W = 3, weights = [4, 5, 6], values = [1, 2, 3]",
+   "output": "0",
+   "explanation": "Every item weighs more than the capacity 3, so nothing can be taken and the best value is 0."
+  }
+ ],
+ "dsa-idx-163": [
+  {
+   "input": "W = 8, weights = [1, 4], values = [2, 7]",
+   "output": "16",
+   "explanation": "Because items may be reused, taking the weight-1 item eight times gives 8 x 2 = 16, beating two weight-4 items (14)."
+  },
+  {
+   "input": "W = 2, weights = [5], values = [10]",
+   "output": "0",
+   "explanation": "The only item weighs 5, which exceeds the capacity 2, so even unlimited copies cannot be used."
+  }
+ ],
+ "dsa-idx-164": [
+  {
+   "input": "price = [2, 5, 7, 8], N = 4",
+   "output": "10",
+   "explanation": "Cutting the rod into two pieces of length 2 yields 5 + 5 = 10, which beats selling it whole (8) or as 1+3 (2 + 7 = 9)."
+  },
+  {
+   "input": "price = [3, 5, 9], N = 1",
+   "output": "3",
+   "explanation": "A rod of length 1 cannot be cut any further, so the only option is to sell it whole for price[0] = 3."
+  }
+ ],
+ "dsa-idx-166b": [
+  {
+   "input": "S1 = \"abab\", S2 = \"baba\"",
+   "output": "3",
+   "explanation": "\"aba\" appears contiguously in both strings (and so does \"bab\"), while no common block of length 4 exists."
+  },
+  {
+   "input": "S1 = \"abc\", S2 = \"def\"",
+   "output": "0",
+   "explanation": "The two strings share no character at all, so the longest common substring has length 0."
+  }
+ ],
+ "dsa-idx-167": [
+  {
+   "input": "s = \"cbbd\"",
+   "output": "2",
+   "explanation": "Deleting 'c' and 'd' leaves the palindrome \"bb\"; no palindromic subsequence of length 3 exists."
+  },
+  {
+   "input": "s = \"abcde\"",
+   "output": "1",
+   "explanation": "All characters are distinct, so no two can pair up and the best palindrome is any single character."
+  }
+ ],
+ "dsa-idx-168": [
+  {
+   "input": "word1 = \"sunday\", word2 = \"saturday\"",
+   "output": "3",
+   "explanation": "Insert 'a' and 't' after the leading 's', then replace 'n' with 'r' to reach \"saturday\" in 3 operations."
+  },
+  {
+   "input": "word1 = \"\", word2 = \"abc\"",
+   "output": "3",
+   "explanation": "Starting from an empty string the only option is inserting each of the 3 characters of the target."
+  }
+ ],
+ "dsa-idx-169": [
+  {
+   "input": "s = \"babgbag\", t = \"bag\"",
+   "output": "5",
+   "explanation": "There are 5 distinct sets of positions in \"babgbag\" that spell \"bag\" in order."
+  },
+  {
+   "input": "s = \"a\", t = \"aa\"",
+   "output": "0",
+   "explanation": "The target is longer than the source, so no subsequence of s can equal t and the count is 0."
+  }
+ ],
+ "dsa-idx-170": [
+  {
+   "input": "s = \"adceb\", p = \"*a*b\"",
+   "output": "True",
+   "explanation": "The first '*' matches the empty sequence and the second '*' matches \"dce\", so the pattern consumes \"adceb\" exactly."
+  }
+ ],
+ "dsa-idx-172b": [
+  {
+   "input": "nums = [1, 2, 4, 8]",
+   "output": "[1,2,4,8]",
+   "explanation": "Each element divides the next, so the entire array is one divisible chain and nothing larger exists."
+  },
+  {
+   "input": "nums = [3, 5, 7]",
+   "output": "[3]",
+   "explanation": "No two of these numbers divide one another, so the largest valid subset holds a single element (any one of them is accepted)."
+  }
+ ],
+ "dsa-idx-173": [
+  {
+   "input": "words = [\"xbc\",\"pcxbcf\",\"xb\",\"cxbc\",\"pcxbc\"]",
+   "output": "5",
+   "explanation": "The chain \"xb\" -> \"xbc\" -> \"cxbc\" -> \"pcxbc\" -> \"pcxbcf\" adds exactly one letter each step, giving length 5."
+  },
+  {
+   "input": "words = [\"abcd\",\"dbqca\"]",
+   "output": "1",
+   "explanation": "Neither word can be built from the other by inserting one letter, so the best chain is a single word."
+  }
+ ],
+ "dsa-idx-174": [
+  {
+   "input": "nums = [1, 2, 5, 3, 2]",
+   "output": "5",
+   "explanation": "The whole array is already bitonic: it rises 1 < 2 < 5 and then falls 5 > 3 > 2."
+  },
+  {
+   "input": "nums = [10, 20, 30]",
+   "output": "3",
+   "explanation": "A strictly increasing sequence counts as bitonic with an empty decreasing part, so all 3 elements are used."
+  }
+ ],
+ "dsa-idx-175": [
+  {
+   "input": "arr = [1, 2, 3, 4, 3]",
+   "output": "30",
+   "explanation": "Multiplying left to right, ((A1 x A2) x A3) x A4 costs 1*2*3 + 1*3*4 + 1*4*3 = 6 + 12 + 12 = 30, the cheapest order."
+  },
+  {
+   "input": "arr = [10, 20]",
+   "output": "0",
+   "explanation": "The array describes a single 10x20 matrix, so there is nothing to multiply and the cost is 0."
+  }
+ ],
+ "dsa-idx-8": [
+  {
+   "input": "matrix = [[1,2],[3,4]]",
+   "output": "[[3,1],[4,2]]",
+   "explanation": "Transposing swaps 2 and 3, then reversing each row turns the square a quarter-turn clockwise: the left column [1,3] becomes the top row [3,1]."
+  }
+ ],
+ "dsa-idx-10": [
+  {
+   "input": "nums1 = [1,0], m = 1, nums2 = [2], n = 1",
+   "output": "[1,2]",
+   "explanation": "Writing from the back, 2 is the larger tail so it takes the last slot, and the 1 already sits in its final place."
+  }
+ ],
+ "dsa-idx-30": [
+  {
+   "input": "head = [1,2,3,4], node = 2",
+   "output": "[1,3,4]",
+   "explanation": "With no pointer to the head, the node cannot be unlinked; instead it copies its successor's value over itself and skips that successor, which leaves the same visible list."
+  }
+ ],
+ "dsa-idx-114": [
+  {
+   "input": "root = [2,35,10]",
+   "output": "[45,35,10]",
+   "explanation": "The children already sum to 45, which exceeds the parent's 2, so the parent is lifted to 45 — values may only ever be increased."
+  },
+  {
+   "input": "root = [50,7,2]",
+   "output": "[100,50,50]",
+   "explanation": "The parent 50 outweighs its children's sum of 9, and values may only be raised, so both children are lifted to 50; the post-order pass then resets the parent to their new total, 100."
+  }
+ ],
+ "dsa-idx-123": [
+  {
+   "input": "root = [1,2,3]",
+   "output": "[1,2,3]",
+   "explanation": "The left child 2 is spliced in ahead of the right child 3, so the flattened right-spine reads 1 then 2 then 3, with every left pointer cleared."
+  },
+  {
+   "input": "root = [1,null,2]",
+   "output": "[1,2]",
+   "explanation": "With no left subtree anywhere there is nothing to splice, so the tree is already a right-leaning chain and is returned unchanged."
+  }
+ ],
+ "dsa-idx-136": [
+  {
+   "input": "root = [10,5,8]",
+   "output": "[8,5,10]",
+   "explanation": "The inorder walk reads 5, 10, 8 — the drop from 10 to 8 exposes the swapped pair, and exchanging just those two values restores the ascending order 5, 8, 10 without changing the tree's shape."
+  }
+ ]
+}

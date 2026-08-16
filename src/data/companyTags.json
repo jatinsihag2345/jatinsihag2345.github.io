@@ -1,0 +1,1098 @@
+{
+  "Count Subarrays with Given XOR": [
+    "Flipkart",
+    "Amazon",
+    "Goldman Sachs"
+  ],
+  "Longest Substring Without Repeating Characters": [
+    "Amazon",
+    "Meta",
+    "Bloomberg",
+    "Adobe",
+    "Microsoft"
+  ],
+  "Remove Nth Node From End": [
+    "Amazon",
+    "Meta",
+    "Microsoft",
+    "Walmart"
+  ],
+  "Add Two Numbers as Linked Lists": [
+    "Amazon",
+    "Microsoft",
+    "Bloomberg",
+    "Adobe",
+    "Meta"
+  ],
+  "Delete a Given Node": [
+    "Amazon",
+    "Adobe",
+    "Walmart"
+  ],
+  "Intersection of Two Linked Lists": [
+    "Amazon",
+    "Microsoft",
+    "LinkedIn",
+    "Oracle"
+  ],
+  "Reverse Nodes in K Group": [
+    "Amazon",
+    "Microsoft",
+    "Meta",
+    "Adobe"
+  ],
+  "Check if Linked List is Palindrome": [
+    "Amazon",
+    "Microsoft",
+    "Flipkart",
+    "Oracle"
+  ],
+  "Find Starting Point of Loop": [
+    "Amazon",
+    "Microsoft",
+    "Flipkart",
+    "Goldman Sachs"
+  ],
+  "Flatten a Linked List": [
+    "Flipkart",
+    "Amazon",
+    "Microsoft"
+  ],
+  "Rotate a Linked List": [
+    "Amazon",
+    "Microsoft",
+    "Walmart"
+  ],
+  "Remove Duplicates from Sorted Array": [
+    "Amazon",
+    "Microsoft",
+    "Google",
+    "Walmart"
+  ],
+  "Max Consecutive Ones": [
+    "Amazon",
+    "Meta",
+    "Walmart"
+  ],
+  "Minimum Number of Platforms": [
+    "Flipkart",
+    "Amazon",
+    "Walmart",
+    "Goldman Sachs"
+  ],
+  "Job Sequencing Problem": [
+    "Flipkart",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Fractional Knapsack": [
+    "Flipkart",
+    "Amazon",
+    "Goldman Sachs"
+  ],
+  "Greedy Coin Change": [
+    "Amazon",
+    "Walmart",
+    "Oracle"
+  ],
+  "Subsets II": [
+    "Amazon",
+    "Meta",
+    "Microsoft"
+  ],
+  "Combination Sum": [
+    "Amazon",
+    "Meta",
+    "Uber",
+    "Adobe"
+  ],
+  "Combination Sum II": [
+    "Amazon",
+    "Meta",
+    "Uber"
+  ],
+  "Palindrome Partitioning": [
+    "Amazon",
+    "Meta",
+    "Bloomberg",
+    "Google"
+  ],
+  "K-th Permutation Sequence": [
+    "Uber",
+    "Amazon",
+    "Google"
+  ],
+  "Sudoku Solver": [
+    "Google",
+    "Uber",
+    "Amazon",
+    "Apple"
+  ],
+  "M Coloring Problem": [
+    "Flipkart",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Rat in a Maze": [
+    "Flipkart",
+    "Amazon",
+    "Goldman Sachs"
+  ],
+  "Word Break": [
+    "Meta",
+    "Amazon",
+    "Google",
+    "Uber",
+    "Bloomberg"
+  ],
+  "Nth Root of a Number": [
+    "Goldman Sachs",
+    "Flipkart",
+    "Oracle"
+  ],
+  "Matrix Median": [
+    "Flipkart",
+    "Amazon",
+    "Goldman Sachs"
+  ],
+  "Find Single Element in Sorted Array": [
+    "Amazon",
+    "Microsoft",
+    "LinkedIn",
+    "Google"
+  ],
+  "Median of Two Sorted Arrays": [
+    "Google",
+    "Amazon",
+    "Microsoft",
+    "Apple",
+    "Adobe"
+  ],
+  "Kth Element of Two Sorted Arrays": [
+    "Google",
+    "Amazon",
+    "Flipkart"
+  ],
+  "Implement Stack Using Array": [
+    "Amazon",
+    "Oracle",
+    "Walmart"
+  ],
+  "Implement Queue Using Array": [
+    "Amazon",
+    "Oracle",
+    "Walmart"
+  ],
+  "Implement Stack Using Queue": [
+    "Amazon",
+    "Microsoft",
+    "Oracle"
+  ],
+  "Implement Queue Using Stack": [
+    "Amazon",
+    "Microsoft",
+    "Apple",
+    "Oracle"
+  ],
+  "Next Greater Element": [
+    "Amazon",
+    "Microsoft",
+    "Bloomberg",
+    "Flipkart"
+  ],
+  "Sort a Stack": [
+    "Amazon",
+    "Goldman Sachs",
+    "Oracle"
+  ],
+  "Maximum of Minimum for Every Window Size": [
+    "Flipkart",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "LRU Cache": [
+    "Amazon",
+    "Microsoft",
+    "Adobe"
+  ],
+  "Largest Rectangle in Histogram": [
+    "Google",
+    "Amazon",
+    "Microsoft",
+    "Uber"
+  ],
+  "Sliding Window Maximum": [
+    "Amazon",
+    "Google",
+    "Uber",
+    "Netflix"
+  ],
+  "Rotten Oranges": [
+    "Amazon",
+    "Meta",
+    "Microsoft",
+    "Atlassian"
+  ],
+  "Min Stack": [
+    "Amazon",
+    "Bloomberg",
+    "Microsoft",
+    "Uber"
+  ],
+  "Stock Span Problem": [
+    "Bloomberg",
+    "Amazon",
+    "Goldman Sachs"
+  ],
+  "Reverse Words in a String": [
+    "Microsoft",
+    "Amazon",
+    "Apple",
+    "Meta"
+  ],
+  "Longest Palindromic Substring": [
+    "Amazon",
+    "Microsoft",
+    "Meta",
+    "Bloomberg",
+    "Adobe"
+  ],
+  "Roman to Integer": [
+    "Amazon",
+    "Microsoft",
+    "Bloomberg",
+    "Adobe"
+  ],
+  "String to Integer (atoi)": [
+    "Meta",
+    "Amazon",
+    "Microsoft",
+    "Apple",
+    "Bloomberg"
+  ],
+  "Longest Common Prefix": [
+    "Amazon",
+    "Adobe",
+    "Bloomberg",
+    "Oracle"
+  ],
+  "Rabin Karp": [
+    "Meta",
+    "Amazon",
+    "Goldman Sachs"
+  ],
+  "Z Function": [
+    "DE Shaw",
+    "Google",
+    "Flipkart"
+  ],
+  "KMP Algorithm": [
+    "Meta",
+    "Amazon",
+    "DE Shaw",
+    "Google"
+  ],
+  "Minimum Characters Needed for Palindrome": [
+    "Flipkart",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Anagram Check": [
+    "Amazon",
+    "Meta",
+    "Bloomberg",
+    "Oracle"
+  ],
+  "Count and Say": [
+    "Meta",
+    "Amazon",
+    "Apple"
+  ],
+  "Compare Version Numbers": [
+    "Apple",
+    "Amazon",
+    "Microsoft",
+    "Bloomberg"
+  ],
+  "Longest Palindromic Prefix": [
+    "DE Shaw",
+    "Amazon",
+    "Flipkart"
+  ],
+  "Implement strstr()": [
+    "Meta",
+    "Amazon",
+    "Microsoft",
+    "Apple"
+  ],
+  "Postorder Traversal": [
+    "Amazon",
+    "Microsoft",
+    "Oracle"
+  ],
+  "Level Order Traversal": [
+    "Amazon",
+    "Microsoft",
+    "Meta",
+    "LinkedIn"
+  ],
+  "Maximum Depth of Binary Tree": [
+    "Amazon",
+    "Meta",
+    "LinkedIn",
+    "Oracle"
+  ],
+  "Check if Binary Tree is Balanced": [
+    "Amazon",
+    "Meta",
+    "Microsoft",
+    "Bloomberg"
+  ],
+  "Diameter of Binary Tree": [
+    "Meta",
+    "Amazon",
+    "Google",
+    "Bloomberg"
+  ],
+  "Maximum Path Sum in Binary Tree": [
+    "Meta",
+    "Amazon",
+    "Google",
+    "Microsoft"
+  ],
+  "Check Identical Trees": [
+    "Amazon",
+    "Microsoft",
+    "Oracle",
+    "Walmart"
+  ],
+  "Zig Zag Traversal": [
+    "Amazon",
+    "Microsoft",
+    "Meta",
+    "Flipkart"
+  ],
+  "Boundary Traversal": [
+    "Amazon",
+    "Microsoft",
+    "Flipkart"
+  ],
+  "Vertical Order Traversal": [
+    "Meta",
+    "Amazon",
+    "Google",
+    "Flipkart"
+  ],
+  "Top View of Binary Tree": [
+    "Amazon",
+    "Flipkart",
+    "Walmart"
+  ],
+  "Bottom View of Binary Tree": [
+    "Amazon",
+    "Flipkart",
+    "Walmart"
+  ],
+  "Right View of Binary Tree": [
+    "Meta",
+    "Amazon",
+    "Microsoft"
+  ],
+  "Left View of Binary Tree": [
+    "Amazon",
+    "Flipkart",
+    "Oracle"
+  ],
+  "Symmetric Binary Tree": [
+    "Amazon",
+    "Microsoft",
+    "Meta",
+    "Google"
+  ],
+  "Root to Node Path": [
+    "Amazon",
+    "Microsoft",
+    "Oracle"
+  ],
+  "Lowest Common Ancestor in Binary Tree": [
+    "Meta",
+    "Amazon",
+    "Microsoft",
+    "LinkedIn",
+    "Google"
+  ],
+  "Maximum Width of Binary Tree": [
+    "Amazon",
+    "Microsoft",
+    "Bloomberg"
+  ],
+  "Children Sum Property": [
+    "Amazon",
+    "Flipkart",
+    "Oracle"
+  ],
+  "Nodes at Distance K": [
+    "Meta",
+    "Amazon",
+    "Microsoft"
+  ],
+  "Burn a Binary Tree": [
+    "Amazon",
+    "Flipkart",
+    "Microsoft"
+  ],
+  "Count Total Nodes in Complete Binary Tree": [
+    "Google",
+    "Amazon",
+    "Microsoft"
+  ],
+  "Construct Binary Tree from Preorder and Inorder": [
+    "Amazon",
+    "Microsoft",
+    "Meta",
+    "Bloomberg"
+  ],
+  "Construct Binary Tree from Postorder and Inorder": [
+    "Amazon",
+    "Microsoft",
+    "Flipkart"
+  ],
+  "Serialize and Deserialize Binary Tree": [
+    "Meta",
+    "Amazon",
+    "Google",
+    "Microsoft",
+    "Uber"
+  ],
+  "Morris Inorder Traversal": [
+    "Google",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Morris Preorder Traversal": [
+    "Google",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Flatten Binary Tree to Linked List": [
+    "Meta",
+    "Amazon",
+    "Microsoft",
+    "Adobe"
+  ],
+  "Floor in BST": [
+    "Amazon",
+    "Flipkart",
+    "Oracle"
+  ],
+  "Ceil in BST": [
+    "Amazon",
+    "Flipkart",
+    "Oracle"
+  ],
+  "Insert Node in BST": [
+    "Amazon",
+    "Microsoft",
+    "Oracle"
+  ],
+  "Delete Node in BST": [
+    "Amazon",
+    "Microsoft",
+    "Oracle",
+    "Flipkart"
+  ],
+  "Coin Change II": [
+    "Amazon",
+    "Goldman Sachs",
+    "Walmart",
+    "Microsoft"
+  ],
+  "0/1 Knapsack": [
+    "Amazon",
+    "Flipkart",
+    "Goldman Sachs",
+    "DE Shaw"
+  ],
+  "Unbounded Knapsack": [
+    "Flipkart",
+    "Amazon",
+    "Goldman Sachs"
+  ],
+  "Rod Cutting Problem": [
+    "Amazon",
+    "Flipkart",
+    "Goldman Sachs"
+  ],
+  "Longest Common Subsequence": [
+    "Amazon",
+    "Google",
+    "Microsoft",
+    "Goldman Sachs"
+  ],
+  "Longest Common Substring": [
+    "Amazon",
+    "Flipkart",
+    "DE Shaw"
+  ],
+  "Longest Palindromic Subsequence": [
+    "Amazon",
+    "Microsoft",
+    "LinkedIn"
+  ],
+  "Edit Distance": [
+    "Google",
+    "Amazon",
+    "Microsoft",
+    "LinkedIn",
+    "Uber"
+  ],
+  "Distinct Subsequences": [
+    "Google",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Wildcard Matching": [
+    "Google",
+    "Meta",
+    "Amazon",
+    "Adobe"
+  ],
+  "Longest Increasing Subsequence": [
+    "Google",
+    "Amazon",
+    "Microsoft",
+    "Salesforce"
+  ],
+  "Largest Divisible Subset": [
+    "Amazon",
+    "Google",
+    "Adobe"
+  ],
+  "Longest String Chain": [
+    "Google",
+    "Amazon",
+    "Uber",
+    "Salesforce"
+  ],
+  "Bitonic Subsequence": [
+    "Flipkart",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Matrix Chain Multiplication": [
+    "Flipkart",
+    "Amazon",
+    "DE Shaw",
+    "Oracle"
+  ],
+  "Buy and Sell Stock": [
+    "Amazon",
+    "Meta",
+    "Goldman Sachs",
+    "Bloomberg",
+    "Microsoft"
+  ],
+  "Rotate Matrix": [
+    "Amazon",
+    "Microsoft",
+    "Apple",
+    "Adobe"
+  ],
+  "Merge Overlapping Intervals": [
+    "Meta",
+    "Amazon",
+    "Google",
+    "Bloomberg",
+    "Atlassian"
+  ],
+  "Merge Two Sorted Arrays Without Extra Space": [
+    "Amazon",
+    "Microsoft",
+    "Flipkart",
+    "Goldman Sachs"
+  ],
+  "Find Duplicate Number": [
+    "Amazon",
+    "Microsoft",
+    "Google",
+    "Bloomberg"
+  ],
+  "Repeat and Missing Number": [
+    "Amazon",
+    "Flipkart",
+    "Goldman Sachs"
+  ],
+  "Inversion Count": [
+    "Flipkart",
+    "Amazon",
+    "Goldman Sachs",
+    "DE Shaw"
+  ],
+  "Search in a 2D Matrix": [
+    "Amazon",
+    "Microsoft",
+    "Google",
+    "Walmart"
+  ],
+  "Pow(x, n)": [
+    "Meta",
+    "Google",
+    "Amazon",
+    "Bloomberg",
+    "LinkedIn"
+  ],
+  "Majority Element (> n/2 times)": [
+    "Amazon",
+    "Microsoft",
+    "Google",
+    "Walmart"
+  ],
+  "Majority Element II (> n/3 times)": [
+    "Amazon",
+    "Google",
+    "Flipkart"
+  ],
+  "Grid Unique Paths": [
+    "Google",
+    "Amazon",
+    "Meta",
+    "Uber"
+  ],
+  "Reverse Pairs": [
+    "Google",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Four Sum": [
+    "Amazon",
+    "Meta",
+    "Goldman Sachs",
+    "Adobe"
+  ],
+  "Largest Subarray with 0 Sum": [
+    "Flipkart",
+    "Amazon",
+    "Goldman Sachs",
+    "Walmart"
+  ],
+  "Kth Smallest Element in BST": [
+    "Amazon",
+    "Meta",
+    "Google",
+    "Uber"
+  ],
+  "Validate BST": [
+    "Amazon",
+    "Meta",
+    "Microsoft",
+    "Bloomberg",
+    "Oracle"
+  ],
+  "Lowest Common Ancestor in BST": [
+    "Amazon",
+    "Meta",
+    "LinkedIn",
+    "Microsoft"
+  ],
+  "Construct BST from Preorder Traversal": [
+    "Amazon",
+    "Google",
+    "Flipkart"
+  ],
+  "Inorder Successor in BST": [
+    "Meta",
+    "Microsoft",
+    "Amazon",
+    "LinkedIn"
+  ],
+  "BST Iterator": [
+    "Meta",
+    "Google",
+    "Microsoft",
+    "LinkedIn",
+    "Amazon"
+  ],
+  "Two Sum in BST": [
+    "Amazon",
+    "Meta",
+    "Flipkart"
+  ],
+  "Recover BST": [
+    "Amazon",
+    "Microsoft",
+    "Google"
+  ],
+  "Largest BST in Binary Tree": [
+    "Amazon",
+    "Microsoft",
+    "Flipkart",
+    "Apple"
+  ],
+  "Number of Islands": [
+    "Amazon",
+    "Meta",
+    "Google",
+    "Microsoft",
+    "Bloomberg"
+  ],
+  "Flood Fill Algorithm": [
+    "Meta",
+    "Amazon",
+    "Google",
+    "Uber"
+  ],
+  "Detect Cycle in Undirected Graph (BFS)": [
+    "Amazon",
+    "Flipkart",
+    "Microsoft"
+  ],
+  "Detect Cycle in Undirected Graph (DFS)": [
+    "Amazon",
+    "Flipkart",
+    "Microsoft"
+  ],
+  "Detect Cycle in Directed Graph": [
+    "Amazon",
+    "Microsoft",
+    "Flipkart",
+    "Uber"
+  ],
+  "Bellman Ford Algorithm": [
+    "Flipkart",
+    "Amazon",
+    "Goldman Sachs"
+  ],
+  "Floyd Warshall Algorithm": [
+    "Flipkart",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Minimum Spanning Tree (Prim's Algorithm)": [
+    "Amazon",
+    "Flipkart",
+    "Microsoft"
+  ],
+  "Minimum Spanning Tree (Kruskal's Algorithm)": [
+    "Amazon",
+    "Flipkart",
+    "Microsoft"
+  ],
+  "Maximum Sum of Non-Adjacent Elements": [
+    "Amazon",
+    "Flipkart",
+    "Walmart"
+  ],
+  "House Robber": [
+    "Amazon",
+    "Google",
+    "Microsoft",
+    "Adobe"
+  ],
+  "Frog Jump": [
+    "Flipkart",
+    "Amazon",
+    "Walmart"
+  ],
+  "Frog Jump with K Distance": [
+    "Flipkart",
+    "Amazon",
+    "Walmart"
+  ],
+  "Climbing Stairs": [
+    "Amazon",
+    "Google",
+    "Adobe",
+    "Apple"
+  ],
+  "Clone Linked List with Random Pointer": [
+    "Amazon",
+    "Meta",
+    "Microsoft",
+    "Bloomberg",
+    "Uber"
+  ],
+  "Preorder Traversal": [
+    "Amazon",
+    "Microsoft",
+    "Oracle"
+  ],
+  "Topological Sort (DFS)": [
+    "Amazon",
+    "Microsoft",
+    "Flipkart",
+    "Uber"
+  ],
+  "Topological Sort (BFS/Kahn's Algorithm)": [
+    "Amazon",
+    "Microsoft",
+    "Uber",
+    "Flipkart"
+  ],
+  "Bipartite Graph Check": [
+    "Meta",
+    "Amazon",
+    "Microsoft",
+    "Google"
+  ],
+  "Shortest Path in DAG": [
+    "Flipkart",
+    "Amazon",
+    "Microsoft"
+  ],
+  "Dijkstra's Algorithm": [
+    "Amazon",
+    "Google",
+    "Microsoft",
+    "Uber",
+    "Flipkart"
+  ],
+  "Number of Provinces": [
+    "Amazon",
+    "Meta",
+    "Microsoft",
+    "Walmart"
+  ],
+  "Implement Trie II": [
+    "Google",
+    "Amazon",
+    "Flipkart"
+  ],
+  "Maximum XOR of Two Numbers": [
+    "Google",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Maximum XOR Queries": [
+    "Google",
+    "Flipkart",
+    "DE Shaw"
+  ],
+  "LFU Cache": [
+    "Amazon",
+    "Google",
+    "Microsoft",
+    "Uber"
+  ],
+  "Online Stock Span": [
+    "Bloomberg",
+    "Amazon",
+    "Goldman Sachs"
+  ],
+  "Power Set": [
+    "Amazon",
+    "Meta",
+    "Microsoft",
+    "Adobe"
+  ],
+  "Maximum XOR Subarray": [
+    "Flipkart",
+    "DE Shaw",
+    "Amazon"
+  ],
+  "Coin Change": [
+    "Amazon",
+    "Google",
+    "Uber",
+    "Goldman Sachs",
+    "Bloomberg"
+  ],
+  "Minimum Cost to Cut a Stick": [
+    "Google",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Burst Balloons": [
+    "Google",
+    "Amazon",
+    "Microsoft",
+    "DE Shaw"
+  ],
+  "Palindrome Partitioning II": [
+    "Google",
+    "Amazon",
+    "DE Shaw"
+  ],
+  "Kth Largest Element": [
+    "Amazon",
+    "Meta",
+    "Google",
+    "LinkedIn",
+    "Bloomberg"
+  ],
+  "Top K Frequent Elements": [
+    "Amazon",
+    "Meta",
+    "Google",
+    "Atlassian",
+    "Netflix"
+  ],
+  "Merge K Sorted Arrays": [
+    "Amazon",
+    "Google",
+    "Flipkart"
+  ],
+  "Merge K Sorted Linked Lists": [
+    "Amazon",
+    "Meta",
+    "Google",
+    "Microsoft",
+    "Uber"
+  ],
+  "Find Median from Data Stream": [
+    "Google",
+    "Amazon",
+    "Meta",
+    "Netflix",
+    "Goldman Sachs"
+  ],
+  "Set Matrix Zeroes": [
+    "Amazon",
+    "Microsoft",
+    "Meta",
+    "Adobe"
+  ],
+  "Reverse Linked List": [
+    "Amazon",
+    "Microsoft",
+    "Meta",
+    "Apple",
+    "Adobe"
+  ],
+  "Pascal's Triangle": [
+    "Amazon",
+    "Meta",
+    "Adobe"
+  ],
+  "Next Permutation": [
+    "Meta",
+    "Amazon",
+    "Google",
+    "Adobe",
+    "Flipkart"
+  ],
+  "Maximum Subarray Sum (Kadane's Algorithm)": [
+    "Amazon",
+    "Microsoft",
+    "Meta",
+    "LinkedIn",
+    "Bloomberg"
+  ],
+  "Sort Colors": [
+    "Meta",
+    "Amazon",
+    "Microsoft",
+    "Adobe",
+    "Salesforce"
+  ],
+  "Two Sum": [
+    "Google",
+    "Meta",
+    "Amazon",
+    "Microsoft",
+    "Apple"
+  ],
+  "Longest Consecutive Sequence": [
+    "Google",
+    "Meta",
+    "Amazon",
+    "Salesforce"
+  ],
+  "Find Middle of Linked List": [
+    "Amazon",
+    "Microsoft",
+    "Oracle",
+    "Walmart"
+  ],
+  "Merge Two Sorted Linked Lists": [
+    "Amazon",
+    "Microsoft",
+    "Apple",
+    "Oracle"
+  ],
+  "Detect Cycle in Linked List": [
+    "Amazon",
+    "Microsoft",
+    "Meta",
+    "Bloomberg",
+    "Oracle"
+  ],
+  "3 Sum": [
+    "Meta",
+    "Amazon",
+    "Google",
+    "Microsoft",
+    "Bloomberg"
+  ],
+  "Trapping Rain Water": [
+    "Google",
+    "Amazon",
+    "Meta",
+    "Bloomberg",
+    "Goldman Sachs"
+  ],
+  "N Meetings in One Room": [
+    "Flipkart",
+    "Amazon",
+    "Walmart"
+  ],
+  "Subset Sums": [
+    "Amazon",
+    "Flipkart",
+    "DE Shaw"
+  ],
+  "Print All Permutations": [
+    "Amazon",
+    "Meta",
+    "Microsoft",
+    "Uber"
+  ],
+  "N Queens": [
+    "Amazon",
+    "Google",
+    "Microsoft",
+    "Uber"
+  ],
+  "Search in Rotated Sorted Array": [
+    "Meta",
+    "Amazon",
+    "Microsoft",
+    "Google",
+    "LinkedIn"
+  ],
+  "Balanced Parentheses": [
+    "Amazon",
+    "Meta",
+    "Microsoft",
+    "Bloomberg",
+    "Salesforce"
+  ],
+  "Inorder Traversal": [
+    "Amazon",
+    "Microsoft",
+    "Oracle"
+  ],
+  "Search in BST": [
+    "Amazon",
+    "Microsoft",
+    "Oracle"
+  ],
+  "BFS Traversal": [
+    "Amazon",
+    "Microsoft",
+    "Flipkart",
+    "Oracle"
+  ],
+  "DFS Traversal": [
+    "Amazon",
+    "Microsoft",
+    "Flipkart",
+    "Oracle"
+  ],
+  "Implement Trie": [
+    "Google",
+    "Amazon",
+    "Microsoft",
+    "Uber",
+    "Atlassian"
+  ]
+}

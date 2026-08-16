@@ -1,6 +1,9 @@
 import dsaSolutions from './dsaSolutions.json';
 import dsaTraces from './dsaTraces.json';
 import dsaTheoriesJson from './dsaTheories.json';
+import dsaPatternsJson from './dsaPatterns.json';
+import dsaCodeTranslationsJson from './dsaCodeTranslations.json';
+import dsaExtraExamplesJson from './dsaExtraExamples.json';
 
 export interface Approach {
   name: string; // "Brute Force" | "Optimal"
@@ -11,6 +14,12 @@ export interface Approach {
     time: string;
     space: string;
   };
+  /** Optional ports of `code` into other languages, keyed by a lowercase language id.
+   *  The 'java' ones are compiled and run in-browser (utils/javaHarness wraps them in
+   *  a `main` first); 'cpp' and 'javascript' are read-only text. Absent or missing a
+   *  key means no translation exists yet for that approach/language; the viewer says
+   *  so rather than falling back to Python silently. */
+  translations?: Record<string, string>;
 }
 
 export interface Question {
@@ -32,6 +41,12 @@ export interface Question {
   prerequisites?: string[]; // Per-question "know this before solving" bullets
   approaches: Approach[];
   trace?: any[];
+  /** Python assertions the learner's own attempt is graded against, in the browser.
+   *  Every approach shipped here already passes them offline. */
+  tests?: string;
+  /** Interview patterns the OPTIMAL solution uses, primary first ("Two Pointers",
+   *  "Monotonic Stack", ...). Interviews are pattern-matched, not topic-matched. */
+  patterns?: string[];
 }
 
 export interface TheorySection {
@@ -1237,7 +1252,11 @@ def bfsOfGraph(V: int, adj: List[List[int]]) -> List[int]:
     examples: [
       {
         input: 'V = 5, E = 4, AdjList = [[2, 3, 1], [0], [0, 4], [0], [2]]',
-        output: '[0,2,4,1,3]'
+        output: '[0,2,4,3,1]',
+        explanation:
+          "From 0 the neighbours are taken in the listed order 2, 3, 1. Going to 2 first reaches 4 through it, " +
+          'and only once that branch is exhausted does the walk come back for 3 and then 1 — depth first, so 4 ' +
+          'is reported before either of them.'
       }
     ],
     constraints: ['1 <= V, E <= 10^4'],
@@ -1705,6 +1724,75 @@ dsaQuestions.forEach(q => {
   const trace = (dsaTraces as any)[q.title];
   if (trace && !q.trace) q.trace = trace;
   if (solved?.prerequisites && !q.prerequisites) q.prerequisites = solved.prerequisites;
-  // An audited fix in dsaSolutions.json may explicitly override an inline definition
-  if (solved?.approaches?.length && solved.overrideStatic) q.approaches = solved.approaches;
+  if (solved?.tests && !q.tests) q.tests = solved.tests;
+  const pat = (dsaPatternsJson as any)[q.title];
+  if (pat && !q.patterns) q.patterns = pat;
+
+  // The audit pass writes execution-verified approach ladders (Brute -> Better -> Optimal)
+  // into dsaSolutions.json. Many of those questions are ALSO defined inline above with a
+  // lone "Optimal", so the richer JSON version has to win — otherwise the brute-force
+  // progression the learner is meant to walk through never reaches the page.
+  //
+  // The guarded condition is trace safety, not provenance: `trace` line numbers index into
+  // the LAST approach's code, so we only swap when that code has the same number of lines
+  // (the audit was allowed to append trailing `#` comments, never to add/remove/reorder
+  // lines). `overrideStatic` remains an explicit escape hatch for audits that deliberately
+  // rewrote the Optimal and shipped a matching corrected trace alongside it.
+  const audited: Approach[] | undefined = solved?.approaches?.length ? solved.approaches : undefined;
+  if (audited) {
+    const inlineLast = q.approaches[q.approaches.length - 1];
+    const auditedLast = audited[audited.length - 1];
+    const traceStillAligns =
+      !inlineLast ||
+      inlineLast.code.split('\n').length === auditedLast.code.split('\n').length;
+
+    if (solved.overrideStatic || (audited.length > q.approaches.length && traceStillAligns)) {
+      q.approaches = audited;
+    }
+  }
+
+  // Many questions shipped with a stub statement that just told the reader to go read the
+  // problem on LeetCode. The prose pass replaced those with a real description, so take the
+  // JSON version whenever it is the substantive one — length is a good enough proxy, and it
+  // keeps a hand-written inline statement from being clobbered by a shorter generated one.
+  const statement: string | undefined = solved?.problemStatement;
+  if (statement && statement.length > (q.problemStatement || '').length) {
+    q.problemStatement = statement;
+  }
+});
+
+// "View in another language" ports (utils: LanguagePicker) — hand-translated and
+// execution-verified against the same assertions as the Python version. Java is
+// runnable in-app (see utils/javaRunner.ts); C++ and JavaScript stay read-only, so
+// their correctness rests entirely on that offline verification. Keyed by
+// question id here rather than living inline per-approach in dsaSolutions.json, since
+// only a starter batch is translated so far and this keeps that partial coverage in
+// one place instead of scattered across hundreds of approach objects. Attached to
+// the SAME approach the id was translated FROM — every entry here is a port of that
+// question's Optimal approach — after the audited-swap pass above has already
+// decided which approach object is actually "Optimal" for this question.
+Object.entries(dsaCodeTranslationsJson as Record<string, Record<string, string>>).forEach(([id, translations]) => {
+  const q = dsaQuestions.find(x => x.id === id);
+  if (!q) return; // a ported id that no longer matches a live question — skip, never throw
+  const optimal = q.approaches.find(a => a.name === 'Optimal') ?? q.approaches[q.approaches.length - 1];
+  if (optimal) optimal.translations = translations;
+});
+
+// Extra worked examples, bringing thin questions up to the three LeetCode shows.
+// Every entry here was machine-verified before shipping: each proposed example
+// carried a call expression that was executed against this question's own Optimal
+// solution, and anything whose real return value did not match the stated output
+// was corrected or dropped rather than published on a guess. Kept in its own
+// id-keyed file (like the translations above) so the 191 question definitions stay
+// untouched. Deduped on input, so re-running the generator cannot double up an
+// example a question already ships inline.
+Object.entries(dsaExtraExamplesJson as Record<string, Question['examples']>).forEach(([id, extra]) => {
+  const q = dsaQuestions.find(x => x.id === id);
+  if (!q) return;
+  const seen = new Set(q.examples.map(e => e.input.replace(/\s+/g, '')));
+  extra.forEach(ex => {
+    if (seen.has(ex.input.replace(/\s+/g, ''))) return;
+    seen.add(ex.input.replace(/\s+/g, ''));
+    q.examples.push(ex);
+  });
 });

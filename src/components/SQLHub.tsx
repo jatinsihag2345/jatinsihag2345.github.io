@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { Search, Bookmark, Database, BookOpen, CheckSquare, Square, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Bookmark, Database, BookOpen, CheckSquare, Square, ChevronDown, ChevronUp, FlaskConical, Layers } from 'lucide-react';
+import { SqlSandbox } from './SqlSandbox';
+import { SqlDeck } from './SqlDeck';
 import { sqlTopics, sqlQuestions, sqlTheories } from '../data/sqlQuestions';
+import { FigureBlock } from './FigureBlock';
 import type { SQLQuestion } from '../data/sqlQuestions';
 
 interface SQLHubProps {
@@ -18,7 +21,8 @@ export const SQLHub: React.FC<SQLHubProps> = ({
   onToggleBookmark,
   onSelectQuestion,
 }) => {
-  const [activeTab, setActiveTab] = useState<'questions' | 'theory'>('questions');
+  // Two more surfaces share the hub: a freeform sandbox and a flashcard deck.
+  const [activeTab, setActiveTab] = useState<'questions' | 'theory' | 'sandbox' | 'cards'>('questions');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [difficultyFilter, setDifficultyFilter] = useState<string>('All');
   const [topicFilter, setTopicFilter] = useState<string>('All');
@@ -38,7 +42,7 @@ export const SQLHub: React.FC<SQLHubProps> = ({
       {/* Page Header */}
       <div>
         <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '0.25rem' }}>
-          SQL <span className="gradient-text">MAANG Prep</span>
+          SQL <span className="gradient-text">Top 50</span>
         </h1>
         <p style={{ color: 'hsl(var(--text-secondary))' }}>
           Master essential SQL query design. Learn Joins, Subqueries, CTEs, and Window Functions needed to solve LeetCode Top 50 SQL questions.
@@ -70,12 +74,33 @@ export const SQLHub: React.FC<SQLHubProps> = ({
           <BookOpen size={18} />
           <span>Interactive Syllabus / Theory</span>
         </button>
+        <button
+          className={`tab ${activeTab === 'sandbox' ? 'active' : ''}`}
+          onClick={() => setActiveTab('sandbox')}
+          style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+        >
+          <FlaskConical size={18} />
+          <span>Sandbox</span>
+        </button>
+        <button
+          className={`tab ${activeTab === 'cards' ? 'active' : ''}`}
+          onClick={() => setActiveTab('cards')}
+          style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+        >
+          <Layers size={18} />
+          <span>Flashcards</span>
+        </button>
       </div>
+
+      {/* Sandbox and Flashcards are additive surfaces with their own components;
+          Questions/Theory keep their original ternary below untouched. */}
+      {activeTab === 'sandbox' && <SqlSandbox />}
+      {activeTab === 'cards' && <SqlDeck />}
 
       {activeTab === 'theory' ? (
         /* SQL Theory Layout */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {sqlTheories.map((theory) => {
+          {sqlTheories.map((theory, theoryIdx) => {
             const isExpanded = expandedTheoryId === theory.id;
             return (
               <div 
@@ -111,6 +136,11 @@ export const SQLHub: React.FC<SQLHubProps> = ({
                     <p style={{ color: 'hsl(var(--text-secondary))', lineHeight: '1.6', fontSize: '0.95rem' }}>
                       {theory.summary}
                     </p>
+
+                    {/* The diagram for this section, when one exists — keyed by the
+                        section's own title and position, same contract as the DSA and
+                        Core CS hubs. */}
+                    <FigureBlock figKey={`sql:${theory.title}:${theoryIdx}`} />
 
                     <div>
                       <h4 style={{ fontWeight: 600, marginBottom: '0.75rem', color: 'hsl(var(--secondary))' }}>
@@ -149,7 +179,7 @@ export const SQLHub: React.FC<SQLHubProps> = ({
             );
           })}
         </div>
-      ) : (
+      ) : activeTab === 'questions' ? (
         /* SQL Questions Layout */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Filters Bar */}
@@ -309,7 +339,7 @@ export const SQLHub: React.FC<SQLHubProps> = ({
             )}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };

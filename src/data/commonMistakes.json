@@ -1,0 +1,1162 @@
+{
+ "Two Sum": [
+  {
+   "mistake": "Building the whole hash map in a first pass, then scanning again for target - x without comparing indices.",
+   "why": "Two clean passes feel easier to reason about than mutating the map while you scan it, so the split looks like good hygiene.",
+   "consequence": "An element pairs with itself: nums = [5, 2, 4], target = 10 finds the complement of 5 in the map — 5 at its own position — and returns [0, 0], which uses one element twice.",
+   "instead": "Because the map should only ever contain indices you are allowed to pair with, do one pass and look up target - x before inserting x. The map then holds only earlier indices, and self-pairing becomes structurally impossible."
+  },
+  {
+   "mistake": "Sorting the array first and running two pointers, then returning the pointer positions.",
+   "why": "Sorted-array-plus-two-pointers is the reflex for every pair-sum question, and it does find the right pair of values.",
+   "consequence": "Sorting destroys the original indices: nums = [3, 2, 4], target = 6 sorts to [2, 3, 4], the pointers stop at positions 0 and 2, but the required answer is the original indices [1, 2].",
+   "instead": "The problem asks for indices, not values, so any approach that reorders the array must carry the original positions along (sort pairs of value and index) — or skip sorting entirely and use the one-pass hash map."
+  },
+  {
+   "mistake": "Fixing the self-pair bug with a value check: skip the match whenever the complement equals the current number.",
+   "why": "The broken case involved a number pairing with itself, so rejecting equal values looks like the surgical fix.",
+   "consequence": "nums = [3, 3], target = 6 has a valid answer using two different indices that hold equal values, and the value guard rejects it, so the function returns nothing.",
+   "instead": "Identity here means index, not value — two distinct positions may hold the same number. Compare indices, or structure the loop (lookup before insert) so a same-index collision cannot occur in the first place."
+  },
+  {
+   "mistake": "Coding the nested-loop brute force and stopping once the sample tests pass.",
+   "why": "It is correct, it takes two minutes to write, and the interviewer has not objected yet, so it feels safe to move on.",
+   "consequence": "At scale it dies: nums = list(range(100000)) with target = 199997 forces roughly 5 * 10^9 comparisons in the O(n^2) scan and times out on any judge.",
+   "instead": "Interviewers expect the brute force named, not submitted. Say it in one sentence, then state the trade you are making — a hash map spends O(n) extra space to cut lookup of the complement to O(1), giving O(n) total — and code that."
+  }
+ ],
+ "3 Sum": [
+  {
+   "mistake": "Skipping duplicate values only at the outer anchor index, not at the two inner pointers after recording a hit.",
+   "why": "Duplicate triplets seem to come from repeating the anchor element, so deduplicating the anchor feels like the whole job.",
+   "consequence": "nums = [-2, 0, 0, 2, 2]: after finding [-2, 0, 2], the left and right pointers land on the second 0 and second 2 and emit [-2, 0, 2] again — the output contains the same triplet twice.",
+   "instead": "Every position that can repeat a value needs its own skip. After recording a triplet, advance left past all equal neighbors (while nums[left] == nums[left + 1]) and do the same on the right before continuing."
+  },
+  {
+   "mistake": "Deduplicating the anchor by looking ahead — skip index i when nums[i] equals nums[i + 1].",
+   "why": "Looking ahead and looking back both appear to remove repeated anchors, so the direction of the comparison feels arbitrary.",
+   "consequence": "nums = [-1, -1, 0, 1, 2]: the look-ahead skip discards the first -1 before it can pair with the second, so the valid triplet [-1, -1, 2] is never found.",
+   "instead": "The first occurrence must be the one that runs, because only it can still see every later element, including its own duplicates. Skip i only when i > 0 and nums[i] equals nums[i - 1] — compare backward, not forward."
+  },
+  {
+   "mistake": "Running the O(n^3) triple loop and throwing triplets into a set to deduplicate.",
+   "why": "A set feels like a shortcut around the fiddly pointer-skipping logic, and it does produce correct output on small cases.",
+   "consequence": "With the classic constraint n = 3000, the triple loop performs about 2.7 * 10^10 iterations and times out; hashing a sorted copy of every candidate triplet adds even more cost on top.",
+   "instead": "Sorting is what makes deduplication cheap: after an O(n log n) sort, duplicates sit adjacent, so skipping them is a single comparison, and the same sortedness enables the O(n^2) two-pointer scan. One preprocessing step buys both properties."
+  },
+  {
+   "mistake": "Breaking out of the two-pointer scan as soon as one triplet is found for the current anchor.",
+   "why": "Two Sum trains the habit that one answer per search is enough, and the pattern carries over without being re-examined.",
+   "consequence": "nums = [-4, 0, 1, 3, 4] (sorted): anchor -4 needs pairs summing to 4, and both (0, 4) and (1, 3) qualify — breaking after the first emits [-4, 0, 4] but silently drops [-4, 1, 3].",
+   "instead": "A fixed anchor can complete several distinct triplets, so after each hit move both pointers inward (past duplicates) and keep scanning until they cross. The loop ends when the pointers meet, not when the first answer appears."
+  }
+ ],
+ "Maximum Subarray Sum (Kadane's Algorithm)": [
+  {
+   "mistake": "Initializing the best answer to 0, or resetting the running sum to 0 as the floor.",
+   "why": "An empty subarray summing to 0 feels like a harmless safe default, and it works on every test containing a positive number.",
+   "consequence": "An all-negative array breaks it: nums = [-3, -1, -2] must return -1, the largest single element, but the 0-floored version returns 0 — the sum of a subarray that does not exist.",
+   "instead": "The subarray must be non-empty, so seed both best and current with nums[0] and start the loop at index 1. The extension rule is current = max(nums[i], current + nums[i]): restart at the element itself, never at zero."
+  },
+  {
+   "mistake": "Resetting the running sum whenever the current element is negative.",
+   "why": "Negative numbers look like pure damage, so cutting the subarray the moment one appears feels like the obvious defensive move.",
+   "consequence": "nums = [4, -1, 5]: resetting at -1 splits the array into pieces worth 4 and 5, returning 5, while the true answer is 8 from carrying [4, -1, 5] whole.",
+   "instead": "A negative element is worth carrying when the sum before it is positive enough to absorb it. The correct trigger is the running sum itself going negative — a negative prefix drags down every extension — not the sign of one element."
+  },
+  {
+   "mistake": "Assuming Kadane transfers unchanged to the maximum product subarray variant.",
+   "why": "The two problems share the same shape — scan once, keep a running best ending here — so the substitution feels mechanical.",
+   "consequence": "nums = [-2, 3, -4]: a single running maximum ends at 3, but the true maximum product is 24 from the whole array, because two negatives multiply into a positive.",
+   "instead": "Name the invariant Kadane depends on: under addition, a discarded prefix can never help later. Multiplication breaks that — a terrible product can flip into the best one — so the product variant must track the minimum and maximum ending at each index."
+  },
+  {
+   "mistake": "Memorizing the two-line loop without being able to argue why discarding a negative prefix is safe.",
+   "why": "The code is famous, short, and passes every test, so a proof feels like decoration rather than substance.",
+   "consequence": "On nums = [-2, 1, -3, 4, -1, 2, 1, -5, 4], the interviewer asks why resetting before the 4 cannot lose a better answer — and with no invariant to point to, the follow-up stalls even though the code was right.",
+   "instead": "State the invariant out loud: current is the best sum of any subarray ending at index i. A prefix whose sum is negative lowers every subarray it starts, so dropping it can never hurt — one sentence, and the follow-up is handled."
+  }
+ ],
+ "Sort Colors": [
+  {
+   "mistake": "Advancing the mid pointer after swapping with the high pointer.",
+   "why": "The low-side swap does advance mid, and making the two branches symmetric feels tidy and consistent.",
+   "consequence": "nums = [1, 2, 0]: mid meets the 2, swaps with high to get [1, 0, 2], and if mid advances, the 0 that arrived at index 1 is never examined — the array ends as [1, 0, 2].",
+   "instead": "The element swapped in from the high side is a stranger you have not classified yet, so mid must stay put and look at it. After a low-side swap the incoming element was already scanned, which is exactly why advancing is safe there."
+  },
+  {
+   "mistake": "Writing the loop condition as mid < high instead of mid <= high.",
+   "why": "Most two-pointer loops stop when the pointers meet, so the strict inequality is muscle memory.",
+   "consequence": "nums = [2, 0, 1]: after the first swap the state is [1, 0, 2] with mid = 1 and high = 1, the strict loop exits, and the unclassified 0 at index 1 leaves the array as [1, 0, 2].",
+   "instead": "The cell at high has not been examined until mid passes it — the invariant covers [0, low) as zeros, [low, mid) as ones, and (high, end] as twos, leaving [mid, high] unknown. Run while mid <= high so the unknown region empties completely."
+  },
+  {
+   "mistake": "Reaching for the built-in sort, or counting the three values in one pass and rewriting in a second.",
+   "why": "Both are correct, quick to write, and hard to get wrong under pressure, so they feel like the pragmatic choice.",
+   "consequence": "Nothing fails functionally on nums = [2, 0, 2, 1, 1, 0], but the stated constraint — one pass, constant extra space, no library sort — is the actual question being asked (the Dutch national flag partition), and both answers sidestep it.",
+   "instead": "Offer counting as the warm-up in one sentence, then present the three-pointer partition and say its invariant aloud. The interviewer is grading whether you can maintain a multi-region invariant, not whether you can call sort()."
+  }
+ ],
+ "Next Permutation": [
+  {
+   "mistake": "After finding the pivot (the first index from the right where the value increases), swapping it with the largest element to its right.",
+   "why": "The goal is to make the number bigger, and grabbing the biggest available digit sounds like the way to do that.",
+   "consequence": "nums = [1, 3, 2]: the pivot is 1, and swapping with the largest suffix element 3 gives [3, 1, 2] — but the next permutation is [2, 1, 3], the smallest arrangement greater than [1, 3, 2].",
+   "instead": "Next means the minimal possible increase, so swap the pivot with the smallest element to its right that is still greater than it — the rightmost such element, since the suffix is descending — and then make the suffix as small as possible."
+  },
+  {
+   "mistake": "Swapping the pivot correctly but forgetting to reverse the suffix afterward.",
+   "why": "The swap is the step that makes the number bigger, so it feels like the finish line; the reversal reads like optional cleanup.",
+   "consequence": "nums = [1, 5, 4, 3, 2]: swapping pivot 1 with 2 gives [2, 5, 4, 3, 1] and stops there, but the correct answer is [2, 1, 3, 4, 5] — without the reversal you return a much larger permutation than the next one.",
+   "instead": "After the swap, the suffix is still in descending order, which is the largest arrangement of those digits. Reversing it makes it ascending — the smallest — which is what makes the overall result the immediate next permutation rather than a distant one."
+  },
+  {
+   "mistake": "Not handling the fully descending array, where no pivot exists.",
+   "why": "Every walked-through example has a pivot, so the scan running off the left end never comes up until it crashes.",
+   "consequence": "nums = [3, 2, 1] has no next permutation; the spec says wrap around to the sorted order [1, 2, 3], but code that assumes a pivot indexes position -1 or returns the array unchanged.",
+   "instead": "Treat the failed scan as a signal, not an error: when the whole array is non-increasing, reverse it entirely and return. This is the wrap-around case, and interviewers check it deliberately."
+  }
+ ],
+ "Longest Consecutive Sequence": [
+  {
+   "mistake": "Counting upward from every element with set lookups, without first checking that the element starts a sequence.",
+   "why": "The hash set makes each membership test O(1), so the whole thing feels like it must already be linear.",
+   "consequence": "nums = list(range(100000)): every element launches a walk to the end of the run, so the walks cost 100000 + 99999 + ... — an O(n^2) blowup on exactly the input the problem advertises, and it times out.",
+   "instead": "Only start walking from sequence starts — elements x where x - 1 is not in the set. Every run is then traversed once from its left end, each element is touched a bounded number of times, and the O(n) claim becomes true."
+  },
+  {
+   "mistake": "Sorting and counting streaks, but resetting the streak when two equal neighbors appear.",
+   "why": "The counting loop compares adjacent elements, and a duplicate is neither one bigger nor part of an increase, so the reset branch swallows it.",
+   "consequence": "nums = [1, 2, 2, 3]: the second 2 resets the counter, so the reported answer is 2 while the real consecutive run 1, 2, 3 has length 3.",
+   "instead": "Duplicates should be invisible: skip equal neighbors and reset only when the gap exceeds 1 — or deduplicate through a set before sorting. Also say aloud that sorting makes this O(n log n), since the follow-up will ask for O(n)."
+  },
+  {
+   "mistake": "Reading consecutive as adjacent-in-the-array and finding the longest increasing-by-one subarray.",
+   "why": "The word consecutive strongly suggests positions, and most array questions do care about contiguity, so the misreading feels natural.",
+   "consequence": "nums = [100, 4, 200, 1, 3, 2]: no two adjacent cells differ by one, so the subarray reading returns 1, while the intended answer is 4 for the scattered values 1, 2, 3, 4.",
+   "instead": "Consecutive here describes values, and array order is irrelevant — which is why a set is the right container. Restate the problem to the interviewer in your own words before coding; this one is worded to invite the wrong reading."
+  }
+ ],
+ "Set Matrix Zeroes": [
+  {
+   "mistake": "Zeroing out rows and columns immediately, during the same scan that discovers the zeros.",
+   "why": "Discover-and-act in one pass feels efficient, and on many inputs the corruption happens to stay invisible.",
+   "consequence": "matrix = [[0, 1], [1, 1]]: zeroing row 0 and column 0 on discovery writes a new 0 at position (0, 1), the scan then treats it as original and zeroes column 1, and the whole matrix becomes 0 instead of [[0, 0], [0, 1]].",
+   "instead": "The zeros you write must never be confused with the zeros you found, so separate the phases: first record which rows and columns are condemned, then apply the zeroing in a second pass."
+  },
+  {
+   "mistake": "Using the first row and column as marker space for O(1) memory, but letting matrix[0][0] serve as the flag for both of them.",
+   "why": "The two flag roles collide in a single cell, and on most inputs the collision never gets exercised, so the bug hides through testing.",
+   "consequence": "matrix = [[1, 2], [0, 4]]: the zero at (1, 0) marks column 0 by setting matrix[0][0] = 0; the apply phase reads matrix[0][0] == 0 as row 0 was condemned too, and the output becomes [[0, 0], [0, 0]] instead of [[0, 2], [0, 0]].",
+   "instead": "Give one of the two roles its own boolean stored outside the matrix, mark everything else in the first row and column, and apply to the interior first, the first row and column last — order of application is exactly what the interviewer probes."
+  },
+  {
+   "mistake": "Answering with the O(m + n) row-set and column-set version and treating the problem as finished.",
+   "why": "It is clean, correct, and quick to write, and it passes every functional test, so it reads as the complete solution.",
+   "consequence": "Nothing breaks functionally, but on the stated follow-up — constant extra space for a matrix near 200 x 200 with m + n auxiliary flags disallowed — the answer is exactly what the problem told you not to settle for, e.g. constraints like m, n <= 200 with O(1) space required.",
+   "instead": "Present the set version as the baseline in one sentence, then walk to the refinement: the first row and column can store the flags in place. The migration from O(m + n) to O(1) is the whole interview here."
+  }
+ ],
+ "Rotate Matrix": [
+  {
+   "mistake": "Transposing by looping over every (i, j) pair instead of only the upper triangle.",
+   "why": "Transpose means swap matrix[i][j] with matrix[j][i], and looping over everything looks like the direct translation of that sentence.",
+   "consequence": "matrix = [[1, 2], [3, 4]]: the pair (0, 1) is swapped when the loop visits (0, 1) and swapped back when it visits (1, 0), so the transpose is a no-op and the final answer is only a row reversal — not a rotation.",
+   "instead": "Each pair must be exchanged exactly once, so restrict the inner loop to j > i. Off-diagonal cells then get one swap each and the diagonal is left alone."
+  },
+  {
+   "mistake": "Reversing each column after the transpose instead of each row.",
+   "why": "After transposing, some reversal finishes the rotation, and rows versus columns is a 50/50 guess that both look plausible on paper.",
+   "consequence": "matrix = [[1, 2], [3, 4]]: transpose gives [[1, 3], [2, 4]]; reversing columns produces [[2, 4], [1, 3]], which is the counterclockwise rotation — the clockwise answer is [[3, 1], [4, 2]] from reversing rows.",
+   "instead": "Fix the orientation with a two-second test before coding: in a clockwise rotation the top-left corner (0, 0) must land at the top-right (0, n-1). Run the 2x2 by hand; clockwise is transpose then reverse each row."
+  },
+  {
+   "mistake": "Writing the four-way cyclic swap with hand-derived layer indices from memory.",
+   "why": "The ring-by-ring swap feels like the real in-place solution, and deriving indices live seems like a chance to look thorough.",
+   "consequence": "One off-by-one in the layer bounds on matrix = [[1, 2, 3], [4, 5, 6], [7, 8, 9]] — such as letting the inner loop include the layer's last cell — rotates a corner twice and silently corrupts the matrix, and debugging four coupled indices live burns the remaining time.",
+   "instead": "Transpose plus reverse-rows is equally in-place and O(1) extra, and each half can be verified independently on a 2x2. Under interview pressure, prefer the decomposition whose steps you can check in isolation."
+  }
+ ],
+ "Majority Element (> n/2 times)": [
+  {
+   "mistake": "Running Boyer-Moore voting and returning the surviving candidate without a verification pass.",
+   "why": "On the classic version the majority element is guaranteed to exist, so the candidate is always right and the verify pass looks like dead code.",
+   "consequence": "nums = [1, 2, 3] has no majority: the vote still ends with some candidate (here 3), which appears once — far short of more than n/2 = 1.5 — and returning it is wrong the moment the guarantee is dropped.",
+   "instead": "State the contract precisely: the voting pass proves only that no element other than the candidate can be the majority. When existence is not promised, a second O(n) counting pass confirms count > n/2 before you return."
+  },
+  {
+   "mistake": "Keeping the old candidate when the counter reaches zero instead of adopting the current element.",
+   "why": "The candidate has survived this far, so holding onto it while the count goes negative feels like loyalty to the front-runner.",
+   "consequence": "nums = [1, 1, 2, 2, 2]: the count for candidate 1 reaches zero after four elements; without replacement the final answer stays 1, while the true majority is 2.",
+   "instead": "A zero counter means the prefix so far has fully canceled out — pairs of different values eliminated each other — so the slate is clean. Adopt the current element as the new candidate; the majority element survives every such cancellation."
+  },
+  {
+   "mistake": "Counting occurrences in a hash map and returning the max, without acknowledging the space constraint.",
+   "why": "It is the first correct idea that comes to mind, and for most jobs it would be the right engineering call.",
+   "consequence": "Nothing is wrong functionally, but with n = 10^7 elements the map can grow to millions of entries while the follow-up demands O(1) space — and the interviewer chose this problem specifically for that follow-up.",
+   "instead": "Offer the map as the baseline, then explain the voting insight: removing a pair of two different values never changes which element holds the majority, so a single counter and candidate suffice. Naming that invariant is the answer."
+  }
+ ],
+ "Merge Overlapping Intervals": [
+  {
+   "mistake": "Comparing only adjacent intervals in the given order, without sorting first.",
+   "why": "The examples in the prompt often arrive nearly sorted, so a single adjacent-pair pass appears to work on everything you test.",
+   "consequence": "intervals = [[1, 4], [5, 6], [0, 10]]: the adjacent check merges [5, 6] into [0, 10] but never revisits [1, 4], leaving [[1, 4], [0, 10]] where the correct output is [[0, 10]] alone.",
+   "instead": "Sorting by start is what makes one pass sufficient: after the sort, every interval that can merge with the current group is contiguous with it, so a single sweep with a growing current interval is provably complete."
+  },
+  {
+   "mistake": "Using a strict comparison for overlap, so intervals that touch at an endpoint stay separate.",
+   "why": "Overlap intuitively means sharing interior points, and [1, 4] next to [4, 5] feels like touching rather than overlapping.",
+   "consequence": "intervals = [[1, 4], [4, 5]]: with current.start < last.end the two are left apart, producing [[1, 4], [4, 5]] where the expected answer is [[1, 5]] — touching intervals merge in the standard version.",
+   "instead": "This is a specification question, not a coding one: ask whether closed intervals sharing an endpoint should merge, state that the standard convention uses <=, and encode the agreed rule deliberately."
+  },
+  {
+   "mistake": "On a merge, assigning the new end from the current interval instead of taking the max.",
+   "why": "The list is sorted by start, so the later interval feels like it must also reach further right.",
+   "consequence": "intervals = [[1, 10], [2, 3]]: blind assignment shrinks the merged end from 10 to 3, and the output [[1, 3]] silently loses the coverage from 4 to 10 — the correct answer is [[1, 10]].",
+   "instead": "Sorting by start says nothing about ends: an interval can be entirely contained in the previous one. Always extend with max(last.end, current.end), and test with a contained interval to prove it to yourself."
+  }
+ ],
+ "Find Duplicate Number": [
+  {
+   "mistake": "Sorting the array or inserting everything into a set to find the repeat.",
+   "why": "Both are the natural first instincts for duplicate detection, and both produce the right number on any test input.",
+   "consequence": "nums = [1, 3, 4, 2, 2] with the stated constraints — the array is read-only and extra space must be O(1) — rules both out: sorting mutates the input, and a set costs O(n) space, so the answer fails the actual problem even though the output is right.",
+   "instead": "Read the constraints as the puzzle: values in 1..n mean nums[i] can be treated as a pointer to index nums[i], turning the array into a linked structure where the duplicate value is a cycle entrance — which Floyd's two-pointer cycle finding locates in O(1) space."
+  },
+  {
+   "mistake": "Starting both of Floyd's pointers at the same place and testing slow == fast before either has moved.",
+   "why": "The linked-list version of the loop transfers by copy-paste, and the pointers being equal at the start looks harmless.",
+   "consequence": "nums = [1, 3, 4, 2, 2]: with slow = fast = 0 and a while (slow != fast) loop, the condition is false immediately, the loop body never runs, and phase two returns a value from an unmoved state — the wrong answer.",
+   "instead": "Advance before comparing: use a do-while shape, or start slow = nums[0] and fast = nums[nums[0]] so the first comparison happens after real movement. Then the meeting point is meaningful and phase two (reset one pointer to the start, step both singly) finds the entrance."
+  },
+  {
+   "mistake": "Binary searching on the value range with the counting comparison pointed the wrong way.",
+   "why": "Count how many elements are at most mid is easy to compute, but which half the duplicate lives in is easy to invert in your head.",
+   "consequence": "nums = [1, 3, 4, 2, 2] with mid = 2: three elements are <= 2, which exceeds mid, proving the duplicate lies in 1..2 — the flipped comparison walks to 3..4 instead and returns a value that appears once.",
+   "instead": "Anchor the code to the pigeonhole invariant: n + 1 numbers occupy n value-slots, so whichever half is overcrowded contains the duplicate — count(x <= mid) > mid means go low. Write the invariant as a comment first, then the comparison cannot flip."
+  }
+ ],
+ "Buy and Sell Stock": [
+  {
+   "mistake": "Finding the global minimum and global maximum of the prices and returning their difference.",
+   "why": "Buy at the all-time low, sell at the all-time high sounds exactly like what maximizing profit means.",
+   "consequence": "prices = [7, 6, 4, 3, 1]: the maximum 7 is on day 0 and the minimum 1 is on day 4, so the sell would happen before the buy; the min-max difference is meaningless and the correct answer is 0.",
+   "instead": "Time only flows forward, so the constraint is order: while scanning, keep the minimum price seen so far and measure today's price against it. The best profit is the best such difference, floored at 0."
+  },
+  {
+   "mistake": "Summing every upward price move, which solves the unlimited-transactions variant instead.",
+   "why": "The stock problems blur together after enough practice, and collecting every rise genuinely is optimal when you may trade repeatedly.",
+   "consequence": "prices = [1, 3, 2, 4]: summing upticks gives (3 - 1) + (4 - 2) = 4, but this problem allows one transaction, so the correct answer is 3 — buy at 1, sell at 4.",
+   "instead": "Confirm which member of the family you are solving before coding: one transaction, unlimited, at most k, or with cooldown all have different recurrences. Saying the family out loud is itself a signal interviewers look for."
+  },
+  {
+   "mistake": "Returning the best difference even when every possible trade loses money.",
+   "why": "Initializing the answer with the first computed difference, or with negative infinity, is standard practice in max-tracking loops.",
+   "consequence": "prices = [5, 3, 1]: every buy-sell pair is a loss, the best difference is -2, and the code returns -2 where the problem specifies 0 — decline to trade rather than trade at a loss.",
+   "instead": "Initialize best profit to 0 so not trading is always on the table, and confirm with the interviewer that a forced transaction is not intended. Degenerate inputs like strictly falling prices are exactly what they will test."
+  }
+ ],
+ "Trapping Rain Water": [
+  {
+   "mistake": "Computing the water above each bar against the single global maximum height.",
+   "why": "Water fills up to the tallest wall is the mental picture, and one global ceiling feels like a clean formalization of it.",
+   "consequence": "height = [3, 0, 2]: the global max is 3, so index 1 is credited 3 - 0 = 3 units of water, but the right wall is only 2 high, so 1 unit spills over the right — the true answer is 2.",
+   "instead": "Each column holds water up to the shorter of the tallest wall on its left and the tallest on its right: water[i] = min(leftMax[i], rightMax[i]) - height[i]. The bound is local to the column, not global."
+  },
+  {
+   "mistake": "Building the leftMax and rightMax arrays excluding the bar itself, then summing min minus height without a floor.",
+   "why": "A wall to the left of me reads as strictly left, so excluding the current bar from its own maximum feels more precise, not less.",
+   "consequence": "height = [1, 5, 1]: excluding self, the bar of height 5 sees walls of height 1 on both sides, contributing min(1, 1) - 5 = -4, and the total goes negative instead of 0.",
+   "instead": "Define leftMax[i] as the maximum over height[0..i] inclusive; then min(leftMax, rightMax) - height[i] is non-negative by construction and no clamping is needed. Choosing definitions that make bad states unrepresentable beats patching with max(0, ...)."
+  },
+  {
+   "mistake": "In the two-pointer version, processing whichever side is taller and crediting water from that side's running max.",
+   "why": "The two branches look symmetric, and processing the impressive tall side feels like it should be at least as safe.",
+   "consequence": "height = [2, 0, 3, 0, 1]: the true answer is 3, but crediting a column from the taller side's max uses a wall the scan has not yet confirmed on the other side, overfilling the pit at index 3 and returning 4.",
+   "instead": "Always process the shorter side, because its running max is a proven bound: the other side is already known to be at least as tall, so min of the two walls is settled. That one sentence is the correctness argument interviewers want to hear."
+  },
+  {
+   "mistake": "In the monotonic-stack version, computing the trapped width without subtracting one for the walls.",
+   "why": "Distance between two indices is right minus left everywhere else, so the extra minus one reads like a typo rather than a necessity.",
+   "consequence": "height = [2, 0, 2]: popping the 0 with left wall at index 0 and right wall at index 2, the water spans width 2 - 0 - 1 = 1 for an answer of 2; dropping the minus one doubles it to 4.",
+   "instead": "The water sits strictly between the two walls, so the width is right - left - 1. Verify the formula once on the three-bar case [2, 0, 2], where the answer must be 2, before trusting the stack version."
+  }
+ ],
+ "Search in Rotated Sorted Array": [
+  {
+   "mistake": "Testing which half is sorted with a strict comparison, nums[lo] < nums[mid].",
+   "why": "Strict and non-strict feel interchangeable when you picture a long sorted run, because ties seem like a non-event.",
+   "consequence": "nums = [3, 1], target = 1: lo and mid are both index 0, the strict test fails, the code declares the right half sorted, concludes 1 is not in it, and searches left — returning -1 for a present element.",
+   "instead": "When lo equals mid, the left half is a single element and is sorted by definition, so the test must be nums[lo] <= nums[mid]. Hand-run both two-element rotations, [3, 1] and [1, 3], before trusting the loop."
+  },
+  {
+   "mistake": "Running ordinary binary search, steering only by comparing the target to nums[mid].",
+   "why": "The array is described as sorted, and one rotation feels like a detail the comparisons will absorb.",
+   "consequence": "nums = [4, 5, 6, 7, 0, 1, 2], target = 0: plain binary search sees 0 < 7 at the midpoint and goes left, but 0 lives in the right half — the search returns -1.",
+   "instead": "Rotation means one half is always sorted and the other contains the seam. First identify the sorted half (nums[lo] <= nums[mid] means it is the left), then ask whether the target lies within that half's value range; go there if yes, to the other half if no."
+  },
+  {
+   "mistake": "Testing membership in the sorted half with strict inequalities on both ends.",
+   "why": "The midpoint is checked separately for equality, so excluding both boundaries from the range test feels consistent.",
+   "consequence": "nums = [4, 5, 6, 7, 0, 1, 2], target = 4: the left half is sorted and 4 sits exactly at nums[lo], but the strict test 4 < target rejects it, the search bounces right, and the function returns -1 for the element at index 0.",
+   "instead": "The boundaries belong to the sorted half, so the range test is nums[lo] <= target < nums[mid] (with the mid equality handled first). Targets equal to an endpoint are the classic off-by-one here — test them deliberately."
+  }
+ ],
+ "Median of Two Sorted Arrays": [
+  {
+   "mistake": "Merging the two arrays completely and indexing into the middle.",
+   "why": "It is correct, you already know how to merge sorted arrays, and the median definition points straight at the middle element.",
+   "consequence": "With two arrays of 10^6 elements each, the merge costs O(m + n) time and space while the problem explicitly demands O(log(min(m, n))) — the interviewer treats the merge as the baseline, not the answer, and the clock is gone.",
+   "instead": "Name the merge in one sentence as the baseline, then reframe: the median is a partition of the combined data into equal halves where every left element is <= every right element, and that partition point can be binary searched."
+  },
+  {
+   "mistake": "Binary searching the partition over the larger array instead of the smaller one.",
+   "why": "The arrays feel interchangeable — both are sorted inputs to a symmetric formula — so which one hosts the search reads as a coin flip.",
+   "consequence": "nums1 = [1, 2, 3, 4, 5, 6, 7, 8], nums2 = [5]: half of the total is 5, and searching i over 0..8 in nums1 makes the complementary cut j = 5 - i go negative (i = 8 gives j = -3), indexing out of bounds.",
+   "instead": "The complementary cut j = half - i stays within 0..len(nums2) only when the search space i is the smaller array — that is the reason the algorithm runs on min(m, n), not a micro-optimization. Say the reason, then code it."
+  },
+  {
+   "mistake": "Reading partition neighbors at the array edges without infinity sentinels.",
+   "why": "The formula reads nums1[i - 1] and nums1[i] so uniformly that the edge cuts i = 0 and i = m look like they will take care of themselves.",
+   "consequence": "nums1 = [5], nums2 = [1, 2, 3]: at the cut i = 0, Python evaluates nums1[-1] as the last element 5 instead of negative infinity, silently steering the search the wrong way; at i = 1, reading nums1[1] raises IndexError.",
+   "instead": "Model the empty side of a cut explicitly: left neighbor is -infinity when i = 0, right neighbor is +infinity when i = m. In Python, negative indexing makes the missing-sentinel bug silent rather than crashing, which makes it worse."
+  },
+  {
+   "mistake": "Mixing conventions between the left-half size and the odd-total return value.",
+   "why": "Both (m + n) // 2 and (m + n + 1) // 2 appear in references, and both max-of-left and min-of-right appear as the odd-case answer, so a mismatched pairing looks plausible.",
+   "consequence": "nums1 = [1, 3], nums2 = [2]: with the left half sized (m + n + 1) // 2 = 2, the odd-total median is max of the left halves, which is 2; pairing that sizing with a min-of-right return gives 3 instead.",
+   "instead": "Pick one convention and state it: the left half carries the extra element, so an odd total returns max(left1, left2). Verify the pairing on the three-element case [1, 3] and [2], where the median must be 2, before generalizing."
+  }
+ ],
+ "Pow(x, n)": [
+  {
+   "mistake": "Handling a negative exponent by negating n and inverting at the end, with fixed-width integers.",
+   "why": "pow(x, -n) equals 1 / pow(x, n), so negate-then-recurse feels like a complete treatment of the negative case.",
+   "consequence": "x = 2, n = -2147483648: in a 32-bit int, negating -2^31 overflows because 2^31 is unrepresentable, giving an infinite loop or wrong sign in C++ or Java; the input is a standard test.",
+   "instead": "Widen before negating (use a 64-bit copy of n), or fold the sign into the recurrence. Python cannot overflow here, but say the caveat aloud — the interviewer is checking whether you know where the trap lives, not whether your language dodges it."
+  },
+  {
+   "mistake": "Writing the recursion as pow(x, n / 2) * pow(x, n / 2), calling the half twice.",
+   "why": "The identity x^n = x^(n/2) * x^(n/2) is exactly what the math says, and transcribing math directly into code feels safe.",
+   "consequence": "Two recursive calls per level makes the call tree full: x = 2, n = 1024 triggers 2047 calls instead of 11, and at n near 10^9 the O(n) blowup times out — the divide-and-conquer gained nothing.",
+   "instead": "The speedup comes from reuse, not from splitting: bind half = pow(x, n // 2) once, return half * half (times x when n is odd). One extra local variable is the entire difference between O(log n) and O(n)."
+  },
+  {
+   "mistake": "In the iterative bit-by-bit version, squaring the base but mishandling the multiply on odd bits.",
+   "why": "The loop is short and rhythmic — square, shift, repeat — and the conditional multiply feels like a detail the rhythm will carry.",
+   "consequence": "x = 2, n = 3: with the odd-bit multiply dropped or misplaced, the result never absorbs the base and comes out as 1 or 4 instead of 8 — wrong on the smallest odd exponent.",
+   "instead": "Carry the loop invariant explicitly: answer * base^n stays constant across every iteration. Check it by hand on n = 3 — if the invariant holds at each of the two steps, the conditional multiply is in the right place."
+  }
+ ],
+ "Longest Substring Without Repeating Characters": [
+  {
+   "mistake": "On seeing a repeated character, resetting the window to start at the current position.",
+   "why": "A repeat feels like a dead end, and starting fresh from where you stand seems like the clean recovery.",
+   "consequence": "s = 'dvdf': at the second d the window restarts at index 2, producing df of length 2, but the correct answer is 3 — the window vdf remains valid because the first d could have been dropped alone.",
+   "instead": "Only the prefix up to and including the previous occurrence of the repeated character is invalid; everything after it is still good. Shrink the left edge to one past that occurrence and keep the rest of the window."
+  },
+  {
+   "mistake": "Jumping the window start to last[c] + 1 without checking that the stored occurrence is inside the current window.",
+   "why": "The last-seen map gives an exact position, and moving the start there reads like the precise version of shrinking.",
+   "consequence": "s = 'abba': at the final a, last['a'] is 0, so start jumps backward from 2 to 1 and the window pretends bba has no repeat — reporting length 3 where the correct answer is 2.",
+   "instead": "The window's left edge must never move left, because positions behind it are already excluded. Guard the jump with start = max(start, last[c] + 1), and note that stale map entries are exactly what the max is defending against."
+  },
+  {
+   "mistake": "Updating the best length only inside the repeat-handling branch.",
+   "why": "Repeats are where the interesting events happen, so the bookkeeping gravitates there and the quiet path gets forgotten.",
+   "consequence": "s = 'abc': no repeat ever fires, the best-length update never runs, and the function returns 0 for a string whose answer is 3.",
+   "instead": "The window is valid at the end of every iteration, so measure it every iteration: best = max(best, i - start + 1) on each step. Inputs with no repeats at all are the first edge case to test."
+  }
+ ],
+ "Longest Palindromic Substring": [
+  {
+   "mistake": "Expanding around single-character centers only, ignoring the gaps between characters.",
+   "why": "A palindrome mirrors around its middle, and picturing a middle character is far more natural than picturing a middle gap.",
+   "consequence": "s = 'cbbd': the answer bb has even length, so its center is the gap between the two b characters; odd-only expansion returns a single letter of length 1 instead of bb.",
+   "instead": "Enumerate all 2n - 1 centers — every character and every gap between adjacent characters — expanding each. Even-length palindromes exist, and their centers are gaps; building that into the loop costs one extra call per index."
+  },
+  {
+   "mistake": "Reversing the string and taking the longest common substring with the original.",
+   "why": "A palindrome reads the same both ways, so the longest stretch shared with the reversal feels like exactly the right object.",
+   "consequence": "s = 'abacdfgdcaba': the reversal shares the 5-character block 'abacd', which is not a palindrome — the mirrored copy comes from the other end of the string, not the same position; the true answer is 'aba'.",
+   "instead": "A shared block only certifies a palindrome when it maps back to the same indices, so the reduction needs an index check bolted on. Expand-around-center gives O(n^2) with no such trap and O(1) space — prefer the approach whose correctness needs no patch."
+  },
+  {
+   "mistake": "Filling the interval DP table in ascending row order, reading dp[i + 1][j - 1] before it exists.",
+   "why": "Row-by-row is the default order for filling any 2D table, and the recurrence looks like every other DP transition.",
+   "consequence": "s = 'babad': deciding dp[0][2] for 'bab' consults dp[1][1], which ascending row order has not computed yet, so 'bab' is missed and the reported answer collapses to a single character like 'b'.",
+   "instead": "A palindrome's truth depends on a shorter substring inside it, so the table must be filled by increasing substring length (or with i descending). In interval DP, the iteration order is part of the correctness argument — state it before writing the loops."
+  }
+ ],
+ "Coin Change": [
+  {
+   "mistake": "Greedily taking the largest coin that still fits, repeatedly.",
+   "why": "It is how humans make change, and it genuinely is optimal for canonical currency systems like 1, 5, 10, 25.",
+   "consequence": "coins = [1, 3, 4], amount = 6: greedy takes 4 + 1 + 1 for three coins, while the optimum is 3 + 3 with two — greedy has no exchange argument for arbitrary denominations.",
+   "instead": "Arbitrary coin systems need the DP over amounts: dp[a] = 1 + min(dp[a - c]) over usable coins c. Mention that greedy works for canonical systems and name a counterexample set like [1, 3, 4] — that contrast is a favorite probe."
+  },
+  {
+   "mistake": "Marking unreachable amounts with 0 or -1 inside the dp array and letting them join the min.",
+   "why": "0 and -1 are the reflexive null values, and the initialization line gets written before the transition is thought through.",
+   "consequence": "coins = [2], amount = 3: dp[1] is unreachable, but stored as 0 it offers dp[3] = dp[1] + 1 = 1 — claiming amount 3 is makeable with one coin when the correct answer is -1.",
+   "instead": "Unreachable must mean infinitely expensive so the min ignores it: seed dp[0] = 0 and everything else with infinity (amount + 1 works as a practical infinity), then translate a still-infinite dp[amount] to -1 at the end."
+  },
+  {
+   "mistake": "Agonizing over whether the coin loop or the amount loop goes outside, without knowing when it matters.",
+   "why": "The counting variant of this problem genuinely depends on loop order, and the two problems blur into each other after enough practice.",
+   "consequence": "For min-coins both orders give the same answer, so nothing fails here — but in the counting variant, coins = [1, 2], amount = 3 yields 2 combinations with coins outside and 3 ordered sequences with amounts outside, and interviewers ask you to explain exactly this contrast.",
+   "instead": "Know the reason, not the ritual: min() gives the same result no matter how many times a candidate is offered, so order is free here; counting sums contributions, where order changes what is counted. Being able to say that sentence is the point."
+  },
+  {
+   "mistake": "Writing top-down memoization on (index, amount) but moving to index - 1 after taking a coin.",
+   "why": "The 0/1 knapsack template is burned in, and advancing the index after a take is its signature move.",
+   "consequence": "coins = [2], amount = 4: advancing the index after taking the 2 allows each coin at most once, so the search never builds 2 + 2 and returns -1 where the correct answer is 2 coins.",
+   "instead": "Unbounded supply is encoded by where the recursion goes after a take: stay at the same index (take again is allowed), and advance only on skip. One index expresses the entire difference between 0/1 and unbounded — point at it explicitly."
+  }
+ ],
+ "Edit Distance": [
+  {
+   "mistake": "Initializing the first row and first column of the DP table to zeros.",
+   "why": "Zero-filling a fresh table is muscle memory, and the base cases feel like empty cells rather than answers in their own right.",
+   "consequence": "word1 = 'abc', word2 = '': transforming a 3-character prefix into the empty string requires 3 deletions, but a zeroed column reports distance 0 — every answer built on those bases inherits the error.",
+   "instead": "The borders are real subproblems: turning a length-i prefix into an empty string costs exactly i deletions, so row 0 holds 0..n and column 0 holds 0..m. Fill them first and say what they mean while doing it."
+  },
+  {
+   "mistake": "On mismatched characters, taking the min over insert and delete but forgetting replace.",
+   "why": "Insert and delete map to the two obvious table neighbors, and the diagonal reads like the matching case's private property.",
+   "consequence": "word1 = 'a', word2 = 'b': without replace, the cheapest route is delete plus insert for a distance of 2, but one substitution does it — the correct answer is 1.",
+   "instead": "Three operations, three neighbors: dp[i-1][j] is delete, dp[i][j-1] is insert, dp[i-1][j-1] is replace. Naming each neighbor with its operation out loud while writing the transition keeps all three present."
+  },
+  {
+   "mistake": "Charging a cost of 1 even when the current characters match.",
+   "why": "Every other branch of the transition adds 1, so the plus-one gets typed on autopilot in the match branch too.",
+   "consequence": "word1 = 'ab', word2 = 'ab': identical strings should cost 0, but with the spurious charge the answer comes out 2 — one phantom operation per matched character.",
+   "instead": "A match consumes one character from both strings for free: dp[i][j] = dp[i-1][j-1] with no cost term. Test on a pair of identical strings, where the only acceptable answer is 0."
+  },
+  {
+   "mistake": "Writing the bare recursion over (i, j) without memoization.",
+   "why": "The recursive decomposition is the insight, and once it is working on small examples the caching step feels like an optimization for later.",
+   "consequence": "word1 = 'abcdefghijklmnopqrst', word2 = 'ABCDEFGHIJKLMNOPQRST' (20 characters, nothing shared): the three-way branching revisits the same (i, j) states exponentially — on the order of 3^20, about 3.5 * 10^9 calls — and times out.",
+   "instead": "Count the states before coding: only (i, j) matters, so there are at most (m + 1) * (n + 1) distinct subproblems. Saying the state space is m * n, so memoized time is O(m * n) is the sentence that turns the recursion into an algorithm."
+  }
+ ],
+ "Longest Common Subsequence": [
+  {
+   "mistake": "Solving for a common substring — requiring the shared characters to be contiguous.",
+   "why": "Subsequence and substring sound nearly identical, and contiguous matching is the easier mental picture to hold.",
+   "consequence": "s1 = 'abcde', s2 = 'ace': the longest common subsequence is 'ace' with length 3, but a contiguity-requiring scan finds only length 1 — the answer is wrong on the problem's own first example.",
+   "instead": "Define both terms aloud before coding: a substring is a contiguous block, a subsequence keeps relative order but may skip. Confirming which one is being asked takes five seconds and prevents solving the wrong problem entirely."
+  },
+  {
+   "mistake": "Including the diagonal plus one in the mismatch branch of the transition.",
+   "why": "The diagonal term is on screen from the match case, and max over more options feels safer than max over fewer.",
+   "consequence": "s1 = 'ab', s2 = 'ba': crediting dp[i-1][j-1] + 1 on a mismatch counts a phantom match, reporting 2 where the true LCS length is 1 — either 'a' or 'b', not both in order.",
+   "instead": "Only equal characters may extend a common subsequence. On mismatch the transition carries forward without adding: dp[i][j] = max(dp[i-1][j], dp[i][j-1]) — the diagonal-plus-one belongs exclusively to the match branch."
+  },
+  {
+   "mistake": "Letting the 1-indexed table and 0-indexed strings drift apart, comparing s1[i] against s2[j].",
+   "why": "dp[i][j] and s1[i] look like they name the same position, and the off-by-one only bites at the far edge of the table.",
+   "consequence": "s1 = 'abc', s2 = 'abc': at i = 3 the comparison reads s1[3] and crashes with an index error — or, with defensive bounds, silently compares shifted characters and returns 2 instead of 3.",
+   "instead": "Anchor the convention in words: dp[i][j] is the answer for the first i characters of s1 and first j of s2, so the characters under comparison are s1[i-1] and s2[j-1], always. Write the convention as a comment above the loops."
+  }
+ ],
+ "Longest Increasing Subsequence": [
+  {
+   "mistake": "Finding the longest contiguous increasing run instead of a subsequence.",
+   "why": "Scanning for runs is simpler and the word increasing dominates the problem name, so contiguity sneaks in unquestioned.",
+   "consequence": "nums = [10, 9, 2, 5, 3, 7, 101, 18]: the longest contiguous run is [3, 7, 101] with length 3, but the LIS is [2, 3, 7, 18] with length 4 — elements may be skipped.",
+   "instead": "Subsequence means keep order, skip freely, which is why each element needs a decision rather than a comparison with its neighbor. Restate the definition to the interviewer before writing any loop."
+  },
+  {
+   "mistake": "Using <= in the comparison, letting equal elements extend the subsequence.",
+   "why": "Non-decreasing and increasing read as synonyms in a hurry, and most test arrays have distinct elements so nothing flags it.",
+   "consequence": "nums = [7, 7, 7]: with <= the answer comes out 3, but strictly increasing means the correct answer is 1 — no element can follow an equal one.",
+   "instead": "Pin the strictness with the interviewer first, then encode it: strict LIS pairs with bisect_left in the patience-sorting version, non-decreasing pairs with bisect_right. The choice of bisect function is the strictness decision in code form."
+  },
+  {
+   "mistake": "Reporting the tails array from the O(n log n) method as the actual subsequence.",
+   "why": "The array is increasing, its length equals the LIS length, and it was built from the input, so it looks exactly like the answer.",
+   "consequence": "nums = [3, 4, 1]: the tails array finishes as [1, 4], whose elements appear in nums in the order 4 then 1 — not a valid subsequence; a real LIS is [3, 4], which shares only its length with tails.",
+   "instead": "Say what the structure means: tails[k] is the smallest value that can end an increasing subsequence of length k + 1 — bookkeeping, not a witness. To output the sequence itself, record parent pointers and reconstruct backward."
+  }
+ ],
+ "0/1 Knapsack": [
+  {
+   "mistake": "Optimizing to a 1-D dp array but iterating capacity from left to right.",
+   "why": "Every other loop in the program runs left to right, and the 2-D version worked in that order, so the direction feels like a free choice.",
+   "consequence": "weights = [2], values = [3], W = 4: left-to-right lets dp[2] = 3 feed dp[4] = dp[2] + 3 = 6 in the same item pass — the single item has been used twice; the correct answer is 3.",
+   "instead": "Rightward iteration reads states already updated by the current item; iterating capacity from W down to the item's weight means every read comes from the previous item's row, which is exactly the 0/1 use-once guarantee compressed into one array."
+  },
+  {
+   "mistake": "Sorting items by value-to-weight ratio and taking greedily.",
+   "why": "Ratio greedy is provably optimal for fractional knapsack, and the two problems are usually taught in the same breath.",
+   "consequence": "weights = [10, 20, 30], values = [60, 100, 120], W = 50: ratio order takes the 10 and the 20 for value 160, but the optimum is the 20 and the 30 for 220 — indivisible items break the exchange argument.",
+   "instead": "Say why greedy dies: with indivisible items you cannot top off leftover capacity with a fraction, so local ratio dominance proves nothing. The take-or-skip structure over (item, capacity) states is what remains — that is the DP."
+  },
+  {
+   "mistake": "Always taking an item that fits, dropping the skip branch from the transition.",
+   "why": "If it fits and has positive value, taking it feels like it cannot hurt — the harm of occupying capacity is invisible at the moment of the choice.",
+   "consequence": "weights = [2, 2], values = [1, 10], W = 2: forced to take the first item, capacity is spent and the answer is 1; skipping it frees the space for the second item and the correct answer is 10.",
+   "instead": "Every item is a genuine two-way decision — dp[i][w] = max(skip, take) — because capacity spent now forecloses better items later. Write both branches explicitly, even when one looks like it could never win."
+  }
+ ],
+ "Word Break": [
+  {
+   "mistake": "Greedily matching the longest (or first) dictionary word at each position and never revisiting.",
+   "why": "Longest-match is how tokenizers feel like they should work, and it succeeds on most naturally worded examples.",
+   "consequence": "s = 'aaaa', wordDict = ['aaa', 'aa']: longest-first consumes 'aaa' and strands the final 'a', returning false, while 'aa' + 'aa' is a valid segmentation.",
+   "instead": "A failed split has to be able to roll back and try a shorter word — that choice structure is exactly dp[i] = any(dp[j] and s[j:i] in dict). The DP is greedy-with-undo formalized, which is why it exists."
+  },
+  {
+   "mistake": "Writing the recursive splitter without memoization.",
+   "why": "The recursion mirrors the problem statement so directly that it feels finished once it returns correct answers on short strings.",
+   "consequence": "s = 'aaaaaaaaaaaaaaaaaaab' (19 a's then b), wordDict = ['a', 'aa', 'aaa']: every segmentation of the a-run is explored before each failure on the final b — an exponential number of paths for a 20-character string, and it hangs.",
+   "instead": "Notice that the only thing distinguishing recursive calls is the start index, so there are at most n + 1 distinct subproblems. Memoize on that index and the same code becomes O(n^2) with substring hashing."
+  },
+  {
+   "mistake": "Forgetting the base case dp[0] = true, or leaving the empty prefix false.",
+   "why": "An empty string being breakable sounds like a philosophical technicality rather than load-bearing initialization.",
+   "consequence": "s = 'leetcode', wordDict = ['leet', 'code']: the check for 'leet' asks whether dp[0] is true; with dp[0] = false nothing can ever become true and the function returns false on the canonical yes-instance.",
+   "instead": "dp[0] = true encodes the zero-words-used starting state that every first word chains from. When a DP answers can it be done, ask which state represents having done nothing yet — that state must start true."
+  }
+ ],
+ "Climbing Stairs": [
+  {
+   "mistake": "Submitting the bare recursion f(n) = f(n-1) + f(n-2).",
+   "why": "The recurrence is the entire insight, and for small n the recursion returns instantly, so it feels done.",
+   "consequence": "n = 45: the call tree has on the order of fib(45), roughly 3.6 * 10^9 nodes, and the solution times out — the same subproblems are being recomputed billions of times.",
+   "instead": "Name the structure — this is Fibonacci — and collapse it to two rolling variables for O(n) time and O(1) space. Recognizing a famous recurrence by name is itself signal in an interview."
+  },
+  {
+   "mistake": "Misaligning the base cases, seeding f(0) = 0 and f(1) = 1 like textbook Fibonacci.",
+   "why": "The sequence is Fibonacci, and the textbook seed values come attached to the name.",
+   "consequence": "n = 2 should return 2 (1+1 or 2), but the textbook seed produces f(2) = 1 — every subsequent answer is shifted one position off.",
+   "instead": "Derive the bases from the problem's meaning, not the sequence's name: one way to climb one stair, two ways to climb two — or define f(0) = 1 as the one way to stand still. Verify n = 2 and n = 3 by hand before scaling up."
+  },
+  {
+   "mistake": "Reciting the two-term recurrence in variants that allow different step sets.",
+   "why": "This problem's answer is so memorized that the recurrence feels like a property of staircases rather than of the allowed moves.",
+   "consequence": "With allowed steps {1, 2, 3} and n = 3 the answer is 4 (1+1+1, 1+2, 2+1, 3), but the two-term recurrence returns 3 — the memorized formula silently answers a different question.",
+   "instead": "Re-derive from the last move: f(n) = sum of f(n - s) over every allowed step s. The derivation habit is what transfers to the k-step, cost-per-stair, and skip-stair variants interviewers pivot to."
+  }
+ ],
+ "House Robber": [
+  {
+   "mistake": "Robbing alternating houses and returning the better of evens versus odds.",
+   "why": "No two adjacent houses compresses in the mind to every other house, and the two alternating patterns feel exhaustive.",
+   "consequence": "nums = [2, 1, 1, 9]: even indices give 2 + 1 = 3, odd give 1 + 9 = 10, but the optimum is 2 + 9 = 11 — it skips two houses in a row, which neither alternating pattern can do.",
+   "instead": "The constraint forbids adjacency; it does not mandate alternation — gaps of two or more are allowed. That extra freedom is what the recurrence best(i) = max(best(i-1), best(i-2) + nums[i]) explores and the patterns cannot."
+  },
+  {
+   "mistake": "Dropping the skip branch and always robbing every second house from each position.",
+   "why": "Once best(i-2) + nums[i] is written down, it looks like the whole story — skipping the current house feels like leaving money on the table.",
+   "consequence": "nums = [1, 100, 1]: forced inclusion patterns yield 1 + 1 = 2, but the correct answer is 100 from robbing only the middle house — skipping can beat taking.",
+   "instead": "Each house is a two-way decision and the recurrence needs both arms: rob it (best(i-2) + nums[i]) or leave it (best(i-1)). The max over both is what makes the DP an argument instead of a guess."
+  },
+  {
+   "mistake": "Seeding the second base case with nums[1] instead of the max of the first two.",
+   "why": "best(1) and nums[1] share an index, and the eye pattern-matches them as the same quantity.",
+   "consequence": "nums = [5, 1]: with best(1) = 1 the function returns 1, but the best plan for two houses is to rob the richer one — the correct answer is 5.",
+   "instead": "best(1) means the best over the first two houses, which is max(nums[0], nums[1]). Length-1 and length-2 inputs are the entire base-case surface; test both before trusting the loop."
+  }
+ ],
+ "N Queens": [
+  {
+   "mistake": "Checking column conflicts and one diagonal direction, forgetting the anti-diagonal.",
+   "why": "One diagonal check visually resembles the other, and boards that expose the missing direction do not show up until the search runs.",
+   "consequence": "n = 4: queens at (0, 1) and (1, 2) share the diagonal where row minus column is constant (-1 for both); with only the row-plus-column diagonal checked, the solver emits boards containing that attacking pair.",
+   "instead": "Encode each constraint as its own O(1) set: columns, row + column (one diagonal family), row - column (the other). Two queens attack diagonally exactly when they share one of those two sums — say that identity, then the check writes itself."
+  },
+  {
+   "mistake": "Forgetting to remove the queen's marks from the sets after the recursive call returns.",
+   "why": "The add-explore rhythm feels complete on its own — undoing state after a return is not part of everyday iterative coding.",
+   "consequence": "n = 4: stale column and diagonal entries from an abandoned branch prune valid placements, and the solver reports 1 or 0 solutions where the correct count is 2.",
+   "instead": "Backtracking is a three-beat discipline — choose, explore, unchoose — and the unchoose must mirror the choose exactly, on every path including successes. Symmetric add/remove around the recursive call is the pattern to internalize."
+  },
+  {
+   "mistake": "Appending the live mutable board to the results list at each solution.",
+   "why": "The board holds the solution at that instant, and append feels like it captures a snapshot rather than a reference.",
+   "consequence": "n = 4: both recorded entries alias the same board object, which the ongoing backtracking then mutates — the final output shows two identical fully-unwound boards instead of 2 distinct solutions.",
+   "instead": "Append a deep copy at the leaf — in Python, a fresh list of joined row strings. Aliasing a structure that backtracking will rewind is a bug family worth naming aloud; it recurs in every collect-all-solutions problem."
+  },
+  {
+   "mistake": "Searching over all board cells — placing n queens anywhere on the n x n grid.",
+   "why": "The problem says place n queens on the board, and the direct reading of that sentence is a choice among all cells.",
+   "consequence": "n = 8: choosing 8 cells from 64 is about 4.4 * 10^9 candidate placements, versus 8! = 40320 when each row gets exactly one queen — the unstructured search times out before finding all 92 solutions.",
+   "instead": "Bake the cheapest constraint into the representation: every solution has exactly one queen per row, so let recursion depth be the row and branch only over columns. Constraints that shape the search space beat constraints that filter it afterward."
+  }
+ ],
+ "Combination Sum": [
+  {
+   "mistake": "Restarting the candidate loop from index 0 in every recursive call.",
+   "why": "Reuse is allowed, so every candidate still feels like fair game at every level of the recursion.",
+   "consequence": "candidates = [2, 3], target = 5: the search finds [2, 3] and [3, 2] as separate results — the same combination in two orders, which the problem counts once.",
+   "instead": "Pass a start index and never look left of it: reuse is expressed by recursing with the same index, not by rewinding to 0. Imposing an order on choices is the standard way to make combinations, not permutations, come out of a search."
+  },
+  {
+   "mistake": "Recursing with index + 1 after taking a candidate, while intending unlimited reuse.",
+   "why": "Advancing the index after a choice is the habit from subset-style problems, where each element is used at most once.",
+   "consequence": "candidates = [2], target = 6: the only solution is [2, 2, 2], but advancing the index after the first 2 forbids reuse and the function returns an empty list.",
+   "instead": "The index you recurse with is the semantics: same index means may take this candidate again, index + 1 means done with it forever. Point at that argument and say which meaning you intend — it is the whole difference from Combination Sum II."
+  },
+  {
+   "mistake": "Appending the shared path list to results at the base case without copying.",
+   "why": "At the moment of success the path holds exactly the right elements, and append reads like it stores those values.",
+   "consequence": "candidates = [2, 3, 6, 7], target = 7: the stored references all point at the one live path list, which backtracking then pops — the output shows empty or garbled lists instead of [2, 2, 3] and [7].",
+   "instead": "Store a snapshot: append list(path) when target reaches 0. The pop that follows every recursive call is the same list being rewound — results must be immune to it."
+  }
+ ],
+ "Reverse Linked List": [
+  {
+   "mistake": "Rewiring curr.next to prev before saving the rest of the list.",
+   "why": "The reversal is the point of the exercise, so the pointer flip feels like the first thing each iteration should do.",
+   "consequence": "list 1 -> 2 -> 3: flipping node 1's pointer first orphans nodes 2 and 3 — the walk has nowhere to go after one step and the function returns a 1-node list.",
+   "instead": "The three-step order is load-bearing: save next = curr.next, then flip curr.next = prev, then advance both. Keep the invariant in words — prev heads the fully reversed prefix, curr heads the untouched suffix — and the order becomes hard to get wrong."
+  },
+  {
+   "mistake": "Returning the original head pointer after the loop finishes.",
+   "why": "head has meant the answer for the whole function, and returning it is pure habit.",
+   "consequence": "list 1 -> 2 -> 3: the old head node 1 is now the tail with a null next pointer, so the caller receives a 1-element list instead of 3 -> 2 -> 1.",
+   "instead": "When the loop ends, curr has walked off the end and prev rests on the last node processed — the new head. Returning prev is the correct move, and explaining why is a two-second credibility win."
+  },
+  {
+   "mistake": "In the recursive version, setting head.next.next = head but never clearing head.next.",
+   "why": "The forward flip is the clever line everyone remembers; the cleanup line looks optional next to it.",
+   "consequence": "list 1 -> 2: after the flip, node 2 points to node 1 and node 1 still points to node 2 — a 2-node cycle, and any traversal or print of the result loops forever.",
+   "instead": "Sever the old forward edge with head.next = None immediately after the flip; the recursion's contract is that head becomes a tail. Verify the 2-node list by hand — it is the smallest input that exposes the cycle."
+  }
+ ],
+ "Detect Cycle in Linked List": [
+  {
+   "mistake": "Detecting a revisit by comparing node values.",
+   "why": "Seen this value before is the natural reading of revisiting, and on lists with distinct values it even works.",
+   "consequence": "list 1 -> 1 -> 1 built from three distinct nodes with no cycle: value comparison reports a repeat at the second node and declares a cycle that does not exist.",
+   "instead": "A cycle is about identity, not content — the same node object reached twice. Hash node references (not values), or avoid storage entirely with Floyd's slow and fast pointers meeting inside the loop."
+  },
+  {
+   "mistake": "Advancing the fast pointer two steps without null-checking both fast and fast.next.",
+   "why": "The loop's mental model is about the cycle case, where nothing is ever null, so the acyclic exit path gets no attention.",
+   "consequence": "acyclic list 1 -> 2 -> 3 -> 4: fast reaches the end and the next double-step dereferences null — a crash on exactly the boring input that should return false.",
+   "instead": "Make the loop condition carry the acyclic case: while fast and fast.next. A cycle announces itself by the meeting; the absence of a cycle announces itself by fast falling off the end — both exits deserve code."
+  },
+  {
+   "mistake": "Comparing slow and fast before either pointer has moved.",
+   "why": "Initialize, then loop while different reads naturally, and both pointers start at the head together.",
+   "consequence": "any list, e.g. acyclic 1 -> 2: slow and fast are equal at step 0, so the pre-check loop reports a cycle immediately on every input.",
+   "instead": "Move first, compare after — a do-while shape — or offset the start with fast = head.next and account for it. The meeting is only evidence of a cycle when it happens after movement."
+  }
+ ],
+ "Merge Two Sorted Linked Lists": [
+  {
+   "mistake": "Looping while both lists are non-empty and dropping whatever remains.",
+   "why": "The interleaving loop is where the thinking happens, so when it ends the merge feels finished.",
+   "consequence": "l1 = 1 -> 3, l2 = 2 -> 4 -> 5 -> 6: the loop ends when l1 empties, and the output 1 -> 2 -> 3 silently loses 4 -> 5 -> 6.",
+   "instead": "The leftover run is already sorted and already linked, so attach it whole with one assignment: tail.next = l1 or l2. Recognizing that the remainder needs no per-node work is part of the expected answer."
+  },
+  {
+   "mistake": "Managing the head of the result without a dummy node, branching on which list starts.",
+   "why": "A placeholder node feels like a wasteful trick, and handling the first element specially seems more honest.",
+   "consequence": "l1 = None, l2 = 1 -> 2: the head-selection branches multiply — empty inputs, equal firsts — and one missed branch returns None or crashes on exactly the empty-list edge case.",
+   "instead": "A dummy head (a throwaway node whose next will be the answer) makes the first attachment identical to every other attachment, deleting the special cases wholesale. Return dummy.next and mention why the trick exists — uniformity, not cleverness."
+  },
+  {
+   "mistake": "Writing the elegant recursive merge without considering stack depth.",
+   "why": "The recursive version is four lines, reads like the definition, and every tutorial shows it.",
+   "consequence": "two lists of 10^5 nodes each: recursion depth reaches 2 * 10^5, far past Python's default limit near 1000 — RecursionError on large inputs that the iterative version handles without effort.",
+   "instead": "Match the tool to the input bound: recursion depth here is O(m + n), so quote the constraint and choose the iterative tail-pointer version when lists can be long. Naming the depth limit before it bites is the senior move."
+  }
+ ],
+ "Remove Nth Node From End": [
+  {
+   "mistake": "Counting the length, then walking to the target node itself instead of its predecessor.",
+   "why": "The problem says remove the nth node, so the walk naturally aims at the node being removed.",
+   "consequence": "list 1 -> 2 -> 3 -> 4 -> 5, n = 2: the target is node 4, but standing on node 4 you cannot unlink it — you need node 3 to redirect its next pointer, and code that stops on 4 deletes the wrong link.",
+   "instead": "Deletion in a singly linked list is an operation on the predecessor, so aim the walk at position length - n counting from a dummy node before the head. Framing every deletion as find the predecessor removes the off-by-one."
+  },
+  {
+   "mistake": "Running the one-pass two-pointer gap trick starting from the real head.",
+   "why": "The head is where every traversal starts, and the gap arithmetic looks self-contained.",
+   "consequence": "list 1 -> 2, n = 2: the node to delete is the head itself; with both pointers started at head, slow ends on the head rather than before it, and there is no predecessor to rewire — wrong deletion or a crash, where the expected output is the list [2].",
+   "instead": "Start both pointers at a dummy node in front of the head and advance fast n + 1 steps; slow then lands on the predecessor in every case, including head deletion. The dummy exists precisely to give the head a predecessor."
+  },
+  {
+   "mistake": "Leaving the relationship between n and the list length unexamined.",
+   "why": "The judge's constraints quietly guarantee validity, so the boundary never surfaces during practice.",
+   "consequence": "list 1 -> 2 -> 3 with n = 3 is in range — it deletes the head, and code without a dummy breaks on it; if n could exceed the length, the fast pointer walks off the end and dereferences null.",
+   "instead": "State the assumption aloud — the standard guarantee is 1 <= n <= length — and observe that the extreme in-range case, deleting the head, must still work. Explicitly testing the boundary the constraints allow is what separates careful from lucky."
+  }
+ ],
+ "Add Two Numbers as Linked Lists": [
+  {
+   "mistake": "Ending the loop when both lists are exhausted, discarding a final carry.",
+   "why": "No digits left feels synonymous with nothing left to do, and most test cases end carry-free.",
+   "consequence": "l1 = 5, l2 = 5: the digit sum is 10, producing digit 0 with carry 1, but the loop exits and the output is the single node 0 instead of 0 -> 1.",
+   "instead": "Make carry a first-class loop participant: continue while l1 or l2 or carry is non-zero. The final carry is not cleanup — it is one more digit the answer owes you."
+  },
+  {
+   "mistake": "Converting both lists to integers, adding, and converting back.",
+   "why": "The lists represent numbers, and the language already knows how to add numbers, so the detour through arithmetic feels like engineering sense.",
+   "consequence": "a 20-node list encodes a 20-digit number, which overflows a 64-bit integer (max about 9.2 * 10^18, only 19 digits) in Java or C++; Python hides the overflow but the interviewer wanted the digit-wise algorithm, not a language loophole.",
+   "instead": "Add digit by digit with a carry, the way column addition works on paper — the linked structure is the point of the problem. Mention the overflow bound explicitly; knowing where 64 bits run out is part of the answer."
+  },
+  {
+   "mistake": "Stopping the addition at the end of the shorter list.",
+   "why": "Pairwise addition needs two operands, so the loop over pairs feels like it should end when pairs run out.",
+   "consequence": "l1 = 9 -> 9, l2 = 1 (99 + 1): stopping at the shorter list emits 0 -> something and never produces the third digit — the correct output is 0 -> 0 -> 1, which is 100.",
+   "instead": "Treat a missing node as digit 0 and keep the loop running while any list or the carry remains. Uneven lengths are not an edge case to patch; they are the normal case the loop shape must absorb."
+  }
+ ],
+ "Reverse Nodes in K Group": [
+  {
+   "mistake": "Reversing the final partial group along with the full ones.",
+   "why": "The reversal machinery is already running, and letting it finish the tail feels more uniform than special-casing it.",
+   "consequence": "list 1 -> 2 -> 3 -> 4 -> 5 with k = 3: the correct output is 3 -> 2 -> 1 -> 4 -> 5, but reversing the leftover pair produces 3 -> 2 -> 1 -> 5 -> 4 — the spec says a group shorter than k stays as-is.",
+   "instead": "Probe before you commit: walk a scout pointer k steps ahead, and only reverse when a full group is confirmed. The check-then-act split is what keeps the tail intact."
+  },
+  {
+   "mistake": "Reversing each group correctly but botching the reconnection between groups.",
+   "why": "The reversal is the hard-looking part, so attention pools there and the two boundary links feel like bookkeeping.",
+   "consequence": "list 1 -> 2 -> 3 -> 4 with k = 2: the groups become 2 -> 1 and 4 -> 3, but node 1 still points at node 2 from before the reversal — traversal revisits nodes in a loop or loses 4 -> 3 entirely.",
+   "instead": "Name three handles per group before touching pointers: the previous group's tail, this group's head (which becomes its tail), and this group's tail (which becomes its head). Rewire both boundary links after each reversal, with a dummy node in front of the first group."
+  },
+  {
+   "mistake": "Counting the group with a loop that runs one node too far, or dereferencing past the end while counting.",
+   "why": "Count k nodes and check k nodes ahead differ by one in every implementation, and the difference only bites at the list's end.",
+   "consequence": "list 1 -> 2 -> 3 -> 4 -> 5 with k = 5: an overshooting count loop asks for node 6, reads null, and either crashes or wrongly concludes the group is short — leaving the list unreversed when the correct output is 5 -> 4 -> 3 -> 2 -> 1.",
+   "instead": "Advance a scout exactly k times with a null check at each step, and bail to append-as-is the moment it runs out early. Verify on a list whose length is an exact multiple of k, where the last group must still reverse."
+  }
+ ],
+ "Clone Linked List with Random Pointer": [
+  {
+   "mistake": "Copying random pointers directly, so clone nodes point into the original list.",
+   "why": "copy.random = old.random type-checks, runs, and even makes the values traversal look right, so nothing appears wrong.",
+   "consequence": "nodes [[7, null], [13, 0]]: the cloned 13's random points at the original 7, not the cloned 7 — the judge's independence check fails, and any later mutation of the original corrupts the so-called copy.",
+   "instead": "The random targets may not exist yet when you copy a node, so build in two passes with an old-to-new map: create all clone nodes first, then wire every next and random by translating through the map."
+  },
+  {
+   "mistake": "Using the O(1)-space interleaving trick but never un-weaving the two lists at the end.",
+   "why": "Once the clone's randoms are wired, the answer exists, and the separation pass feels like cosmetic cleanup.",
+   "consequence": "nodes [[3, null], [3, 0], [3, null]]: the original list is left interleaved with clone nodes (A -> A' -> B -> B' ...), and the judge — which verifies the original is unmodified — rejects the submission outright.",
+   "instead": "The trick is a three-pass contract: interleave clones after originals, set copy.random = orig.random.next, then restore both lists to their own chains. Leaving inputs as you found them is part of correctness, not politeness."
+  },
+  {
+   "mistake": "Keying the old-to-new map by node value instead of node identity.",
+   "why": "Values are what you see when debugging, and dictionaries keyed by values are the everyday pattern.",
+   "consequence": "nodes [[1, null], [1, 0]]: two distinct nodes share value 1, the map collapses them into one entry, and the clone comes out with merged or misdirected pointers.",
+   "instead": "Identity is the node reference itself — values are payload and may repeat freely. Key the map by the node object (its reference), which is exactly what makes the translation old node to its clone well-defined."
+  }
+ ],
+ "Merge K Sorted Linked Lists": [
+  {
+   "mistake": "Merging list 1 into list 2, the result into list 3, and so on down the line.",
+   "why": "Two-list merge is a solved subroutine, and folding the lists through it one at a time is the most direct way to reuse it.",
+   "consequence": "k = 10^4 lists totaling N = 10^5 nodes: early nodes are re-traversed in nearly every later merge, and the O(k * N) total approaches 10^9 operations — a timeout where O(N log k) passes comfortably.",
+   "instead": "Keep every merge between similarly sized inputs: pair the lists up and merge halves (divide and conquer), or draw the global minimum repeatedly from a min-heap of the k current heads. Both make each node travel only log k merges."
+  },
+  {
+   "mistake": "Pushing bare list nodes into Python's heapq with no tiebreaker.",
+   "why": "The heap needs the smallest value first, and pushing (node.val, node) or the node itself looks like it hands the heap what it needs.",
+   "consequence": "lists = [[1, 4], [1, 3]]: two nodes tie on value 1, heapq falls through to comparing ListNode objects, and the program dies with TypeError: '<' not supported between instances.",
+   "instead": "Give ties a total order the heap can use: push (val, seq, node) where seq is a rising counter. The middle element never affects which value wins — it exists to keep the comparison from ever reaching the node object."
+  },
+  {
+   "mistake": "Seeding the heap with every list head, including the empty ones.",
+   "why": "The lists arrive as a uniform array, and a uniform loop over them feels like the natural setup step.",
+   "consequence": "lists = [[], [1], []]: pushing None for the empty lists crashes on the first attribute access (None.val), or poisons every heap comparison — on an input the judge is guaranteed to include.",
+   "instead": "Guard both entry points: push only non-null heads at setup, and only a non-null successor after each pop. Empty lists among the k inputs are the first edge case this problem tests."
+  }
+ ],
+ "LRU Cache": [
+  {
+   "mistake": "Treating get() as a pure read that does not touch recency order.",
+   "why": "In every ordinary map, reading is side-effect-free, and mutating state inside a getter feels like a design smell.",
+   "consequence": "capacity 2: put(1, 1), put(2, 2), get(1), put(3, 3) — the eviction must remove key 2, but without the recency refresh key 1 is evicted, and a later get(1) returns -1 instead of 1.",
+   "instead": "Recently used includes reads — that is the R in LRU. Both get and put must move the touched key to the most-recent position; the cache is an ordering structure that happens to store values."
+  },
+  {
+   "mistake": "Running the eviction check before checking whether the key already exists.",
+   "why": "Capacity is the scary constraint, so guarding it first feels like defensive programming.",
+   "consequence": "capacity 2: put(1, 1), put(2, 2), put(2, 20) — the overwrite adds no new key, but evict-first removes least-recent key 1 anyway, and a later get(1) returns -1 where it should return 1.",
+   "instead": "An update in place never changes the size, so the order is: if the key exists, update its value and refresh recency, done; only a genuinely new key at full capacity triggers eviction. State the order of operations before coding put."
+  },
+  {
+   "mistake": "One hash map with timestamps, scanning for the oldest entry at eviction time.",
+   "why": "It needs no second data structure, and the timestamp scan is easy to write correctly on the first try.",
+   "consequence": "10^5 operations at capacity 10^4: each eviction scans the whole map, and the worst case approaches 10^9 comparisons — the problem's O(1)-per-operation requirement is the actual exercise.",
+   "instead": "Pair the hash map with a doubly linked list ordered by recency: the map finds the node in O(1), the list moves and evicts in O(1). Explain why singly linked fails — removing an arbitrary node in O(1) requires its predecessor pointer — and mention OrderedDict or LinkedHashMap as the packaged form."
+  },
+  {
+   "mistake": "Writing the doubly linked list with real head and tail nodes instead of permanent sentinels.",
+   "why": "Dummy nodes feel like clutter, and the pointer surgery seems manageable while the list is on the whiteboard.",
+   "consequence": "capacity 1: put(1, 1), put(2, 2) — the very first eviction removes the only real node, hitting the head-and-tail-both-change branch; one missed null check crashes the cache on its simplest workload.",
+   "instead": "Permanent dummy head and tail sentinels guarantee every real node has live neighbors, collapsing insert and remove to branch-free pointer swaps. Buying uniformity with two throwaway nodes is the standard trade — take it every time."
+  }
+ ],
+ "Min Stack": [
+  {
+   "mistake": "Tracking the minimum in a single variable alongside the stack.",
+   "why": "Running minimum of what I have pushed is one value, and one variable is the natural home for one value.",
+   "consequence": "push(1), push(0), pop(): the variable still says 0, but 0 has left the stack — getMin() now returns 0 while the true minimum of the remaining contents is 1.",
+   "instead": "Pops must be able to restore the previous minimum, so the history of minimums has to be stored, not summarized: keep an auxiliary stack of minimums (or push value-minimum pairs) that moves in lockstep with the main stack."
+  },
+  {
+   "mistake": "Pushing onto the auxiliary min-stack only when the new value is strictly smaller than the current minimum.",
+   "why": "An equal value does not change the minimum, so recording it again feels like storing redundant information.",
+   "consequence": "push(0), push(0), pop(): the aux stack recorded 0 once; the pop sees the departing 0 matching the aux top and removes it, leaving the aux empty while a 0 still sits in the stack — getMin() is now wrong or crashes.",
+   "instead": "Duplicates of the minimum each need their own aux entry, because each will eventually be popped: push on less-than-or-equal, or sidestep the whole class of bug by pushing to the aux stack on every operation."
+  },
+  {
+   "mistake": "Implementing getMin() as a scan over the stack contents.",
+   "why": "It is correct, requires no extra structure, and feels acceptable for a supporting operation.",
+   "consequence": "10^5 getMin calls against a stack holding 10^5 elements approach 10^10 comparisons — and the problem statement demands O(1) for every operation, which is the entire reason this problem exists.",
+   "instead": "Spend O(1) extra memory per push to make the answer instantaneous: the aux-stack top always is the minimum. Name the trade — space for time — and mention the delta-encoding variant that gets O(1) extra space if the follow-up asks."
+  }
+ ],
+ "Balanced Parentheses": [
+  {
+   "mistake": "Keeping one counter per bracket type and checking that all end at zero.",
+   "why": "Balanced sounds like a counting property — equal opens and closes — and counters implement counting directly.",
+   "consequence": "s = '([)]': every counter finishes at 0, so the counters say valid, but the interleaving is illegal — the correct answer is false because the parenthesis closes while the bracket is still open.",
+   "instead": "Validity is about order, not totals: the most recently opened bracket must close first, which is a last-in-first-out constraint. That sentence is the justification for a stack — push openers, and each closer must match the popped top."
+  },
+  {
+   "mistake": "Popping for a closer without first checking that the stack is non-empty.",
+   "why": "The mental movie always starts with an opener, so the closer-first script never gets rehearsed.",
+   "consequence": "s = ')(': the first character is a closer with nothing open, the pop hits an empty stack, and the function dies with an exception instead of returning false.",
+   "instead": "A closer arriving at an empty stack is not an error condition — it is the answer: return false immediately. Put the emptiness check before the pop and treat it as a normal exit path."
+  },
+  {
+   "mistake": "Returning true as soon as the scan completes without inspecting the stack.",
+   "why": "Surviving the whole string without a mismatch feels like passing every test the input could pose.",
+   "consequence": "s = '(((': the loop finishes without conflict, but three openers were never closed — the function returns true where the correct answer is false.",
+   "instead": "The scan proves no closer mismatched; it says nothing about openers still waiting. Valid means everything opened was closed, so the final answer is whether the stack is empty — return stack.isEmpty(), not true."
+  }
+ ],
+ "Largest Rectangle in Histogram": [
+  {
+   "mistake": "For every bar, expanding left and right to find how far its height stretches.",
+   "why": "It is the geometric definition of the answer restated as code, and it works instantly on the samples.",
+   "consequence": "heights = [1] * 100000 (all equal): every expansion runs the full width of the array, the total is O(n^2) at around 10^10 steps, and the submission times out.",
+   "instead": "The question for each bar is where is the first shorter bar on each side, and a monotonic stack — a stack kept in increasing height order — answers it for all bars in one pass, each index pushed and popped once."
+  },
+  {
+   "mistake": "Computing the popped bar's width from its own index instead of the stack's new top.",
+   "why": "The popped bar is the star of the calculation, so its index feels like the natural anchor for the span.",
+   "consequence": "heights = [2, 1, 2]: the true answer is 3 — height 1 spanning all three bars — but anchoring widths to popped indices undercounts the stretch across the popped region and yields 2.",
+   "instead": "After popping, the bar's reach spans strictly between the new stack top and the current index: width = i - stack.top - 1, or i when the stack empties. The popped bar extends over bars taller than it that were popped earlier — the new top is the real left boundary."
+  },
+  {
+   "mistake": "Ending the scan without draining the bars still on the stack.",
+   "why": "The pop-and-measure logic lives inside the main loop, so when the input ends the algorithm appears to be finished.",
+   "consequence": "heights = [1, 2, 3]: strictly increasing bars never trigger a pop during the scan, nothing is ever measured, and the function returns 0 instead of 4 (height 2 across the last two bars).",
+   "instead": "Bars still stacked at the end extend to the array's right edge and must be measured: append a sentinel bar of height 0 to force the pops, or run the identical pop logic once more with i = n. The drain is not cleanup — it is where increasing inputs get their entire answer."
+  }
+ ],
+ "Sliding Window Maximum": [
+  {
+   "mistake": "Calling max() on the window slice at every step.",
+   "why": "It is one readable line, and for the sample sizes in the prompt it returns instantly.",
+   "consequence": "nums of length 10^5 with k = 5 * 10^4: each of the ~10^5 windows scans up to 5 * 10^4 elements, about 5 * 10^9 operations total — a guaranteed timeout on the stated constraints.",
+   "instead": "Successive windows share almost all their elements, so the work must be shared too: a monotonic deque (a double-ended queue of indices whose values decrease front to back) gives amortized O(1) per element, O(n) total."
+  },
+  {
+   "mistake": "Expiring the front of the deque unconditionally on every slide.",
+   "why": "The window moves by one each step, so removing one thing from the deque each step feels like the matching motion.",
+   "consequence": "nums = [1, 3, 2], k = 2: after the first window the deque holds only index 1 (value 3, since 1 was dominated); sliding to window [3, 2] unconditionally evicts 3, and the reported max becomes 2 instead of 3.",
+   "instead": "The deque is a list of still-useful candidates, not a mirror of the window — it shrinks from the front only when the front's index has actually left the window. Store indices, and expire the front exactly when it equals i - k."
+  },
+  {
+   "mistake": "Maintaining the deque in increasing order, or popping dominated elements from the wrong end.",
+   "why": "Sorted ascending is the default mental picture of an ordered structure, and either end of a deque will accept the pop.",
+   "consequence": "nums = [3, 1, 2], k = 3: with an increasing deque the front holds the minimum, and the reported answer for the window is 1 instead of 3.",
+   "instead": "State the invariant before coding: values decrease from front to back, the front is the current maximum, and a new element evicts smaller elements from the back because they can never outrank it while it remains — dominated is the word that keeps the direction straight."
+  }
+ ],
+ "Kth Largest Element": [
+  {
+   "mistake": "Sorting the whole array and indexing from the end, with nothing further to say.",
+   "why": "It is three characters of thought, unquestionably correct, and interview nerves reward the safe move.",
+   "consequence": "Nothing fails on nums = [3, 2, 1, 5, 6, 4], k = 2 — but the interviewer's follow-ups (n = 10^6 with k = 10, then a streaming version) are the actual assessment, and full sorting at O(n log n) answers neither.",
+   "instead": "Lay out the ladder yourself: sort is O(n log n), a size-k min-heap is O(n log k) and handles streams, quickselect averages O(n) on static arrays. Choosing per constraints — and asking about duplicates and data volume — is the answer."
+  },
+  {
+   "mistake": "Keeping a size-k max-heap and evicting the largest element when it overflows.",
+   "why": "The problem says largest, so a max-heap feels like the aligned tool, and eviction from the top is the only eviction a heap offers.",
+   "consequence": "nums = [3, 2, 1, 5, 6, 4], k = 2: evicting the maximum repeatedly leaves the two smallest values [1, 2] in the heap, and the function returns 2 — the correct answer is 5.",
+   "instead": "To retain the k largest, throw away the smallest of the current candidates — which means a min-heap of size k, whose root is exactly the kth largest at the end. Which element must be cheap to discard decides the heap's polarity."
+  },
+  {
+   "mistake": "Deduplicating the array, or otherwise conflating kth largest with kth distinct value.",
+   "why": "In everyday speech the second largest of [5, 5, 3] is 3, so removing duplicates feels like fidelity to the question.",
+   "consequence": "nums = [3, 2, 3, 1, 2, 4, 5, 5, 6], k = 4: the standard problem counts duplicates and the answer is 4; a dedupe-first solution returns 3 and fails the judge.",
+   "instead": "This is a specification fork, so resolve it with one clarifying sentence before coding — the standard version ranks with duplicates counted. Asking is free; guessing costs the whole solution."
+  }
+ ],
+ "Top K Frequent Elements": [
+  {
+   "mistake": "Counting frequencies, then sorting all entries by count.",
+   "why": "Count then sort by count is the natural two-step reading of the problem title, and it is correct.",
+   "consequence": "Nothing fails on nums = [1, 1, 1, 2, 2, 3], k = 2 — but the stated follow-up requires better than O(n log n), and with n = 10^6 distinct-heavy data the full sort is exactly what was ruled out.",
+   "instead": "Frequencies live in a tiny range — no count can exceed n — so bucket them: an array of lists indexed by count, walked from the high end until k elements are collected. Bounded key ranges are the standing invitation to replace sorting with indexing."
+  },
+  {
+   "mistake": "Building heap entries with the element first, so the heap orders by element value instead of by count.",
+   "why": "(element, count) is the order the data appears in the counter, and tuples flow into the heap without complaint.",
+   "consequence": "nums = [5, 5, 5, 1, 1, 4], k = 2: the expected answer is [5, 1] (counts 3 and 2), but a size-2 min-heap ordered by element value evicts the small elements and returns [4, 5].",
+   "instead": "A heap compares tuples left to right, so the sort key must come first: push (count, element). Whenever a heap of tuples misbehaves, the first suspect is which field is doing the comparing."
+  },
+  {
+   "mistake": "In the bucket version, storing one element per frequency slot instead of a list.",
+   "why": "Frequency feels like a unique label per element, and a flat array of single slots is less code than an array of lists.",
+   "consequence": "nums = [1, 1, 2, 2, 3], k = 2: elements 1 and 2 both have frequency 2; a single-slot bucket keeps only one of them, and the returned pair is missing a correct element or includes 3.",
+   "instead": "Frequencies collide — many elements can share one count — so each bucket must hold a list. Walk buckets from frequency n downward, extending the result until it reaches k elements."
+  }
+ ],
+ "Find Median from Data Stream": [
+  {
+   "mistake": "Keeping a sorted list and inserting each arrival with binary-search insort.",
+   "why": "bisect finds the position in O(log n), and the log is what sticks in memory as the cost of the operation.",
+   "consequence": "10^5 addNum calls: the binary search is O(log n) but each insertion shifts O(n) elements, so the total approaches 5 * 10^9 element moves — the insert's hidden linear cost is what times out.",
+   "instead": "The median only ever needs the boundary between the lower and upper halves, so keep exactly that boundary: a max-heap of the lower half and a min-heap of the upper half. Insert is O(log n) for real, and the median reads off the roots in O(1)."
+  },
+  {
+   "mistake": "Routing each arrival into a heap by comparison alone, without rebalancing sizes.",
+   "why": "Small values go low, large values go high sounds like the complete sorting rule, and early streams keep the sizes close by luck.",
+   "consequence": "stream 1, 2, 3, 4, 5 routed by comparison against the low half's max: the low heap keeps [1] while the high heap grows to [2, 3, 4, 5], and findMedian reports 1.5 instead of 3.",
+   "instead": "The heaps' size gap is the invariant that makes the roots the median — after every insert, restore abs(len(low) - len(high)) <= 1 by moving one root across. Route by comparison, then rebalance by size, every single time."
+  },
+  {
+   "mistake": "Scattering Python's negation-based max-heap workaround across the code.",
+   "why": "heapq only provides a min-heap, and negating on push is the well-known workaround, so each call site gets patched where it stands.",
+   "consequence": "stream 5, 2: the low half stores -5 internally; one read that forgets to negate reports a median of -5 or -3.5 instead of 3.5 — a sign bug invisible until a test checks actual values.",
+   "instead": "Confine the negation to one place: tiny helpers like pushLow(x) doing heappush(low, -x) and peekLow() returning -low[0]. When a data structure needs an encoding trick, wrap the trick so the rest of the code never sees it."
+  }
+ ],
+ "Level Order Traversal": [
+  {
+   "mistake": "Draining one queue in a single loop without recording where each level ends.",
+   "why": "BFS is remembered as one queue, one loop, and the traversal order does come out correct — only the grouping is lost.",
+   "consequence": "tree [3, 9, 20, null, null, 15, 7]: the output is the flat list [3, 9, 20, 15, 7] instead of the required [[3], [9, 20], [15, 7]] — right order, wrong shape, judged wrong.",
+   "instead": "The queue holds exactly one level at the top of each outer iteration, so snapshot size = len(queue) and drain precisely that many nodes into the current level's list before their children take over the queue."
+  },
+  {
+   "mistake": "Enqueueing null children and planning to filter them on the way out.",
+   "why": "Pushing whatever left and right contain keeps the enqueue line short, and the nulls feel handleable later.",
+   "consequence": "tree [1, null, 2]: the null left child enters the queue and the dequeue side either crashes reading .val on None or pollutes the level lists with placeholder entries.",
+   "instead": "Filter at the entrance, not the exit: enqueue a child only if it is non-null. The queue's invariant — every element is a real node — is worth one if-statement per child, and it deletes the entire downstream null-handling story."
+  },
+  {
+   "mistake": "In the recursive depth-tagged version, appending to result[depth] before that sublist exists.",
+   "why": "The recursion carries depth as an argument, and indexing result by it reads like the sublist should already be there.",
+   "consequence": "tree [1, 2, 3]: the first visit at depth 1 executes result[1].append(...) while result has length 1 — an IndexError on a three-node tree.",
+   "instead": "Create-on-first-visit: when depth == len(result), append an empty list before writing into it. Or side-step the bookkeeping entirely with BFS, whose loop structure matches the output shape level by level."
+  }
+ ],
+ "Diameter of Binary Tree": [
+  {
+   "mistake": "Computing left depth plus right depth at the root only.",
+   "why": "The longest path in the examples usually does run through the root, and the root is where the recursion naturally reports.",
+   "consequence": "tree [1, 2, null, 3, 4, 5, null, null, 6] — root 1 has only a left child 2, whose subtree holds the path 5 -> 3 -> 2 -> 4 -> 6 of length 4; measuring at the root alone gives 3.",
+   "instead": "The best path bends at some node, but not necessarily the root, so evaluate leftDepth + rightDepth at every node during one post-order pass, tracking the running best while returning depth to the parent."
+  },
+  {
+   "mistake": "Counting nodes on the path instead of edges.",
+   "why": "Length of a path colloquially means how many things are on it, and both conventions produce plausible-looking numbers.",
+   "consequence": "tree [1, 2, 3]: the diameter in edges is 2, but a node-count answer says 3 — every answer is off by one against the judge's convention.",
+   "instead": "Pin the unit before writing the recursion: the standard problem counts edges, so a single node has diameter 0. Deciding the convention first also settles what a leaf's depth is, which is where the off-by-ones breed."
+  },
+  {
+   "mistake": "Calling a standalone depth() helper for both children of every node.",
+   "why": "Depth is already written and diameter is defined in terms of it, so composing the two functions feels like clean reuse.",
+   "consequence": "a skewed, linked-list-shaped tree with 10^4 nodes: each of the n nodes pays an O(n) depth call, the total is about 10^8, and the clean-looking solution times out.",
+   "instead": "Fuse the two computations: one post-order traversal returns depth upward while updating a shared best diameter as a side effect. The return one value, record another pattern reappears across tree problems — this is the one to learn it on."
+  }
+ ],
+ "Maximum Path Sum in Binary Tree": [
+  {
+   "mistake": "Returning the forked sum — node plus both children's gains — up to the parent.",
+   "why": "The fork is the quantity being maximized, so returning it feels like passing the good news upward.",
+   "consequence": "tree [2, 1, null, 3, 4]: node 1 forks over both leaves for 3 + 1 + 4 = 8; handing 8 to node 2 claims the path 3 -> 1 -> 4 -> 2, which revisits node 1 — an illegal path scoring 10 where the true best is 8.",
+   "instead": "Track two different quantities: the forked sum through a node feeds only the global best, while the value returned to the parent is node plus one child arm — a path continuing upward cannot have already branched."
+  },
+  {
+   "mistake": "Adding a child's contribution even when that contribution is negative.",
+   "why": "The recursion hands back a number per child, and the formula consumes both numbers — declining one does not occur to the formula.",
+   "consequence": "tree [2, -1]: forcing the -1 branch into the path gives 1, but the best path is the bare node 2 — a path may exclude a subtree entirely.",
+   "instead": "Clamp each child's gain at zero: gain = max(0, childGain). The clamp is the code-level expression of paths are allowed to leave losing branches out, and it belongs in the recursion, not in post-processing."
+  },
+  {
+   "mistake": "Initializing the global best to 0.",
+   "why": "Zero is the reflexive identity for a maximum-of-sums, and it is right whenever any node is positive.",
+   "consequence": "tree [-3]: the single node is the only possible path and the answer is -3, but a zero-initialized best returns 0 — the sum of an empty path the problem forbids.",
+   "instead": "The path must contain at least one node, so start best at negative infinity (or the root's value) and let real paths compete from there. Whenever a problem forbids the empty case, an identity-element initialization is the first thing to re-examine."
+  }
+ ],
+ "Lowest Common Ancestor in Binary Tree": [
+  {
+   "mistake": "Steering the search by comparing node values, as in the BST version.",
+   "why": "The BST variant is usually learned first, and its value-comparison walk is shorter and feels like the general technique.",
+   "consequence": "tree [3, 5, 1, 6, 2, 0, 8], p = 5, q = 1: values carry no ordering information in a plain binary tree, so the comparisons steer arbitrarily — the walk misses the answer 3 or descends nowhere useful.",
+   "instead": "Without ordering, both subtrees must be asked: recurse left and right for sightings of p or q. A node where both sides report a sighting is the split point — the LCA. Note explicitly that the BST shortcut was a property of the structure, not of the problem."
+  },
+  {
+   "mistake": "Requiring the split — non-null reports from both children — as the only way to answer.",
+   "why": "The split point is the memorable picture of an LCA, so the ancestor-of-the-other case slips out of the mental model.",
+   "consequence": "tree [3, 5, 1, 6, 2], p = 5, q = 2: q lives inside p's subtree, so no node sees a split — the expected answer is 5 itself, and split-only logic returns 3 or null.",
+   "instead": "A node counts as its own ancestor, so the recursion returns root immediately when root matches p or q — the guarantee that both nodes exist makes stopping there sound, since the other node must be below or elsewhere. State that reliance on the guarantee aloud."
+  },
+  {
+   "mistake": "Collecting both root-to-node paths and comparing them, without handling absence.",
+   "why": "Two paths diverging at the LCA is a very visual, very checkable plan, and it does work when both nodes exist.",
+   "consequence": "tree [1, 2], p = 3, q = 2 in the variant where nodes may be absent: the path to 3 comes back empty, and the comparison loop crowns a bogus ancestor from comparing against an empty list — plus the approach costs two traversals and O(n) extra space.",
+   "instead": "Say which contract you are coding against: with existence guaranteed, the one-pass recursion needs no absence handling; without it, count found nodes and verify both were seen. The follow-up about missing nodes is a standard second act for this problem."
+  }
+ ],
+ "Validate BST": [
+  {
+   "mistake": "Checking each node only against its immediate children.",
+   "why": "The BST rule is usually recited as left child smaller, right child bigger, which is a parent-child sentence.",
+   "consequence": "tree [10, 5, 15, null, null, 6, 20]: every parent-child pair passes (15 > 10, 6 < 15, 20 > 15), yet 6 sits in 10's right subtree while being smaller than 10 — the tree is invalid and the local check approves it.",
+   "instead": "The BST property is a subtree-wide constraint: every node bounds all descendants on each side. Thread an allowed range (low, high) down the recursion, tightening one bound at each turn — the range is the property, made explicit."
+  },
+  {
+   "mistake": "Seeding the valid range with fixed integer limits like INT_MIN and INT_MAX.",
+   "why": "They read as the widest possible bounds, and on ordinary inputs nothing ever touches them.",
+   "consequence": "single-node tree [2147483647]: the node equals INT_MAX, the strict check value < high fails against the seed bound, and a valid tree is rejected.",
+   "instead": "Make the initial bounds mean no constraint rather than a large number: null sentinels or infinities, or a long-typed bound. Better still, validate via inorder order — each visited value must exceed its predecessor — and the seed-bound problem disappears."
+  },
+  {
+   "mistake": "Allowing equal values by validating with less-than-or-equal.",
+   "why": "Real-world databases store duplicates, so equality feels like it should be tolerated somewhere in the tree.",
+   "consequence": "tree [2, 2, 2]: the standard definition requires strict inequality on both sides, so this tree is invalid — the lenient check returns true and fails the judge.",
+   "instead": "Duplicates policy is a specification question: ask, then encode the answer deliberately. The default convention is strict — left subtree strictly smaller, right strictly larger — and mixing conventions mid-recursion is the bug to guard against."
+  },
+  {
+   "mistake": "Comparing inorder values against a previous variable initialized to 0.",
+   "why": "Zero is the default initial value the fingers type, and trees full of positive values never expose it.",
+   "consequence": "tree [-5, -10, 0] (inorder -10, -5, 0, a valid BST): the first comparison sees -10 < 0 with the seed previous of 0 and declares the tree invalid.",
+   "instead": "The state before any node is visited is no predecessor yet, and the code should say so: previous = None with a first-visit branch, or negative infinity. Defaults that accidentally lie about state are a bug class, not a style choice."
+  }
+ ],
+ "Serialize and Deserialize Binary Tree": [
+  {
+   "mistake": "Serializing plain preorder without markers for the null children.",
+   "why": "Preorder feels like it captures the tree — it visits everything — and nulls look like absent data not worth writing down.",
+   "consequence": "the tree [1, 2] (2 as left child) and the tree [1, null, 2] (2 as right child) both serialize to '1,2' — deserialization cannot tell them apart, so one of them round-trips into the wrong shape.",
+   "instead": "Record the nulls: '1,2,#,#,#' pins every child slot. With null markers, a single preorder stream determines the tree uniquely, and deserialization becomes one recursive read with no lookahead."
+  },
+  {
+   "mistake": "Reconstructing from a preorder-plus-inorder pair of traversals.",
+   "why": "It is the famous construct-a-tree technique from another classic problem, so it feels like the designed tool for round-tripping.",
+   "consequence": "a tree whose root 3 has a child also valued 3: preorder [3, 3] with inorder [3, 3] cannot distinguish left child from right — position-by-value lookup is ambiguous the moment values repeat.",
+   "instead": "That technique assumes distinct values, which a serializer cannot assume. Null-marked preorder encodes structure explicitly instead of inferring it from value positions, so duplicates cost nothing — prefer encodings that never need to search."
+  },
+  {
+   "mistake": "Deserializing recursively while passing the read position as a plain integer argument.",
+   "why": "Recursion communicates through arguments, and index-in, index-out is how array recursions usually look.",
+   "consequence": "data = '1,2,#,#,3,#,#': integers pass by value in Python, so a child call's consumption never advances the caller's position — every level re-reads token 1 and the recursion spins or builds a wrong tree.",
+   "instead": "Token consumption must be globally shared state: hand the recursion an iterator (next(tokens)) or a deque (popleft()), so each read permanently advances a single cursor. The stream-of-tokens framing is the fix, not a bigger integer."
+  }
+ ],
+ "Number of Islands": [
+  {
+   "mistake": "Flood-filling without marking cells at the moment they are discovered.",
+   "why": "Marking on arrival at a cell (when it is popped or recursed into) feels equivalent to marking when it is first seen.",
+   "consequence": "grid [['1', '1'], ['1', '1']]: neighbors re-add each other before either is marked — DFS recurses between cells endlessly, and BFS lets the queue balloon with duplicate entries on any large all-land grid.",
+   "instead": "Mark at discovery — flip the cell to '0' or record it visited when it is pushed, not when it is popped. The invariant everything in the queue is already marked is what bounds the work at one visit per cell."
+  },
+  {
+   "mistake": "Incrementing the island count on every land cell encountered in the scan.",
+   "why": "Counting things is the task, and land cells are the things in view, so the counter gravitates to the wrong event.",
+   "consequence": "grid [['1', '1', '0'], ['0', '1', '0']]: three land cells produce a count of 3, but they are one connected island — the correct answer is 1.",
+   "instead": "Count discoveries of new components, not cells: increment only when the scan meets a land cell not yet absorbed, then flood-fill the entire component before scanning on. The flood-fill is what makes each island count exactly once."
+  },
+  {
+   "mistake": "Including diagonal neighbors in the connectivity.",
+   "why": "Diagonal cells look adjacent on the grid picture, and eight-directional movement is common in other grid problems.",
+   "consequence": "grid [['1', '0'], ['0', '1']]: with diagonals the two cells fuse into one island and the answer comes out 1; the standard 4-directional definition gives 2.",
+   "instead": "Connectivity is defined by the problem, not by the picture — read the definition and confirm 4-directional aloud before coding the neighbor offsets. One clarifying sentence removes an entire class of wrong-answer submissions."
+  }
+ ],
+ "Rotten Oranges": [
+  {
+   "mistake": "Running BFS from one rotten orange at a time instead of all sources at once.",
+   "why": "BFS is taught single-source, so from each rotten orange, spread reads like the direct application of the tool.",
+   "consequence": "grid [[2, 1, 1, 1, 2]]: rot spreads from both ends simultaneously and finishes in 2 minutes, but a single-source pass from the left orange alone reports 3 — sequential sources overstate the time.",
+   "instead": "Simultaneity is modeled by seeding the queue with every initially rotten orange at time 0 — multi-source BFS. The wavefront then advances one minute per layer, which is exactly the physics the problem describes."
+  },
+  {
+   "mistake": "Returning the elapsed minutes without checking whether fresh oranges survived.",
+   "why": "The BFS ran to completion, and a finished traversal feels like a finished problem.",
+   "consequence": "grid [[2, 1, 0], [0, 0, 0], [0, 0, 1]]: the fresh orange at the far corner is walled off and never rots — the correct answer is -1, but skipping the survivor check returns the minutes the reachable part took.",
+   "instead": "Count fresh oranges at the start, decrement on each rot, and let the final count decide: zero remaining means return the elapsed time, anything else means return -1. Unreachable targets are the standard trap in every spreading-process problem."
+  },
+  {
+   "mistake": "Counting minutes per BFS layer in a way that includes the initial layer or the final empty one.",
+   "why": "Layer count and minute count feel identical, and on many grids they differ by exactly one in a way tests may not catch.",
+   "consequence": "grid [[2, 1, 1]]: the answer is 2, but incrementing the minute counter for the initial rotten layer (or after the last productive layer) reports 3.",
+   "instead": "Make time explicit instead of inferred: enqueue (cell, t) pairs, or increment only when a layer actually rots at least one fresh orange. Then verify on the smallest asymmetric grid, [[2, 1, 1]], where the answer must be 2."
+  }
+ ],
+ "Detect Cycle in Directed Graph": [
+  {
+   "mistake": "Using a single visited set and reporting a cycle on any revisit.",
+   "why": "That rule is correct for undirected graphs, and the undirected version is usually learned first, so it transfers silently.",
+   "consequence": "the diamond DAG edges = [[0, 1], [0, 2], [1, 3], [2, 3]]: node 3 is reached along two different routes, the revisit fires, and an acyclic graph is reported cyclic.",
+   "instead": "Direction changes what a revisit means: only an edge back into the current recursion path proves a cycle. Keep two marks — visited (ever finished) and on-stack (in the active path) — and flag only on-stack revisits."
+  },
+  {
+   "mistake": "Never removing nodes from the on-stack set when the recursion unwinds.",
+   "why": "Adding on entry is symmetric-feeling with adding to visited, and the removal has no analog in plain DFS to remind you.",
+   "consequence": "n = 3, edges = [[0, 1], [2, 1]]: after the walk 0 -> 1 finishes, node 1 stays flagged on-stack; the later walk from 2 reaches 1, sees the stale flag, and reports a cycle in an acyclic graph.",
+   "instead": "The on-stack set must mirror the call stack exactly — add on entry, remove on exit, no path spared. It is the same choose-explore-unchoose discipline as backtracking, applied to graph state."
+  },
+  {
+   "mistake": "Launching DFS from node 0 only and trusting it to see the whole graph.",
+   "why": "Tree and grid problems usually have one natural root, and the habit of a single starting point carries over.",
+   "consequence": "n = 4, edges = [[2, 3], [3, 2]] with node 0 isolated: the search from 0 sees nothing, misses the 2 <-> 3 cycle entirely, and returns acyclic.",
+   "instead": "A directed graph has no reason to be reachable from any single vertex, so wrap the DFS in a loop over all unvisited nodes. The outer loop is part of the algorithm, not scaffolding."
+  }
+ ],
+ "Topological Sort (BFS/Kahn's Algorithm)": [
+  {
+   "mistake": "Returning the processed order without checking that it contains all n nodes.",
+   "why": "The queue drained and the loop ended cleanly, which feels like the algorithm declaring success.",
+   "consequence": "n = 2, edges = [[0, 1], [1, 0]]: both nodes start with nonzero in-degree (incoming edge count), the queue starts empty, and the loop exits at once — an empty order is returned as if valid, when the cycle means no order exists.",
+   "instead": "The length check is the cycle detector: a topological order exists exactly when processed == n. In Course Schedule terms, that comparison is the entire answer — say so explicitly rather than bolting on a separate cycle check."
+  },
+  {
+   "mistake": "Building the adjacency and in-degrees with the prerequisite pairs read in the wrong direction.",
+   "why": "[a, b] gives no visual hint whether a needs b or b needs a, and both readings produce a running program.",
+   "consequence": "prerequisites = [[1, 0]] means course 0 comes before course 1 (edge 0 -> 1): with the direction flipped, the output order is [1, 0] — exactly backwards, on the simplest possible input.",
+   "instead": "Resolve the semantics on paper before coding: draw the two-node example, decide that [a, b] draws the edge b -> a (or the reverse, per the statement), and verify the tiny case end-to-end. Edge-direction bugs survive every test except the one you draw by hand."
+  },
+  {
+   "mistake": "Enqueueing a neighbor every time its in-degree is decremented, rather than only when it reaches zero.",
+   "why": "Decrement and enqueue happen in the same breath of the algorithm's description, so the condition between them gets dropped.",
+   "consequence": "n = 3, edges = [[0, 2], [1, 2]]: node 2 is enqueued twice and appears twice in the output — the order has length 4 for a 3-node graph, breaking the count check and everything downstream.",
+   "instead": "In-degree zero is the event that means all prerequisites satisfied, and it happens exactly once per node — enqueue precisely at that moment. The guard is the algorithm's core claim, not an optimization."
+  }
+ ],
+ "Dijkstra's Algorithm": [
+  {
+   "mistake": "Running Dijkstra on a graph that contains negative edge weights.",
+   "why": "It is the shortest-path algorithm everyone reaches for, and nothing in the code visibly objects to a negative number.",
+   "consequence": "edges 0 -> 1 weight 1, 1 -> 2 weight -2, 0 -> 2 weight 0: node 2 is finalized at distance 0, but the path through node 1 costs -1 — the finalized answer is wrong and never revised.",
+   "instead": "Dijkstra's correctness rests on one claim: the smallest tentative distance can never improve later, which only holds when edges cannot subtract. Negative weights break the claim, so switch to Bellman-Ford — and say which assumption failed, because that is the real question."
+  },
+  {
+   "mistake": "Processing every entry popped from the heap, with no staleness check.",
+   "why": "The heap only contains things the algorithm pushed, so everything in it feels legitimate to process.",
+   "consequence": "a node relaxed several times holds several heap entries, and only the smallest is current: on a graph with 10^5 edges, re-expanding stale entries multiplies the work and a comfortable O(E log V) run turns into a timeout.",
+   "instead": "Lazy deletion is the standard contract with a binary heap: on pop, compare the entry's distance with dist[u] and skip if it is worse. One if-statement stands in for the decrease-key operation the heap does not offer."
+  },
+  {
+   "mistake": "Finalizing a node's distance at push time instead of pop time.",
+   "why": "The push happens at the moment of discovery, and discovery feels like the natural moment to lock in an answer.",
+   "consequence": "edges 0 -> 1 weight 10, 0 -> 2 weight 1, 2 -> 1 weight 1: node 1 is discovered first at distance 10; locking that in misses the cheaper route through node 2, and dist[1] stays 10 instead of 2.",
+   "instead": "A distance is proven minimal only when the node surfaces from the heap with the smallest tentative value — that surfacing is the proof. Push duplicates freely, finalize on pop, and let the staleness check absorb the redundancy."
+  }
+ ]
+}

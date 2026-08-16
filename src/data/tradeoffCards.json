@@ -1,0 +1,614 @@
+{
+  "1-D DP": [
+    {
+      "front": "House Robber: why does the greedy 'take every other element' fail, forcing DP?",
+      "back": "Counterexample [2,1,1,2]: alternating picks give 2+1=3, but the optimum skips two in a row: 2+2=4. Optimal gaps are irregular, so no fixed skipping rule works. The DP state dp[i] = max(dp[i-1], dp[i-2]+a[i]) exists precisely because the choice at i depends on computed optima, not a local rule. If you propose greedy here, the interviewer will hand you this exact array."
+    },
+    {
+      "front": "When does Kadane's algorithm (running max ending here) break, even though the problem says 'maximum subarray'?",
+      "back": "Maximum PRODUCT subarray. Kadane tracks one running value because a bigger prefix sum is always better. With products, a large negative running product becomes the best answer after one more negative number, so you must track both running max and running min at each index. Any problem where a 'bad' partial state can flip into the best state defeats single-state Kadane."
+    },
+    {
+      "front": "Buy/Sell Stock with cooldown or transaction limits: why does plain dp[i] over the index stop working?",
+      "back": "The answer at day i no longer depends only on i; it depends on whether you hold a stock, and how many transactions remain. That is hidden state. Fix: expand the state to dp[i][holding] or dp[i][k][holding]. The interview trap is forcing a 1-D recurrence onto a problem whose subproblem needs more identifiers — you get a recurrence that cannot express the constraint."
+    },
+    {
+      "front": "You wrote a correct 1-D DP but the constraint says n up to 10^9 (e.g. Climbing Stairs for huge n). Now what?",
+      "back": "O(n) table fill is infeasible at 10^9 steps. Linear recurrences like f(n)=f(n-1)+f(n-2) are computed by matrix exponentiation in O(log n), or by a closed form. A 1-D DP is an iteration over states; when the state count itself is astronomical, you need to exploit the recurrence's algebraic structure instead of walking it."
+    }
+  ],
+  "BST Property": [
+    {
+      "front": "Validate BST: why does checking node.left < node < node.right at each node fail?",
+      "back": "The BST property is global, not local: EVERY node in the left subtree must be smaller, not just the child. Tree [5, 1, 7] with 7's children [3, 8] passes the local check (3 < 7) but 3 sits in 5's right subtree while being smaller than 5. Correct approach: pass down a (min, max) range, or verify the inorder traversal is strictly increasing."
+    },
+    {
+      "front": "When do all the O(h) BST guarantees (search, floor, ceil, insert) silently become O(n)?",
+      "back": "When the tree is degenerate — inserting sorted keys 1,2,3,...,n builds a linked list, so h = n. Plain BSTs make no balance promise. If the interviewer says 'keys arrive in sorted order' or asks for worst-case bounds, the answer is a self-balancing tree (AVL, red-black) or skip the tree entirely for a sorted array. Quoting O(log n) for an arbitrary BST is the classic trap."
+    },
+    {
+      "front": "Two Sum in BST via inorder-to-array is O(n) space. What does the interviewer want instead, and what does it cost?",
+      "back": "Two BST iterators — one forward (leftmost-first) and one backward — each holding an explicit stack of O(h) nodes, walked toward each other like two pointers on a sorted array. Space drops from O(n) to O(h). The follow-up exposes anyone who flattens the tree by reflex: the whole point of Two Sum in BST is doing the two-pointer sweep without materializing the array."
+    },
+    {
+      "front": "Recover BST assumes what about the corruption? What input shape breaks the two-pointer inorder fix?",
+      "back": "It assumes exactly two nodes were swapped, which creates at most two inversions (adjacent-swap: one) in the inorder sequence. Three or more corrupted nodes, or arbitrary edits, produce inversion patterns the first/second-pointer scan cannot decode — you'd need to sort the inorder values and reassign all of them, O(n log n). State the assumption before coding; interviewers probe it."
+    }
+  ],
+  "Backtracking": [
+    {
+      "front": "Word Break with pure backtracking times out on s = \"aaaa...a\", dict = [\"a\",\"aa\",\"aaa\"]. Why, and what's the fix?",
+      "back": "The same suffix gets re-explored exponentially many times — overlapping subproblems. Backtracking enumerates paths; when many paths reach identical states, you must memoize the state (start index) and it becomes DP with O(n^2) work. Rule: if the question asks 'can it be done' or 'how many ways' rather than 'list all ways', backtracking without memoization is the wrong tool."
+    },
+    {
+      "front": "What n makes plain backtracking indefensible, and what should you say when the interviewer raises constraints?",
+      "back": "Subset enumeration is 2^n and permutations are n!, so n around 20-25 is the ceiling for subsets and about 10-11 for permutations. If constraints say n = 40 for a subset-sum feasibility question, the expected answer is meet-in-the-middle (split into two halves of 2^20 each) or DP over the sum — not pruning heroics. Read the constraints before choosing the paradigm."
+    },
+    {
+      "front": "Subsets II / Combination Sum II: your output contains duplicate combinations. What did you skip?",
+      "back": "Sorting plus the same-level skip: after sorting, when candidates[i] == candidates[i-1] and i is past the first choice at this depth, skip it. Without sorting first, equal values are not adjacent and the skip test cannot see them. Deduplicating with a set of serialized results 'works' but costs exponential memory and signals you don't understand the tree structure."
+    },
+    {
+      "front": "When the problem asks only for the optimal value (min cuts, max score), why is generating all solutions by backtracking a losing move?",
+      "back": "You pay for every leaf of the decision tree to keep one number. Palindrome Partitioning II is the canonical trap: listing all partitions is exponential, but the minimum cut count is an O(n^2) DP. Backtracking earns its cost only when the output itself is the set of solutions (N-Queens boards, all permutations). 'Best value only' is a signal to switch to DP or greedy."
+    }
+  ],
+  "Binary Search": [
+    {
+      "front": "Search in Rotated Sorted Array WITH duplicates: what happens to the O(log n) bound?",
+      "back": "It degrades to O(n) worst case. With arr[lo] == arr[mid] == arr[hi] (e.g. [1,1,1,1,0,1,1]) you cannot tell which half is sorted, so the only safe move is shrinking one end by one. Distinct elements guarantee one half is provably sorted at every step; duplicates destroy that proof. Say the degradation out loud — it is the standard follow-up."
+    },
+    {
+      "front": "Why is mid = (lo + hi) / 2 a bug in C++/Java even when your logic is perfect?",
+      "back": "lo + hi can exceed the max int value (2^31 - 1) when both indices are large, wrapping to a negative number and producing a garbage mid. Write mid = lo + (hi - lo) / 2. Python is immune (arbitrary-precision ints), but interviewers for C++/Java expect the safe form and treat the sum as a red flag."
+    },
+    {
+      "front": "Your binary search loops forever on a two-element range. Which template mismatch causes this?",
+      "back": "With lo < hi and the lower-mid formula, the branch lo = mid never shrinks a 2-element window (mid == lo). Fix by pairing the moves with the mid: if you assign lo = mid, use the upper mid lo + (hi - lo + 1) / 2; if you assign hi = mid, use the lower mid. Mixing templates is the single most common binary search bug — commit to one and verify on a 2-element array."
+    },
+    {
+      "front": "The data is in a linked list, or the comparison isn't a total order. Is binary search still worth it?",
+      "back": "No random access means each probe walks O(n) nodes, so 'binary search on a linked list' is O(n) total — no better than a scan (it does cut comparisons, which only matters if comparisons are wildly expensive). And binary search requires a monotone predicate over the search space; if elements aren't ordered by the key you're probing (e.g. searching by value in an arbitrary tree), halving discards the half that holds the answer."
+    }
+  ],
+  "Binary Search on Answer": [
+    {
+      "front": "Binary search on the answer requires one property of feasible(x). Name it and give an input that lacks it.",
+      "back": "Monotonicity: if x is feasible then every value on one side of x must also be feasible, so the feasible set is a single prefix or suffix of the answer range. 'Number of subarrays with sum exactly k' as a function of a threshold is not monotone — counts rise and fall — so halving discards valid answers. Before writing the loop, state 'feasible(x) implies feasible(x+1)' and justify it; interviewers ask for exactly this proof."
+    },
+    {
+      "front": "What is the true cost of binary search on answer, and when does it lose to a direct method?",
+      "back": "O(check_cost x log(range)), not O(log n). Matrix Median pays an O(n log m) counting pass per probe. If a direct structure answers in one pass — e.g. Kth element of two sorted arrays has an O(log(min(n,m))) partition trick, and median-of-stream wants two heaps — wrapping a brute-force checker in binary search can be strictly worse. Always multiply the check cost before claiming efficiency."
+    },
+    {
+      "front": "Nth Root via binary search on floating-point values: why does 'while (hi - lo > 1e-9)' get you in trouble?",
+      "back": "Absolute epsilon fails at scale: doubles near 10^18 have gaps far larger than 1e-9, so the loop can spin forever. Fix: run a fixed number of iterations (100 halvings shrink any interval below any tolerance) or compare with relative error. If the problem wants an exact integer root, stay in integers and compare mid^n against the target with overflow guards — never introduce floats at all."
+    },
+    {
+      "front": "Minimizing a real-valued unimodal function (single valley): why is binary search the wrong tool, and what replaces it?",
+      "back": "Binary search needs a yes/no predicate that flips once. A unimodal function has no such predicate on its values — you cannot ask 'is the minimum left of mid?' from one sample. Ternary search does it: evaluate two interior points m1 < m2; if f(m1) < f(m2) the minimum lies left of m2, else right of m1, shrinking the interval by a third per step. Conflating the two is a known interview probe."
+    }
+  ],
+  "Bit Manipulation": [
+    {
+      "front": "XOR cancels pairs to find the single number. Which sibling problem defeats plain XOR, and why?",
+      "back": "'Every element appears three times except one.' XOR is its own inverse only in pairs (a^a=0); triples leave a^a^a = a, so everything survives and nothing isolates. Fix: count set bits per position across all numbers and take each count mod 3, or use the two-variable ones/twos automaton. XOR tricks encode 'exactly twice' structure — verify multiplicity before reaching for them."
+    },
+    {
+      "front": "Power Set by iterating masks 0..2^n-1: where is the hard ceiling, and what does the interviewer expect past it?",
+      "back": "2^n subsets means n = 20 is about a million and n = 25 is 33 million — beyond that, enumeration is dead regardless of per-subset cost. For n = 40 feasibility questions the expected move is meet-in-the-middle: enumerate each half's 2^20 subsets and join with sorting/hashing. Quoting a bitmask solution without checking n against 2^n is an instant constraints-reading fail."
+    },
+    {
+      "front": "Name two signed-integer traps that break bit tricks in Java/C++ but not in Python.",
+      "back": "(1) 1 << 31 overflows a 32-bit signed int; you need 1L << 31 or unsigned types. (2) Arithmetic right shift >> drags the sign bit, so n >> 1 on a negative number never reaches 0 — Java's counting loops need the logical shift >>>. Python integers are unbounded and sign-magnitude in behavior, so ported bit code silently changes meaning across languages. Mention word width before writing shifts."
+    },
+    {
+      "front": "n & (n-1) clears the lowest set bit — when is the cute trick the wrong answer entirely?",
+      "back": "When the real problem is per-position statistics, not per-number ones. Maximum XOR of two numbers cannot be solved by pairwise bit hacks in O(n) — it needs a trie over the bits from the most significant bit down, greedily taking the opposite branch. Bit identities operate within one number; problems that compare bit prefixes ACROSS numbers need a structure (trie) or sorting by prefix."
+    }
+  ],
+  "DP on Strings": [
+    {
+      "front": "You rolled the LCS table down to two rows for O(m) space. What did you just give up?",
+      "back": "The ability to reconstruct the subsequence itself. Backtracking through the table requires all rows; with two rows you only keep the length. If the problem says 'print the LCS' or 'output the edit script', either keep the full O(nm) table or use Hirschberg's divide-and-conquer, which recovers the answer in O(m) space at 2x time. Announce the trade before optimizing — interviewers set this trap deliberately."
+    },
+    {
+      "front": "Longest Common Substring vs Subsequence: what single recurrence change does contiguity force?",
+      "back": "On mismatch, substring DP resets to 0 — dp[i][j] = 0 when chars differ — because a common substring must be unbroken, and the answer is the max over all cells, not dp[n][m]. Subsequence DP instead carries max(dp[i-1][j], dp[i][j-1]). Applying the subsequence recurrence to a substring problem overcounts by bridging gaps; it is the most common conflation in string DP."
+    },
+    {
+      "front": "Both strings are length 10^5. Your O(nm) DP is 10^10 cells. What are the escape routes?",
+      "back": "O(nm) is only viable to roughly 10^7-10^8 cells. Past that: Longest Common Substring falls to suffix automaton or binary search + rolling hash in near-linear time; Edit Distance bounded by k edits uses banded DP touching O(nk) cells; some LCS instances reduce to LIS via position mapping in O(n log n). The table is a default, not a law — constraints decide."
+    },
+    {
+      "front": "Wildcard Matching: why does greedy left-to-right consumption of '*' fail without backtracking or DP?",
+      "back": "'*' matches any sequence including empty, so how much it swallows depends on what the rest of the pattern needs — a later mismatch can invalidate an earlier greedy choice. Pattern \"*a\" vs \"aba\": greedily matching '*' to \"ab\" then 'a' works, but '*'=\"aba\" leaves nothing for 'a'. The DP dp[i][j] = dp[i-1][j] OR dp[i][j-1] for '*' evaluates all swallow lengths at once; a single-pass pointer scan needs explicit backtrack anchors to be correct."
+    }
+  ],
+  "DP on Subsequences": [
+    {
+      "front": "The O(n log n) LIS 'tails' array: what question about it do interviewers use to expose shallow understanding?",
+      "back": "'Print the LIS.' The tails array is NOT an increasing subsequence of the input — tails[i] is the smallest tail of any increasing subsequence of length i+1, and entries get overwritten out of order. Reconstruction requires storing, for each element, the length it achieved and a predecessor link, then walking backward. If you can only produce the length, expect the follow-up."
+    },
+    {
+      "front": "When does 'subsequence' in the problem statement mean you should NOT use subsequence DP at all?",
+      "back": "When the required elements are actually contiguous — that's a subarray, and O(n^2) subsequence machinery wastes the structure. Maximum subarray sum is Kadane in O(n); longest run problems are sliding window. Conversely, applying window/Kadane to a true subsequence problem (elements may skip) is wrong in the other direction. First question to settle in the interview: may I skip elements? Everything follows from that."
+    },
+    {
+      "front": "Largest Divisible Subset and LIS share a shape — what preprocessing does the divisibility version die without?",
+      "back": "Sorting. After sorting, a % b == 0 chains transitively: if the largest element of a valid subset divides the new element, the whole subset does. Unsorted, you'd have to check the new element against every subset member, and the dp[i] = best chain ending at i formulation loses its one-check correctness. LIS-style DPs on 'compatible pairs' generally need an order in which compatibility becomes a simple predecessor test."
+    },
+    {
+      "front": "Bitmask DP over subsets solves small-n subsequence problems exactly. Where is the wall, and what signals you've hit it?",
+      "back": "2^n states times n transitions is about 2 x 10^7 at n = 20 and hopeless at n = 30. If constraints allow n up to 1000 with a 'choose a subset' flavor, the intended solution has polynomial structure (sorting + LIS-shape, knapsack over sums, greedy exchange) — the subset lattice is a decoy. Constraint n <= 16-20 is effectively the author whispering 'bitmask'; anything larger is a whisper to abandon it."
+    }
+  ],
+  "Design": [
+    {
+      "front": "LRU Cache with a plain array or Python list: which operation breaks the O(1) contract, and what fixes it?",
+      "back": "Eviction and recency update: finding and moving the least-recently-used entry in an array is O(n) per access. The contract needs a hash map (O(1) key lookup) pointing into a doubly linked list (O(1) unlink and move-to-front), evicting from the tail. One structure gives lookup, the other gives ordering; LRU exists to teach that neither alone suffices. Using an ordered dict is accepted only if you can explain it is exactly this pair."
+    },
+    {
+      "front": "Queue-from-two-stacks is 'O(1)'. When is that claim false, and when does the falseness matter?",
+      "back": "It's O(1) AMORTIZED: a single dequeue that triggers the transfer moves every element, O(n) for that call. The average is constant because each element crosses stacks once. This matters under real-time or latency-percentile requirements — a hard 'every operation O(1)' spec rules it out. Say the word 'amortized' unprompted; interviewers listen for whether you distinguish the two."
+    },
+    {
+      "front": "BST Iterator: why is flattening the whole tree into an array in the constructor a downgraded answer?",
+      "back": "It costs O(n) memory and O(n) upfront work, when the intended solution keeps a stack of the current node's left spine — O(h) memory with next() amortized O(1). The problem is a proxy for lazy traversal: produce values on demand instead of materializing. If h is small and n is huge (a bushy tree with millions of nodes), the array version can't even be built within memory limits."
+    },
+    {
+      "front": "LFU Cache: what does LFU need that LRU's hash-plus-DLL structure cannot provide?",
+      "back": "Ordering by access FREQUENCY with ties broken by recency, plus O(1) retrieval of the minimum-frequency entry. One list tracks one total order; LFU needs a map from frequency to its own recency list, plus a running minimum frequency counter (which only ever resets to 1 on insert or increments by one). Bolting a frequency field onto LRU and scanning for the min is O(n) eviction — the standard failed shortcut."
+    }
+  ],
+  "Divide & Conquer": [
+    {
+      "front": "When does divide & conquer give you no speedup at all, despite halving the input?",
+      "back": "When the combine step costs as much as brute force. T(n) = 2T(n/2) + O(n^2) solves to O(n^2) — the merge dominates and recursion bought nothing. Merge sort wins because merging is O(n); Inversion Count and Reverse Pairs work because counting across the split rides on that same O(n) merge. Before claiming O(n log n), state the combine cost and check it against the Master Theorem."
+    },
+    {
+      "front": "Quickselect finds the kth element in O(n) average. What input defeats it, and what do you say when asked?",
+      "back": "Adversarial or already-sorted input with naive pivots drives it to O(n^2): every partition strips one element. Answers the interviewer accepts: randomized pivot (expected O(n), the standard fix), or median-of-medians for guaranteed O(n) with a large constant. Also note quickselect destroys input order and isn't stable — if the array must survive intact, copy first or use a heap of size k."
+    },
+    {
+      "front": "Your subproblems keep recomputing each other's work. What does that signal about divide & conquer as the paradigm?",
+      "back": "Overlapping subproblems mean D&C is the wrong frame — it assumes disjoint subproblems that are solved once. Fibonacci by 'divide into f(n-1) and f(n-2)' is exponential precisely because the pieces overlap; memoization turns it into DP. The taxonomy question 'what's the difference between divide & conquer and DP?' has this exact answer: independence of subproblems. D&C splits data; DP shares solved states."
+    },
+    {
+      "front": "Median of Two Sorted Arrays: why does the obvious 'merge halves' D&C miss the intended solution?",
+      "back": "Merging even half the arrays is O(n+m); the intended bound is O(log(min(n,m))). The real divide step is not on data but on the ANSWER: binary search the partition point in the shorter array such that left-half maxes and right-half mins interleave correctly. Recognize this family: when both inputs are sorted, D&C on the partition index beats D&C on the contents."
+    }
+  ],
+  "Fast & Slow Pointers": [
+    {
+      "front": "Floyd's cycle detection requires the structure to be a functional graph. What does that mean, and what breaks without it?",
+      "back": "Every node has exactly ONE successor — next pointer, or f(x) applied repeatedly. That guarantees the walk is a deterministic path into a cycle ('rho' shape). On a general graph where nodes have multiple neighbors, 'slow and fast walkers' is meaningless: which edge does fast take? Cycle detection there is DFS with a recursion stack (directed) or parent-tracking (undirected). Floyd is a sequence tool, not a graph tool."
+    },
+    {
+      "front": "Find Duplicate Number via Floyd: which two constraints make the trick legal, and what input voids it?",
+      "back": "Values must lie in [1, n] with the array of length n+1 (so i -> nums[i] always lands in range), and start from index 0, which nothing maps back to — that guarantees the walk enters the cycle rather than starting inside it. A value of 0 or one outside [1, n] breaks the functional graph: out-of-range jumps or a trap state, and the duplicate-equals-cycle-entry theorem no longer holds. If mutation is allowed, sort or negation-marking are simpler; Floyd earns its complexity only under the no-modify, O(1)-space constraint."
+    },
+    {
+      "front": "Middle of linked list: what off-by-one hides in even-length lists, and why does it corrupt palindrome checks?",
+      "back": "With fast starting at head, an even-length list ends with slow on the SECOND middle; with fast at head.next, slow lands on the first middle. Palindrome check reverses the second half — pick the wrong convention and you compare halves of unequal length or skip a node. State your convention ('slow ends at first middle, second half starts after it') and trace a 4-node list aloud; that trace is what the interviewer is grading."
+    },
+    {
+      "front": "Cycle detection with a hash set of visited nodes is simpler than Floyd. When is the hash set the RIGHT answer, and when is it disqualified?",
+      "back": "Hash set: O(n) time, O(n) space, trivially correct, and it directly hands you the cycle start with no phase-two math — prefer it when memory is unconstrained or you also need to store per-node data. It is disqualified the moment the interviewer says O(1) space, which is the entire reason Floyd exists. Lead with the hash set, then volunteer the O(1)-space upgrade; jumping to Floyd unprompted while fumbling the phase-two proof reads worse."
+    }
+  ],
+  "Graph Traversal": [
+    {
+      "front": "DFS reaches the target — why is its path length still wrong for 'minimum steps' questions?",
+      "back": "DFS explores one branch to exhaustion before trying siblings, so the first arrival at a node can be via an arbitrarily long route. BFS visits nodes in strictly nondecreasing distance order, which is the proof that first arrival = shortest path — but only when every edge costs the same. 'Shortest anything' on an unweighted graph means BFS; saying DFS there is an immediate red flag."
+    },
+    {
+      "front": "The undirected cycle-check trick 'neighbor is visited and not my parent' — why does it give false positives on directed graphs?",
+      "back": "In a directed graph, reaching an already-visited node may be a cross edge or forward edge into a FINISHED subtree — no cycle. A cycle requires a back edge to a node still on the current recursion stack. So directed detection needs three colors (unvisited / in-stack / done) or an explicit onStack array. Porting the parent trick to directed input flags DAGs as cyclic; it is a standard follow-up trap."
+    },
+    {
+      "front": "Your recursive DFS crashes on a 10^5-node path graph. What happened and what are the fixes?",
+      "back": "A path graph nests 10^5 recursive calls, blowing the default stack (Python caps near 1000 frames; C++/Java die around 10^4-10^5 depending on frame size). Fixes: iterative DFS with an explicit stack, raising the recursion limit plus thread stack size, or switching to BFS if order flexibility allows. Long chains — skewed trees, path graphs, linked-list-shaped inputs — are exactly what adversarial tests include."
+    },
+    {
+      "front": "Your traversal answered for one component and you returned. What input shape did you just fail?",
+      "back": "Disconnected graphs. A single DFS/BFS from node 0 covers only node 0's component; counting islands, provinces, or checking bipartiteness requires looping over every vertex and launching a traversal from each unvisited one. Bipartite checking is notorious here: one component can be cleanly 2-colorable while another holds an odd cycle. Any graph problem without a guaranteed 'connected' clause needs the outer loop."
+    }
+  ],
+  "Greedy": [
+    {
+      "front": "Greedy coin change picks the largest coin first. Give the counterexample class and the required fallback.",
+      "back": "Non-canonical systems: coins {1,3,4}, amount 6 — greedy takes 4+1+1 = 3 coins, optimal is 3+3 = 2. Greedy is only valid for canonical systems (like standard currency) where each coin's value structure preserves the exchange argument. Arbitrary denominations require the O(amount x coins) DP. If an interviewer hands you a coin set, test {1,3,4}/6 mentally before speaking."
+    },
+    {
+      "front": "Fractional knapsack is greedy-safe; 0/1 knapsack is not. What exactly changes?",
+      "back": "Divisibility. Sorting by value/weight ratio works when you can take a fraction of the last item to fill capacity exactly. With indivisible items the ratio order fails: capacity 10, items (weight 10, value 60) vs two items (7, 42) and (3, 21)... ratio ties break wrongly, and cases like {(6,30),(5,20),(5,20)} at capacity 10 make ratio-greedy pick 30 while optimal is 40. Indivisible choices create interactions only DP over capacity captures."
+    },
+    {
+      "front": "You proposed a greedy rule. What proof obligation comes with it, and what phrase should the interviewer hear?",
+      "back": "An exchange argument: show any optimal solution can be transformed, swap by swap, into the greedy one without losing value — or a matroid/cut argument for structures like MSTs. The sentence to say: 'I'll justify greedy by exchange: suppose an optimal solution differs from greedy at the first decision...'. Asserting greedy without a proof sketch is the most common senior-level rejection reason; the counterexample hunt is the interviewer's next move."
+    },
+    {
+      "front": "Boyer-Moore voting finds the >n/2 majority in O(1) space. What does it NOT verify, and when does skipping that step return garbage?",
+      "back": "The pass produces a CANDIDATE, not a guarantee. If no element actually exceeds n/2 (e.g. [1,2,3]), the surviving candidate is arbitrary. A second pass must count the candidate's occurrences and confirm the majority. Same for the n/3 variant with two candidates. Problems that promise 'a majority always exists' let you skip verification; problems that don't, don't. Read the promise, then say which case you're in."
+    }
+  ],
+  "Hashing": [
+    {
+      "front": "Hash map lookups are O(1) — which query types make a hash map the WRONG index?",
+      "back": "Anything ordered: floor/ceil ('largest key <= x'), range counts, nearest neighbor, min/max after deletions. A hash map scatters keys deliberately, destroying order, so those queries cost O(n). Sorted array + binary search, a BST/ordered map, or a heap (for min/max only) serve them in O(log n). The follow-up 'now find the closest smaller element' is the standard way interviewers dismantle a hash-only design."
+    },
+    {
+      "front": "When does 'average O(1)' become O(n) per operation, and who asks about it?",
+      "back": "Collision pileups: adversarial keys engineered to share buckets degrade a chained table to a linked-list scan — real CVEs (hash-flooding DoS) came from exactly this. Worst case for unordered_map operations is O(n). Interviewers probing systems depth ask 'worst case?' expecting: randomized/keyed hash functions, or switch to a balanced BST for guaranteed O(log n). Quoting O(1) unqualified is the trap."
+    },
+    {
+      "front": "Count Subarrays with XOR k uses prefix-XOR + hash map. What ordering mistake in the loop silently overcounts?",
+      "back": "Inserting the current prefix into the map BEFORE querying for (prefix ^ k). When k = 0, the current prefix matches itself, counting the empty subarray. Correct order: query first, then insert. Same discipline applies to prefix-sum count problems. Also seed the map with {0: 1} (or prefix 0 seen once) or you miss subarrays starting at index 0. Both are one-line bugs that pass small tests and fail hidden ones."
+    },
+    {
+      "front": "Longest Consecutive Sequence: the hash set gives O(n) — what single check keeps it from being O(n^2), and why do people drop it?",
+      "back": "Only start counting from sequence STARTS: skip x when x-1 is in the set. Without that guard, every element walks its full run, and input [1,2,3,...,n] costs O(n^2). The guard makes each element visited at most twice. People drop it because the code passes without it on random tests — the adversarial case is precisely the long consecutive run the problem is named after. Sorting at O(n log n) is the honest fallback if this trick doesn't surface."
+    }
+  ],
+  "Heap / Top-K": [
+    {
+      "front": "Kth largest element: when does a heap lose to quickselect, and when does quickselect lose back?",
+      "back": "A size-k min-heap costs O(n log k); quickselect averages O(n). For a one-shot query on a static array, quickselect wins. The heap wins when: data is STREAMING (you can't hold or revisit all n), you need the top k maintained continuously, or worst-case latency matters (randomized quickselect has O(n^2) tails, and it mutates the array). State both and pick by scenario — that comparison IS the interview question."
+    },
+    {
+      "front": "Which operations does a standard binary heap NOT support, and how do real solutions route around that?",
+      "back": "Search (contains is O(n)), arbitrary delete, and decrease-key by handle — library heaps (heapq, PriorityQueue) expose only push/pop-min. Workarounds: lazy deletion (push the update, pop and discard stale entries by checking against a current-value map) or an indexed heap storing each key's position. Dijkstra in practice uses lazy deletion; sliding-window-max with a heap does too. If you claim O(log n) delete-arbitrary, expect to be asked to implement it."
+    },
+    {
+      "front": "Median from a data stream: why can't ONE heap do it, and what invariant do the two heaps maintain?",
+      "back": "One heap exposes only its single extreme; the median sits in the middle, invisible. Two heaps split the stream: a max-heap of the lower half, min-heap of the upper half, sizes kept within 1 of each other, every lower element <= every upper element. Median is a top or the mean of both tops. Each insert may need one rebalancing move. Follow-up to expect: sliding-window median, where removals force lazy deletion — the clean structure gets ugly fast."
+    },
+    {
+      "front": "Top K Frequent with k close to n: what does the heap cost you, and what beats it?",
+      "back": "O(n log k) approaches O(n log n) as k grows — at that point just sort, it's simpler and has better constants. Bucket sort beats both: index buckets by frequency (max frequency is n), then read buckets from high to low — O(n) total. The heap is the right tool for small k over large n or streaming input. Choosing a heap when k = n signals tool-by-reflex; the interviewer's 'can you do better than n log n?' is aimed at the bucket answer."
+    }
+  ],
+  "Interval / Partition DP": [
+    {
+      "front": "Burst Balloons: why does 'pick the FIRST balloon to burst' produce interdependent subproblems, while 'pick the LAST' works?",
+      "back": "Bursting a balloon first makes its neighbors adjacent, so the two remaining segments interact through that new adjacency — they aren't independent, and dp[l][r] is ill-defined. Fixing the LAST balloon k in (l, r) means during all earlier bursts k stands as a wall: coins for the final burst are nums[l] x nums[k] x nums[r] with intact boundaries, and (l,k), (k,r) decouple completely. The reversal of decision order is the entire trick; every partition DP interview probes whether you can articulate why."
+    },
+    {
+      "front": "Interval DP is O(n^3). What n kills it, and what should you check before committing?",
+      "back": "Three nested loops — interval length, left endpoint, split point — give n^3 operations: fine at n = 200 (8 x 10^6), marginal at n = 500 (1.25 x 10^8), dead at n = 2000. Check the constraint FIRST: if n is 10^4+, the intended solution is not interval DP (look for greedy, monotonic stack, or a Knuth-optimization variant cutting to O(n^2)). Matrix Chain Multiplication and Stick Cutting sit at small n by design."
+    },
+    {
+      "front": "Minimum Cost to Cut a Stick: why do you DP over CUT POSITIONS rather than stick coordinates?",
+      "back": "The stick is length up to 10^9 but there are at most ~100 cuts. Sort the cut positions, add the endpoints, and let dp[i][j] be the cost of fully cutting the segment between cut i and cut j: cost of a cut equals current segment length, plus best split. Coordinates would index an impossible table. General lesson: partition DP indexes over DECISION POINTS, and coordinate compression is mandatory when the axis is huge."
+    },
+    {
+      "front": "Naive recursion on 'try every split point' without memoization: what is its true cost, and why do small tests hide it?",
+      "back": "The recursion tree over splits counts Catalan-many parenthesizations — about 4^n / n^1.5, exponential. At n = 10 that's a few thousand calls, so tests up to n = 12 pass instantly and hide the bomb; n = 30 never finishes. Memoizing on (l, r) collapses it to O(n^2) states x O(n) splits. If asked 'complexity without memo?', the expected phrase is 'Catalan number growth, roughly 4^n' — not 'exponential' alone."
+    }
+  ],
+  "Intervals": [
+    {
+      "front": "Sort by start or by end? Name the problem class each serves and what goes wrong when you swap them.",
+      "back": "MERGING (Merge Overlapping Intervals) sorts by START so overlapping intervals become adjacent and a single sweep extends the current merged block. SELECTION (N Meetings, max non-overlapping) sorts by END — the earliest-finishing meeting provably leaves maximal room, an exchange argument. Swap them: selection by start fails on one long early-starting interval that blocks many short ones ([1,100] vs [2,3],[4,5]); merging by end forces backward patching. Say which sort and why before coding."
+    },
+    {
+      "front": "Minimum platforms / max concurrent intervals: why does merging intervals not answer it, and what does?",
+      "back": "Merging tells you the union's extent, not the DEPTH of overlap — five trains in one merged block might need 2 platforms or 5. Count concurrency instead: sort arrivals and departures separately and sweep two pointers (arrival before-or-equal departure increments, else decrements), or push events (+1 arrive, -1 depart) and track the running maximum. The distinction 'union vs depth' is exactly what the follow-up tests."
+    },
+    {
+      "front": "Do [1,2] and [2,3] overlap? Why does that question decide correctness of your comparison operator?",
+      "back": "Depends on the problem's endpoint convention. Closed intervals sharing an endpoint overlap (merge to [1,3]); meetings where end time 2 frees the room at 2 do NOT conflict. The code difference is a single character: start <= prevEnd vs start < prevEnd — and in the platforms sweep, whether an arrival equal to a departure needs a new platform. Ask the interviewer which convention applies BEFORE writing the comparator; guessing silently is how off-by-one interval bugs ship."
+    },
+    {
+      "front": "The interval set changes online — inserts and deletes between queries. Why does sort-and-sweep collapse, and what replaces it?",
+      "back": "Sort-and-sweep is a batch algorithm: every mutation invalidates the sorted order, so re-sorting per operation costs O(n log n) each. Dynamic interval workloads need an ordered map keyed by start (floor/ceiling lookups find neighbors to merge or split in O(log n)) or an interval tree for stabbing queries ('which intervals contain x'). Calendar-booking and range-module questions are the interview forms of this; recognizing the static-to-dynamic shift is the point."
+    }
+  ],
+  "Knapsack DP": [
+    {
+      "front": "In the 1-D compressed knapsack, which capacity loop direction pairs with 0/1 vs unbounded, and what breaks on a swap?",
+      "back": "0/1 iterates capacity DESCENDING so dp[w - weight] still reflects the previous item row — ascending would let the same item be counted twice (turning 0/1 into unbounded). Unbounded iterates ASCENDING precisely because reusing the current item is legal. One arrow flips the problem's meaning with zero syntax errors, which is why interviewers ask 'why backwards?' — the answer is 'to read the not-yet-updated previous row'."
+    },
+    {
+      "front": "Coin Change II counts combinations; a naive 'ways to reach amount' loop counts permutations. Which loop nesting separates them?",
+      "back": "Coins OUTER, amounts inner = combinations: each coin type is committed in one block, so {2,3} and {3,2} collapse into one way. Amounts outer, coins inner = permutations: at every amount all coins compete, so order matters (that IS Climbing Stairs with steps). Same recurrence, same table, different nesting, different answer. This is the single most-tested distinction in counting DP; be able to state it in one sentence."
+    },
+    {
+      "front": "Capacity W = 10^9 with 40 items. Why is the classic table dead, and what are the live alternatives?",
+      "back": "The table is O(n x W) — a billion columns doesn't allocate. Alternatives keyed to constraints: if VALUES are small, flip the DP to 'min weight achieving value v' in O(n x totalValue); if n <= 40, meet-in-the-middle enumerates 2^20 half-subsets and joins by sort + binary search; if items are divisible, it's fractional knapsack greedy. Reading which dimension is small is the entire skill — the table is only one corner of the space."
+    },
+    {
+      "front": "Rod Cutting looks like an array DP — what makes it unbounded knapsack, and why does misclassifying it cost you?",
+      "back": "Each cut length can be used unlimited times: a rod of 8 can be four 2s. That means ascending capacity loop with reuse allowed — the unbounded pattern with length as weight and price as value. Misclassify as 0/1 (each length once) and you silently forbid repeated pieces, undercounting revenue on inputs like price[2] dominating. Classification checklist to say aloud: items reusable? capacity bounded? maximize value? — three answers pick the exact variant."
+    }
+  ],
+  "Linked List Manipulation": [
+    {
+      "front": "What operation class makes a linked list strictly worse than an array, no matter how clever the pointer work?",
+      "back": "Random access by index: list[k] walks k nodes, O(n), which is why 'binary search a linked list' saves nothing and sorting one favors merge sort over quicksort (no O(1) partition indexing). Add the constant-factor tax: every node is a separate heap allocation with a pointer, so cache locality is terrible versus an array's contiguous scan. Lists earn their keep ONLY for O(1) splice/insert/delete at a held reference — say that trade explicitly when choosing."
+    },
+    {
+      "front": "Reverse Nodes in K Group: what must happen to the final short group, and why do 'reverse everything' solutions fail review?",
+      "back": "The spec says the tail remainder of fewer than k nodes stays IN ORIGINAL ORDER. That forces a count-ahead check (are k nodes available?) before each group's reversal — reverse-then-notice-shortage corrupts the tail and requires an ugly re-reversal. The classic clean structure: dummy head, per-group boundary detection, reverse inside, reconnect. The dummy node also kills the 'head changed' special case; omitting it doubles your edge-case surface."
+    },
+    {
+      "front": "Delete a Given Node (no head access) works by value copy. Which node defeats the trick entirely?",
+      "back": "The TAIL. The trick copies the successor's value into the current node and unlinks the successor — impossible when there is no successor, and the problem excludes tails for exactly that reason. Also worth saying: the 'deleted' node's identity survives with a new value, which breaks external references and violates any requirement that the specific object be freed. Know the trick's contract, not just its move."
+    },
+    {
+      "front": "Clone a list with random pointers: hash map does it in O(n) space. What does the O(1)-space interleaving solution risk, and when is it disallowed?",
+      "back": "The interleaving trick (A -> A' -> B -> B' ...) temporarily MUTATES the original list's next pointers; correctness requires the third pass to perfectly restore them. Under concurrent readers, immutability requirements, or 'do not modify input' clauses, it's disqualified and the hash map (original node -> clone) is the right answer. Lead with the map for clarity, then offer the interleave as the space optimization with its restore obligation stated."
+    }
+  ],
+  "Math & Number Theory": [
+    {
+      "front": "Grid Unique Paths equals C(m+n-2, n-1). Why does computing factorials first sink you, and what's the safe evaluation?",
+      "back": "(m+n-2)! overflows 64 bits by grid sizes near 20x20, even though the final answer fits. Safe form: build the binomial iteratively as result = result * (m+n-2 - k + i) / i, multiplying and dividing alternately so intermediates stay near the answer's magnitude — or use the DP table if any cell blocking appears. Under a modulus, division becomes multiplication by a modular inverse, which needs the modulus PRIME (Fermat). Say the overflow risk before the formula."
+    },
+    {
+      "front": "Repeat & Missing Number by sum/sum-of-squares equations: which environments break it, and what alternative is immune?",
+      "back": "Sum of squares up to n = 10^5 is about 3 x 10^14 — fine in 64-bit, fatal in 32-bit; at n = 10^6+ even careless 64-bit intermediate products overflow. The XOR partition method is immune: XOR everything with 1..n, find any set bit of the combined result, and partition numbers by that bit into two groups whose XORs isolate the pair. Trade-off: XOR can't tell which of the two results is the repeat without one verification pass. Offer both with the overflow caveat."
+    },
+    {
+      "front": "String to Integer (atoi): what must you handle BEFORE multiplying, and why does 'parse then clamp' fail in fixed-width languages?",
+      "back": "Overflow must be detected pre-multiplication: check result > (INT_MAX - digit) / 10 before result = result * 10 + digit. Parse-then-clamp already executed the overflowing multiply — undefined behavior in C++, silent wraparound in Java. Full checklist: leading whitespace, one optional sign, digits until first non-digit, clamp to [-2^31, 2^31 - 1]. The problem exists to test whether you check BEFORE the operation; Python devs must simulate the bound explicitly."
+    },
+    {
+      "front": "When does a closed-form formula lose to an algorithm you'd otherwise call slower?",
+      "back": "Three recurring cases: (1) floating-point precision — pow(x, 1.0/n) misses exact integer roots; binary search on the answer with integer comparisons is exact. (2) Modular arithmetic — closed forms need modular inverses that exist only when gcd(divisor, mod) = 1. (3) Constraint changes — the paths formula dies the moment the grid gains obstacles, while the DP absorbs them free. Formulas are brittle to spec changes; state the brittleness when you use one."
+    }
+  ],
+  "Matrix Traversal": [
+    {
+      "front": "Recursive flood fill on a 1000x1000 grid of one color: what fails, and what's the standard interview fix?",
+      "back": "Up to 10^6 nested calls blow the call stack — Python dies near frame 1000, C++/Java segfault deep in. Fix: iterative DFS with an explicit stack or BFS with a queue; both are mechanical rewrites. Also check the no-op guard: if the new color equals the starting color, return immediately or the fill loops forever. Interviewers pick worst-case grid shapes deliberately; announcing the depth hazard before being asked is a strong signal."
+    },
+    {
+      "front": "Marking visited cells by mutating the grid: cheap and fast — when is it disallowed, and what does honesty cost?",
+      "back": "Disallowed when the input must survive (caller reuse, 'do not modify input', concurrent access) or when cell values carry information you still need (Rotten Oranges timestamps, multi-value grids). The honest alternative is a separate visited matrix: O(mn) extra space. A middle path: mutate, then restore in a second pass — valid only single-threaded. Say which you're doing and why; silent mutation of caller data is the reviewable offense."
+    },
+    {
+      "front": "Shortest path in a grid: DFS with backtracking explores all paths — why is BFS not just faster but the only correct simple answer?",
+      "back": "DFS finds A path first, not the shortest; taking its first arrival gives wrong answers, and enumerating all simple paths to take the min is exponential. BFS expands cells in increasing distance layers, so first arrival IS the minimum step count — that's a theorem, not a heuristic, valid because every move costs 1. Rotten Oranges and maze-escape are BFS by definition. If moves have unequal costs (mud tiles cost 3), BFS breaks too — that's Dijkstra or 0-1 BFS territory."
+    },
+    {
+      "front": "Rotate Matrix in place = transpose + reverse rows. Which variants void the trick?",
+      "back": "Non-square matrices: transpose changes dimensions from m x n to n x m, so there is no in-place rotation without an output buffer — the trick assumes square. Counterclockwise rotation is transpose + reverse COLUMNS (or reverse rows first); mixing the order rotates the wrong way, and 180 degrees is two applications or reverse-both. State 'square matrix, clockwise' as preconditions aloud, then the follow-ups have nowhere to hide."
+    }
+  ],
+  "Monotonic Stack": [
+    {
+      "front": "A monotonic stack answers exactly one query family. Name it, and name a nearby query it CANNOT serve.",
+      "back": "It serves NEAREST-neighbor-by-comparison queries: nearest greater/smaller element to the left/right, in amortized O(1) per element. It cannot answer arbitrary range queries — 'max of a[i..j] for random i, j' needs a sparse table (O(1) query after O(n log n) build) or segment tree, because the stack discards elements permanently as they're popped. The discard IS the efficiency; wanting them back means you chose the wrong structure."
+    },
+    {
+      "front": "Largest Rectangle in Histogram with duplicate heights: why do strict vs non-strict pops change the answer, and which is safe?",
+      "back": "With bars [2,2], popping on 'strictly less' leaves the first 2's rectangle computed with the wrong right boundary unless the second 2 handles it. The safe convention: pop while stack top >= current (non-strict), letting equal bars' full width be credited when the LAST equal bar is processed. In sum-of-subarray-minimums, mixing strict on one side and non-strict on the other is mandatory to avoid double-counting equal elements. Pick conventions deliberately, test on duplicates."
+    },
+    {
+      "front": "Next Greater Element on a CIRCULAR array: what breaks in the linear scan, and what's the standard repair?",
+      "back": "Elements near the end never see candidates that wrap around — in [3,1,2], the element 2 has next-greater 3, but 3 sits BEFORE it, so a single left-to-right pass leaves 2 unanswered. The repair: iterate indices 0..2n-1 taking i mod n, so every element sees a full circle of candidates; only push indices during the first pass or guard pushes appropriately. Doubling the array conceptually costs O(n) still. Forgetting the wrap is the entire difficulty of the circular variant."
+    },
+    {
+      "front": "Sliding Window Maximum: heap vs monotonic deque — what does the heap version cost you, and why does the deque win?",
+      "back": "A max-heap holds stale elements that left the window; lazy deletion (pop while top's index is outside) makes it O(n log n) with messy bookkeeping. The monotonic deque evicts from the back every element smaller than the newcomer — they can never be a future maximum while the newcomer lives — and from the front when the index expires: O(n) total, each element pushed and popped once. The eviction justification ('dominated element can never win') is the sentence interviewers wait for."
+    }
+  ],
+  "Queue & BFS": [
+    {
+      "front": "BFS proves shortest paths under one assumption about edges. State it, and name the two upgrades when it fails.",
+      "back": "All edges cost the SAME (unit weight) — the layer-by-layer expansion then visits nodes in distance order. Weighted edges break the proof: a 2-hop path of cost 1+1 beats a 1-hop path of cost 5, but BFS finds the hop-shorter one first. Upgrades: Dijkstra with a min-heap for nonnegative weights, O(E log V); the 0-1 BFS deque trick (weight-0 edges push front, weight-1 push back) for binary weights, O(V+E). Claiming BFS on a weighted graph is the fastest way to fail the question."
+    },
+    {
+      "front": "Rotten Oranges: why does running one BFS per rotten orange give wrong times AND wrong complexity?",
+      "back": "Rot spreads from ALL sources simultaneously; per-source BFS computes each orange's time from one source, requiring a min over runs — O(k x V) work and easy to fumble. Multi-source BFS seeds the queue with every rotten orange at time 0 and runs ONCE: each fresh orange is reached at its true earliest time, O(V) total. The pattern generalizes: 'distance to nearest X' means all X are sources. Recognizing multi-source is the entire problem."
+    },
+    {
+      "front": "BFS on a state space (word ladders, puzzle configs): what unbounded cost hides there that grid BFS doesn't have?",
+      "back": "The frontier and visited set live in memory, and state spaces explode combinatorially — a puzzle with 10^9 configurations kills BFS on space long before time. Grid BFS is bounded by mn cells; abstract-state BFS is bounded by nothing but your encoding. Mitigations to name: canonical state encoding (tuples, not objects), bidirectional BFS (two frontiers of depth d/2, roughly square-rooting the explored volume), and pruning unreachable states early. Memory, not time, is what usually dies first."
+    },
+    {
+      "front": "Forgetting to mark visited AT ENQUEUE time (marking at dequeue instead): why does BFS still terminate but stop being O(V+E)?",
+      "back": "Between enqueue and dequeue, the same node can be pushed by many neighbors — each copy then expands its full neighbor list. On dense layers this multiplies work; worst case the queue holds duplicates proportional to E, inflating toward O(V x E) and inflating memory the same way. Mark visited the moment you enqueue, and the invariant 'each node enters the queue at most once' restores O(V+E). This is the most common silent BFS performance bug in interviews."
+    }
+  ],
+  "Shortest Path": [
+    {
+      "front": "Dijkstra's correctness rests on one edge-weight assumption. State it, the failure input, and the replacement.",
+      "back": "All weights NONNEGATIVE. Dijkstra finalizes the closest unvisited node, reasoning no future path can undercut it — a negative edge voids that proof. Input: A->B cost 2, A->C cost 5, C->B cost -4. Dijkstra finalizes B at distance 2, but the true distance is 5 + (-4) = 1 through a node it processes later. Replacement: Bellman-Ford, O(V x E), which relaxes all edges V-1 rounds and additionally DETECTS negative cycles (round V still improving). This is the single most-asked shortest-path follow-up."
+    },
+    {
+      "front": "Floyd-Warshall is three loops and done. What V kills it, and what serves all-pairs on sparse graphs instead?",
+      "back": "O(V^3): V = 400 is 6.4 x 10^7 (fine), V = 2000 is 8 x 10^9 (dead). For sparse graphs (E close to V), run Dijkstra from every vertex: O(V x E log V), vastly cheaper — with negative edges, Johnson's algorithm reweights via one Bellman-Ford pass then runs the Dijkstras. Also note Floyd-Warshall's O(V^2) matrix is itself a memory wall at large V. 'All pairs' does not automatically mean Floyd-Warshall; density decides."
+    },
+    {
+      "front": "The graph is a DAG with negative edges. Why is Dijkstra unnecessary AND insufficient, and what is optimal?",
+      "back": "Insufficient: negative edges break Dijkstra's finalization proof. Unnecessary: a DAG has no cycles, so process vertices in TOPOLOGICAL ORDER and relax each vertex's out-edges once — every path respects topo order, so each distance is final when reached. O(V+E), handles any edge signs, no heap at all. Shortest Path in DAG exists as a problem to test whether you reach for structure (acyclicity) before reaching for machinery (Dijkstra/Bellman-Ford)."
+    },
+    {
+      "front": "When is running Dijkstra on an unweighted graph a mistake an interviewer will flag?",
+      "back": "Always — plain BFS gives identical answers in O(V+E) versus Dijkstra's O(E log V), with far simpler code and no heap. The log factor buys nothing when all edges cost 1: BFS's queue already processes nodes in distance order. The flag isn't correctness, it's judgment: reaching for the heavier tool signals pattern-matching on 'shortest path' keywords instead of reading the edge weights. Check weights FIRST: unit → BFS; 0/1 → deque BFS; nonnegative → Dijkstra; negative → Bellman-Ford or DAG relaxation."
+    }
+  ],
+  "Sliding Window": [
+    {
+      "front": "'Smallest subarray with sum >= k' — when do negative numbers void the sliding window, and what replaces it?",
+      "back": "The window argument needs monotonicity: extending the window must only increase the sum, shrinking must only decrease it. A negative element means growing can SHRINK the sum, so the shrink condition fires wrongly and valid windows are skipped. With negatives, use prefix sums + a monotonic deque (for shortest subarray with sum >= k) or prefix-sum hash map (for exact-sum counting). 'Does the input contain negatives?' is the first question to ask out loud."
+    },
+    {
+      "front": "'Exactly K distinct' resists a direct sliding window. Why, and what is the standard reduction?",
+      "back": "Windows satisfying 'exactly K' are not nested — extending can overshoot to K+1, shrinking undershoots — so no single two-pointer invariant tracks them. Reduction: count(exactly K) = count(at most K) - count(at most K-1), where 'at most K' IS window-friendly: for each right endpoint, the number of valid windows is right - left + 1. Two clean passes replace one impossible one. This subtraction trick is a named move; interviewers expect it verbatim."
+    },
+    {
+      "front": "The problem says 'subsequence' but you reached for a sliding window. What is the category error?",
+      "back": "A window is CONTIGUOUS by construction — left and right bound an unbroken block. Subsequences skip elements, so window state (counts inside the block) describes the wrong object entirely; no amount of pointer cleverness fixes a wrong state definition. Subsequence problems go to DP (LIS, distinct subsequences) or greedy-with-sorting when order can be destroyed. Contiguous keywords: subarray, substring, window. Non-contiguous: subsequence, subset. Misreading this word wastes ten interview minutes."
+    },
+    {
+      "front": "Longest Substring Without Repeating: the O(n^2) trap inside an 'O(n)' window — where does it hide?",
+      "back": "Shrinking one step at a time while checking 'is the window valid?' by rescanning the window's contents — the rescan makes it O(n^2) (or O(26n) hidden as 'constant'). The O(n) version stores each character's LAST INDEX in a map and JUMPS left directly to lastIndex+1 on collision, never rescanning. Also the classic bug: only move left forward (left = max(left, lastIndex+1)), or a stale index drags the window backward and readmits duplicates."
+    }
+  ],
+  "Sorting & Prefix": [
+    {
+      "front": "Sorting first destroys what, and which classic problem punishes you for it?",
+      "back": "Original INDICES. Two Sum requires returning positions; sort to enable two pointers and the positions you return are the sorted array's, not the caller's — you must carry (value, originalIndex) pairs or use a hash map and skip sorting entirely. Same trap in any 'return indices' or 'preserve order of output' problem. Before sorting, ask: does anything downstream need where elements USED to be? If yes, sorting just created a bookkeeping subproblem."
+    },
+    {
+      "front": "Prefix sums answer range-sum queries in O(1). Which single requirement kills them, and what replaces them?",
+      "back": "UPDATES. One point update invalidates O(n) prefix entries, so interleaved updates and queries degrade to O(n) per operation. A Fenwick tree (binary indexed tree) handles both in O(log n) with 20 lines of code; a segment tree does the same and generalizes to min/max/custom merges. The interviewer's script is literally 'great — now the array changes between queries'; the expected next word out of your mouth is Fenwick or segment tree."
+    },
+    {
+      "front": "Why do prefix MAX arrays not support range-max queries the way prefix sums support range sums?",
+      "back": "Subtraction. Range sum works because sum is INVERTIBLE: sum(i..j) = prefix[j] - prefix[i-1]. Max has no inverse — knowing max(0..j) and max(0..i-1) tells you nothing about max(i..j) when the big element sits before i (prefix maxes [5,5,5] hide whether a[2] is 5 or 1). Prefix min/max only answer prefix-shaped queries (great for Buy/Sell Stock). Arbitrary range max needs a sparse table (O(1) query, static) or segment tree (dynamic). Invertibility is the dividing line; name it."
+    },
+    {
+      "front": "When is a full O(n log n) sort more work than the problem deserves?",
+      "back": "Three standard cases. Top-k or kth element: quickselect averages O(n), a size-k heap gives O(n log k). Bounded small value range: counting sort is O(n + range) — Sort Colors is the extreme, one pass with three pointers (Dutch national flag), and sorting it with a comparator in an interview is an automatic follow-up. Merging already-sorted inputs: a linear merge or k-way heap merge exploits existing order that a re-sort throws away. Sorting is the default hammer; these are the three screws."
+    }
+  ],
+  "Stack": [
+    {
+      "front": "Balanced Parentheses with only a counter instead of a stack: which inputs expose the difference?",
+      "back": "Multiple bracket TYPES. A counter verifies count balance, so \"([)]\" passes counters (one open, one close of each) while being invalid — closing must match the most recent unclosed opener, which is order information only a stack holds. Single bracket type: counter suffices and is O(1) space, worth saying. The moment types can interleave, you need the stack; push openers, pop-and-compare on closers, and reject on empty-pop or nonempty finish."
+    },
+    {
+      "front": "Min Stack: why does one auxiliary min VARIABLE fail, and what invariant does the aux stack maintain?",
+      "back": "Popping the current minimum leaves the variable pointing at a dead value with no way to recover the PREVIOUS minimum — history is gone. The aux stack stores the minimum-so-far at every depth: push min(new, auxTop) on every push, pop both together; auxTop is always the min of the remaining elements. O(1) all operations, O(n) extra space. The space-free variant (storing encoded differences) exists but is fragile under overflow — offer it only if asked."
+    },
+    {
+      "front": "Recursion IS a stack — when does that equivalence become an interview problem in itself?",
+      "back": "When depth is adversarial: tree traversals on skewed trees and DFS on path graphs nest O(n) frames, and 10^5 frames kills Python (default limit ~1000) and threatens Java/C++. The conversion is mechanical for preorder (push right child, then left), mildly tricky for inorder (walk left spine, then pivot), and genuinely fiddly for postorder (two stacks, or last-visited tracking). Interviewers ask 'now without recursion' specifically to watch you manage explicit state."
+    },
+    {
+      "front": "Sort a Stack using only stack operations: what's the real cost, and why would anyone accept O(n^2)?",
+      "back": "The insertion-sort-with-auxiliary-stack approach pops each element and re-shuffles the sorted stack to insert it: O(n^2) time, O(n) space. It's accepted because the CONSTRAINT is the point — only push/pop/peek allowed, no random access, so comparison sorts needing indexing are unavailable. If the constraint is lifted (you may use an array), just dump, sort O(n log n), and re-push — and say the constraint difference aloud. Recursion-only variants add an O(n) frame cost per element, same quadratic total."
+    }
+  ],
+  "String Matching": [
+    {
+      "front": "Rabin-Karp reports a hash match. Why is returning that index immediately a correctness bug, and what's the honest complexity?",
+      "back": "Different strings can share a hash — collisions. Without verifying the candidate by direct character comparison, you return false positives; adversarial inputs (anti-hash tests) manufacture collisions deliberately. With verification, worst case degrades to O(nm) when collisions pile up (or with many true matches); expected O(n+m) holds for random-looking data with a large prime modulus. Double hashing (two independent mod/base pairs) drops collision odds to negligible. Say 'verify on hash hit' unprompted."
+    },
+    {
+      "front": "You need to find 100 patterns in one text. Why is running KMP 100 times the wrong shape, and what replaces it?",
+      "back": "KMP is one-pattern-one-text: 100 runs cost O(100 x n + total pattern length) — the n-length text is rescanned per pattern. Aho-Corasick builds a trie of all patterns with failure links (KMP's failure function generalized to a trie) and scans the text ONCE: O(n + total patterns + matches). The reverse mismatch also exists: one pattern against many texts wants preprocessing of the pattern (KMP is fine) not the texts. Match the preprocessing to whichever side is reused."
+    },
+    {
+      "front": "Which pattern features push a problem out of KMP/Z territory entirely?",
+      "back": "Wildcards and quantifiers. '?' (any single char) and '*' (any sequence) break the failure-function machinery, which assumes exact character equality when computing borders — Wildcard Matching and Regular Expression Matching are O(nm) DP problems, not linear scans. Single-character wildcards CAN be handled by FFT-based matching in O(n log n), a niche worth naming but not coding. The trigger to switch: any pattern symbol that matches more than one literal character."
+    },
+    {
+      "front": "Minimum Characters for Palindrome via KMP: what string do you build, and what subtle bug does skipping the separator cause?",
+      "back": "Build s + '#' + reverse(s) and compute the KMP failure function; its final value is the length of the longest palindromic PREFIX of s, and the answer is n minus that. Omit the '#' separator and the failure function can match across the boundary, reporting a border longer than n — e.g. \"aaaa\" concatenated with itself claims border 7 of an 8-char string, nonsense for the original 4-char problem. The separator guarantees no border exceeds n. Every concatenation trick needs its sentinel; forgetting it is the canonical bug."
+    }
+  ],
+  "Topological Sort": [
+    {
+      "front": "Topological order exists under exactly one graph condition. State it, and how each algorithm reports violation.",
+      "back": "The graph must be a DAG — directed with no cycles. A cycle makes ordering impossible (each member needs another first). Kahn's algorithm reports it structurally: if processed-node count < V when the queue empties, the leftover nodes form/feed cycles. DFS-based topo sort needs an explicit three-color check (in-stack revisit = back edge = cycle); without it, it SILENTLY emits a garbage order that downstream code consumes. Course-schedule problems are cycle detection wearing a topo costume."
+    },
+    {
+      "front": "Undirected graph, or 'dependencies' that go both ways — why is topological sort not merely hard but meaningless?",
+      "back": "Topological order is defined BY edge direction: u before v for every edge u->v. An undirected edge asserts both 'u before v' and 'v before u' — a contradiction for any edge, i.e., every undirected edge is a 2-cycle under symmetrization. If a problem hands you mutual constraints, the model is wrong, not the algorithm: either the relation needs directing (who depends on whom?), or you want a different tool entirely — components, matching, or 2-SAT for boolean mutual constraints."
+    },
+    {
+      "front": "The judge wants THE lexicographically smallest valid order. What breaks in vanilla Kahn's, and what's the one-line fix?",
+      "back": "A DAG generally has MANY valid topological orders; vanilla Kahn's emits whichever the FIFO queue produces — valid but arbitrary. Fix: replace the queue with a min-heap, always expanding the smallest available zero-indegree vertex — O((V+E) log V), and greedily optimal because at each step any valid order must start with some available vertex, so taking the smallest is safe. Note the asymmetry: DFS-based topo sort CANNOT be patched this way; the postorder structure fights lexicographic choice."
+    },
+    {
+      "front": "When does 'process in topological order' beat Dijkstra on its home turf?",
+      "back": "On DAGs. Relaxing each vertex's out-edges in topo order computes shortest (or longest, flip the comparison) paths in O(V+E), handles NEGATIVE weights that break Dijkstra, and needs no heap. Longest path — NP-hard on general graphs — is linear on DAGs this way, which is why scheduling/critical-path problems live here. The recognition cue: edges only point 'forward' (prerequisites, time, versions). Reaching for Dijkstra on a DAG is correct but strictly dominated; interviewers notice."
+    }
+  ],
+  "Tree BFS": [
+    {
+      "front": "BFS queue vs DFS stack on trees: which shapes make BFS the memory loser, and by how much?",
+      "back": "Wide trees. The queue holds an entire level; a complete binary tree's last level has about n/2 nodes, so BFS peaks at O(n) memory while DFS holds one root-to-leaf path, O(h) = O(log n) when balanced. The roles flip on skewed trees: DFS recursion nests O(n) frames (stack overflow risk) while BFS's levels have one node each. Rule of thumb to say: BFS memory = max WIDTH, DFS memory = max DEPTH — pick against the tree's shape."
+    },
+    {
+      "front": "Top View by DFS 'first node seen per column' gives wrong answers. Why is BFS structurally required here?",
+      "back": "Top view wants, per horizontal column, the node closest to the ROOT — minimum depth. DFS visit order does not track depth: a deep left-subtree node can reach column +1 before a shallow right-subtree node, and 'first seen' records the deeper, wrong node. BFS visits strictly shallower nodes first, so first-seen-per-column is provably topmost. DFS can be patched by comparing depths per column, but then you've rebuilt what BFS gives free. Bottom view is the mirror: last seen in BFS order."
+    },
+    {
+      "front": "Maximum Width using positional labels (left = 2i, right = 2i+1): what explodes on a deep sparse tree, and what's the fix?",
+      "back": "Labels double per level, so depth 60 exceeds 2^63 and overflows even 64-bit integers on a sparse tree with only a handful of nodes. Fix: NORMALIZE per level — subtract the level's minimum index from every child label before enqueueing (index' = index - levelMin), keeping labels near zero regardless of depth. Python hides this with big ints; Java/C++ silently corrupt. Interviewers pick this problem specifically to see whether you notice the doubling."
+    },
+    {
+      "front": "Burn a Binary Tree / Nodes at Distance K: why can't BFS run on the tree as-is, and what preprocessing unlocks it?",
+      "back": "Fire and distance spread UPWARD too, but tree nodes only point down — the child-to-parent direction doesn't exist in the structure. Preprocess with one DFS/BFS building a parent map (node -> parent), converting the tree into an undirected graph; then BFS from the source with a visited set (now essential — parents create cycles back to children). Skipping visited nodes is the classic bug afterward. The lesson: BFS requires the graph you MEAN, not the pointers you HAVE."
+    }
+  ],
+  "Tree DFS": [
+    {
+      "front": "Diameter of Binary Tree: the O(n^2) trap that looks correct — what is it, and what single change fixes it?",
+      "back": "Computing height(node) separately inside every node's diameter check — height is O(n) and it runs n times. The fix: one postorder DFS returning height while UPDATING a shared diameter maximum (leftHeight + rightHeight at each node) — O(n) total. This 'return one value, record another' shape repeats across Balanced Tree, Max Path Sum, and Largest BST in Binary Tree. If your recursion calls another recursion per node, you've hit the trap."
+    },
+    {
+      "front": "Maximum Path Sum: what makes the value you RETURN different from the value you RECORD, and why do people merge them wrongly?",
+      "back": "A path through a node can bend (left-down + node + right-down), but the value returned to the PARENT must be a straight arm — node + max(one child) — because the parent extends only one direction. Recording max(bend) globally while returning max(arm) is the whole algorithm. Merging them (returning the bend) creates impossible Y-shaped paths counted twice. Also clamp negative child contributions to zero. Same discipline appears in diameter and Largest BST; it's DFS's most-tested idea."
+    },
+    {
+      "front": "Recursive DFS on a skewed tree of 10^5 nodes: what fails, in which languages, and what are the accepted fixes?",
+      "back": "Each level nests one frame: 10^5 frames overflows Python's ~1000-frame default instantly and risks C++/Java stack limits (typically ~10^4-10^5 frames). Fixes ranked by interview value: iterative DFS with explicit stack (always accepted), Morris traversal for inorder/preorder at O(1) space via temporary threading (impressive, must restore the tree), or BFS if the problem allows level-agnostic order. Mention the skew hazard when constraints show n >= 10^5 — before the interviewer does."
+    },
+    {
+      "front": "Which tree questions is DFS the WRONG default for, despite trees being 'DFS territory'?",
+      "back": "Anything organized by LEVEL or DEPTH-CLOSENESS: level order, zigzag, left/right view (first node per level), top/bottom view (closest to root per column), maximum width — BFS's layer structure gives these directly, while DFS needs auxiliary depth bookkeeping and careful tie-breaking to avoid wrong-node bugs (deep node seen before shallow one). DFS owns root-to-leaf paths, subtree aggregation, and anything postorder. The chooser: 'per-level / nearest-root' = BFS; 'per-path / bottom-up' = DFS."
+    }
+  ],
+  "Trie": [
+    {
+      "front": "A 26-pointer-per-node trie over 10^5 words: estimate the memory, and name the two structures that shrink it.",
+      "back": "Each node carries 26 child slots (~200+ bytes with object overhead); a trie of 10^5 words averaging 10 chars can hit millions of mostly-null pointers — tens to hundreds of MB in Java/Python. Shrinkers: hash-map children (pay only for edges present, small constant-factor slowdown) or a compressed/radix trie merging single-child chains into edge labels. For Unicode alphabets, fixed arrays are outright impossible — hash children are mandatory. Quote the memory math before coding; it's the expected first sentence."
+    },
+    {
+      "front": "When is a trie strictly worse than a hash set for a dictionary, and what query flips the choice back?",
+      "back": "For exact-membership-only workloads: hash set gives O(L) lookup (hashing the word) with far less memory and code than a trie — building a trie to answer 'contains(word)' is over-engineering. The flip: any PREFIX-shaped query — 'count words starting with p', autocomplete, longest common prefix walks, or wildcard '.' matching — where the trie's shared-prefix structure answers in O(prefix length) while a hash set must scan all keys. Name the query type first; the structure follows."
+    },
+    {
+      "front": "Maximum XOR via bit-trie: which two setup mistakes silently produce wrong answers?",
+      "back": "(1) Inserting bits from the LOWEST bit first — XOR maximization is greedy from the MOST significant bit down (a high bit outweighs all lower bits combined), so the trie must branch MSB-first with fixed width (e.g. 32 levels), zero-padded. (2) In Maximum XOR Queries, inserting all numbers before filtering by the query's limit — sort numbers and queries and insert only numbers <= limit (offline processing), or each query sees illegal candidates. Both bugs pass small tests; both die on judges."
+    },
+    {
+      "front": "A trie of whole words can't find 'is X a SUBSTRING of the text?' Why, and what structures actually serve substring queries?",
+      "back": "A word-trie only knows strings from their STARTS — substrings begin mid-word, off the trie's paths. Substring queries need a structure over all SUFFIXES of the text: suffix trie (O(n^2) naive), suffix array + binary search (O(m log n) per query, practical), or suffix automaton/tree (linear build, advanced). For one-off substring checks, plain KMP in O(n+m) beats building anything. Conflating prefix structures with suffix structures is the misuse this question exposes."
+    }
+  ],
+  "Two Pointers": [
+    {
+      "front": "Converging two pointers on an UNSORTED array: what silently breaks, and what does sorting cost you besides time?",
+      "back": "The move rule 'sum too small -> advance left, too big -> retreat right' is only sound when order guarantees direction — unsorted, moving a pointer can skip the answer. Sorting restores soundness at O(n log n) but destroys original INDICES (fatal for Two Sum's return values — the hash map is the index-preserving answer) and any 'earliest occurrence' semantics. Checklist before converging pointers: is it sorted, can I sort, does anything need original positions?"
+    },
+    {
+      "front": "3 Sum outputs duplicate triplets even though your logic is right. Which two skip rules are missing?",
+      "back": "After sorting: (1) skip a fixed first element equal to its predecessor (i > 0 and a[i] == a[i-1] -> continue), and (2) after RECORDING a triplet, advance left past equal values and right past equal values before continuing. Missing either emits [-1,0,1] repeatedly on inputs with duplicates. Deduplicating via a set of triplets 'works' but costs extra memory and tells the interviewer you couldn't control the enumeration — the skips are the expected answer."
+    },
+    {
+      "front": "Trapping Rain Water with converging pointers: state the invariant that justifies moving the smaller side, or the algorithm is a coincidence.",
+      "back": "Invariant: water above the current cell on the SMALLER-max side is decided by that side's max alone — because a wall at least that tall exists on the other side (the other side's max is bigger). So process the side with the smaller running max, add smallerMax - height, and advance. Without stating this, the two-pointer version is memorized magic, and 'why is it correct?' is the guaranteed follow-up. Fallback that needs no proof: prefix-max and suffix-max arrays, O(n) space."
+    },
+    {
+      "front": "Merge Two Sorted Arrays without extra space: why do normal front-to-back two pointers deadlock, and what are the real options?",
+      "back": "Writing into arr1's front while reading from it overwrites unread elements — the in-place constraint breaks forward merging. Options: merge BACKWARD from the largest slots when arr1 has trailing buffer space (LeetCode 88's shape); with two exactly-full arrays, the gap method (Shell-sort-style comparisons at a shrinking gap, O((n+m) log(n+m))) or swap-then-sort. 'No extra space' changes the algorithm, not just the implementation — say which variant of the problem you're in before coding."
+    }
+  ],
+  "Union-Find": [
+    {
+      "front": "Union-Find answers connectivity — name two adjacent questions it CANNOT answer, and the tools that can.",
+      "back": "It stores only 'same component or not'. (1) The actual PATH or distance between nodes: parent pointers after path compression are ahistorical shortcuts — BFS/DFS on the real graph required. (2) Directed reachability: union is symmetric, so DSU models undirected equivalence only; 'can A reach B' in a digraph needs DFS or strongly connected component condensation. Offering DSU for either is a category error interviewers probe with 'now print the path'."
+    },
+    {
+      "front": "Which operation breaks Union-Find's amortized guarantees entirely, and how do real problems route around it?",
+      "back": "DELETION — un-merging components. Path compression bakes merged history into parent chains; there is no cheap split. Routes around it: process OFFLINE IN REVERSE (for 'remove edges one by one' problems, add edges backward and answer queries in reverse order), rebuild from scratch per phase, or escalate to link-cut trees (advanced, rarely expected). The reverse-processing trick is the interview-standard answer; naming it turns a blocker into a technique."
+    },
+    {
+      "front": "Union-Find without union-by-rank/size or path compression: what does each omission cost, concretely?",
+      "back": "Neither optimization: unions can build a linked-list-shaped forest, making find O(n) per call — Kruskal's degrades from near-linear to O(E x V). Rank/size alone: O(log n) height guaranteed. Path compression alone: amortized O(log n)-ish. Both: inverse Ackermann, effectively constant. The follow-up 'what's the complexity of your DSU?' expects you to name which optimizations you wrote and the bound each gives — 'basically O(1)' without them is wrong."
+    },
+    {
+      "front": "Kruskal's with DSU vs Prim's with a heap: which graph shapes favor each, and what does Kruskal pay upfront?",
+      "back": "Kruskal pays O(E log E) to SORT ALL EDGES before any progress — on dense graphs (E near V^2) that's the dominant cost, and Prim's with an adjacency-list heap, O(E log V), grows the tree without global sorting; with a simple array Prim's is O(V^2), optimal for dense graphs. Kruskal shines sparse, when edges arrive pre-sorted, or when the problem is naturally edge-centric (process edges by weight, count components mid-way). Density decides; state E's relation to V before choosing."
+    }
+  ]
+}

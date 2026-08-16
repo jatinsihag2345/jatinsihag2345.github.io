@@ -4,6 +4,10 @@ export const STORAGE_KEYS = {
   solvedSqlIds: 'solvedSqlIds',
   bookmarkedSqlIds: 'bookmarkedSqlIds',
   studyMeta: 'studyMeta',
+  /** Split-pane ratios (see ResizeHandle.tsx) — one layout preference for the whole
+   *  app, not per question: a learner who widens the editor wants it wide everywhere. */
+  viewerSplitRatio: 'viewerSplitRatio',
+  codeSplitRatio: 'codeSplitRatio',
 } as const;
 
 export interface StudyMeta {
@@ -44,12 +48,33 @@ export const readJson = <T>(
   }
 };
 
+/** Broadcast once per storage-full event so any mounted UI can show a real
+ *  banner instead of the failure being invisible. Deliberately NOT retried or
+ *  queued here — the caller already has the value in memory (React state),
+ *  so the data itself is never lost, only its persistence to disk. */
+const warnStorageFull = (key: string, err: unknown) => {
+  console.error(`localStorage write to "${key}" failed`, err);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('storage-write-failed', { detail: { key } }));
+  }
+};
+
 export const writeJson = (key: string, value: unknown) => {
   if (typeof window === 'undefined') {
     return;
   }
 
-  window.localStorage.setItem(key, JSON.stringify(value));
+  // A full localStorage quota makes setItem THROW. Two real failure modes were
+  // confirmed by execution: thrown from inside a React state updater with no
+  // ErrorBoundary anywhere in the app, it unmounts the ENTIRE tree (white
+  // screen); thrown from an event handler before the caller's own setState,
+  // it silently eats the keystroke that triggered it, forever, with no visible
+  // error. Persistence failing must never stop the UI from updating.
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    warnStorageFull(key, err);
+  }
 };
 
 export const readText = (key: string, fallback = '') => {
@@ -65,7 +90,12 @@ export const writeText = (key: string, value: string) => {
     return;
   }
 
-  window.localStorage.setItem(key, value);
+  // Same guard as writeJson — see its comment.
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (err) {
+    warnStorageFull(key, err);
+  }
 };
 
 export const removeStoredValue = (key: string) => {

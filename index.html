@@ -4,8 +4,17 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="An interactive, premium preparation platform for Striver's DSA SDE Sheet and LeetCode Top 50 SQL." />
-    <title>MAANG Prep Hub | Striver SDE Sheet & SQL</title>
+    <meta name="theme-color" content="#0b0f19" />
+    <script>
+      // Stamp the saved theme before ANY paint: the bundle is ~5 MB, so doing this
+      // from module code guarantees light-theme users a dark flash on every load.
+      try {
+        var t = localStorage.getItem('platform-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+    <meta name="description" content="Learn DSA and SQL from scratch: every problem with a brute force, an optimal, runnable code and a step-by-step visual walkthrough." />
+    <title>Striver SDE Sheet — DSA &amp; SQL Interview Prep</title>
   </head>
   <body>
     <div id="root"></div>

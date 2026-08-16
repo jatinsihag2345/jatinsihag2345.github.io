@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Copy, Check, ExternalLink, Bookmark, CheckSquare, Square, Info } from 'lucide-react';
 import type { SQLQuestion } from '../data/sqlQuestions';
 import { readText, writeText } from '../utils/persistence';
+import { SqlPlayground } from './SqlPlayground';
+import { ErDiagram } from './ErDiagram';
+import { PeerReviewComposer } from './PeerReviewComposer';
 
 interface SQLViewerProps {
   question: SQLQuestion;
@@ -121,16 +124,21 @@ export const SQLViewer: React.FC<SQLViewerProps> = ({
             <span>{isBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
           </button>
 
-          <a 
-            href={question.leetcodeLink} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="btn btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', padding: '0.65rem 1.25rem' }}
-          >
-            <span>LeetCode</span>
-            <ExternalLink size={14} />
-          </a>
+          {/* No LeetCode button for the PL/SQL track — these are original questions with
+              no LeetCode counterpart (its SQL judge is SELECT-only, same limit as this
+              app's sandbox), so a link here would have nowhere honest to point. */}
+          {!question.procedureTrack && (
+            <a
+              href={question.leetcodeLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', padding: '0.65rem 1.25rem' }}
+            >
+              <span>LeetCode</span>
+              <ExternalLink size={14} />
+            </a>
+          )}
         </div>
       </div>
 
@@ -152,6 +160,9 @@ export const SQLViewer: React.FC<SQLViewerProps> = ({
             </pre>
           </div>
         </div>
+
+        {/* Schema map — drawn only when the DDL above parses cleanly */}
+        <ErDiagram schema={question.schema} />
 
         {/* Example Tables */}
         {question.exampleData.length > 0 && (
@@ -189,7 +200,7 @@ export const SQLViewer: React.FC<SQLViewerProps> = ({
         {question.expectedOutput.rows.length > 0 && (
           <div>
             <h4 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '0.75rem', color: 'hsl(var(--secondary))' }}>
-              Expected Output
+              {question.procedureTrack ? 'Expected State (illustrative — not run by this app)' : 'Expected Output'}
             </h4>
             <div className="sql-table" style={{ width: 'fit-content', minWidth: '200px' }}>
               <table className="sql-grid-data">
@@ -215,7 +226,44 @@ export const SQLViewer: React.FC<SQLViewerProps> = ({
         )}
       </div>
 
-      {/* 2. SQL Solutions (Sequential) */}
+      {/* 2. Write it yourself — before the answers, so the reader attempts the query
+             while the tables and expected output are still fresh on screen. */}
+      {question.procedureTrack ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Your Turn</h3>
+          <div
+            className="glass"
+            style={{
+              padding: '1.25rem 1.75rem', borderRadius: '16px',
+              border: '1px dashed hsl(var(--primary))', background: 'hsl(var(--primary-glow) / 0.35)',
+              display: 'flex', flexDirection: 'column', gap: '0.5rem',
+            }}
+          >
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 700 }}>No live runner for this one</h4>
+            <p style={{ fontSize: '0.88rem', lineHeight: 1.65, color: 'hsl(var(--text-secondary))' }}>
+              This app's in-browser sandbox is SQLite, and SQLite has no procedural SQL at all —
+              no CREATE PROCEDURE, no triggers, no cursors, in any dialect. Write your attempt on
+              paper or in the notes box below, then compare it against the solution — that
+              comparison is the actual rep; interviewers grade the code you write on a whiteboard,
+              not a compiler's opinion of it.
+            </p>
+          </div>
+        </div>
+      ) : question.exampleData.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Your Turn</h3>
+          <SqlPlayground
+            questionId={question.id}
+            exampleData={question.exampleData}
+            expectedOutput={question.expectedOutput}
+            solutionQuery={question.solutions[0]?.query || ''}
+          />
+        </div>
+      )}
+
+      <PeerReviewComposer questionId={question.id} questionTitle={question.title} attemptKeyPrefix="sql-attempt-" />
+
+      {/* 3. SQL Solutions (Sequential) */}
       {question.solutions.length === 0 ? (
         /* SQL Challenge Sandbox fallback */
         <div className="glass" style={{ padding: '3rem 2rem', borderRadius: '16px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
@@ -255,6 +303,26 @@ export const SQLViewer: React.FC<SQLViewerProps> = ({
       ) : (
         /* Queries in order */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+          {/* A single approach can look like a half-finished entry, so when it really is the
+              one natural query, say so and name the detours a reader might otherwise try. */}
+          {question.onlyOneNaturalSolution && question.whyOneSolution && (
+            <div
+              className="glass"
+              style={{
+                borderRadius: '16px',
+                padding: '1.25rem 1.75rem',
+                border: '1px dashed hsl(var(--primary))',
+                background: 'hsl(var(--primary-glow) / 0.35)'
+              }}
+            >
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                Why there is only one sensible query here
+              </h4>
+              <p style={{ fontSize: '0.88rem', lineHeight: 1.65, color: 'hsl(var(--text-secondary))' }}>
+                {question.whyOneSolution}
+              </p>
+            </div>
+          )}
           {question.solutions.map((sol, solIdx) => (
             <div 
               key={sol.name}
@@ -295,7 +363,9 @@ export const SQLViewer: React.FC<SQLViewerProps> = ({
                 {/* Query Code Container */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--text-muted))' }}>SQL QUERY (ANSI standard)</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--text-muted))' }}>
+                      {question.dialect ? question.dialect.toUpperCase() : 'SQL QUERY (ANSI standard)'}
+                    </span>
                     <button
                       className="btn btn-secondary"
                       style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}

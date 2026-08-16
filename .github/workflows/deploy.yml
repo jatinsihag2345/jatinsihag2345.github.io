@@ -1,0 +1,55 @@
+# Builds the Vite site and publishes it to GitHub Pages at jatinsihag.me.
+#
+# The custom domain lives in public/CNAME, which Vite copies verbatim into dist/ —
+# Pages reads it from the published artifact, so the domain survives every deploy
+# without having to be re-entered in the repository settings.
+name: Deploy to Pages
+
+on:
+  push:
+    branches: [main]
+  # Lets you re-publish from the Actions tab without pushing an empty commit.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; queue instead, and don't cancel one mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # `npm ci` needs the lockfile to agree with package.json; fall back rather
+      # than fail the deploy outright if they have drifted.
+      - run: npm ci || npm install
+
+      - run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

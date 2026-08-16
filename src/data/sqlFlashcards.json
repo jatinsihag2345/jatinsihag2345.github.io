@@ -1,0 +1,306 @@
+[
+  {
+    "front": "You write SELECT first, but which clause runs first logically — and what is the full execution order?",
+    "back": "FROM runs first: nothing can be filtered or computed until the tables are loaded and joined. Full order: FROM, WHERE, GROUP BY, HAVING, SELECT, ORDER BY, LIMIT. This one sequence predicts most 'weird' SQL errors — WHERE cannot see SELECT aliases (not created yet), WHERE cannot see aggregates (no groups yet), but ORDER BY can use aliases because SELECT already ran. Interviewers probe this order constantly."
+  },
+  {
+    "front": "Why does WHERE annual_salary > 50000 fail when annual_salary is an alias created in SELECT?",
+    "back": "Because WHERE runs before SELECT in logical execution order, the alias does not exist yet when each row is filtered — only the real column salary does, so MySQL raises 'Unknown column'. Fix: repeat the real expression (WHERE salary > 50000). Contrast: ORDER BY annual_salary is legal, since ORDER BY runs after SELECT. One rule, two behaviors, both predicted by the execution order."
+  },
+  {
+    "front": "Why can an aggregate like COUNT(*) never appear in WHERE, and where does it go instead?",
+    "back": "WHERE runs before GROUP BY, when rows are still individual — 'appears more than once' is not yet a computable fact about a lone row. HAVING runs after grouping and filters whole buckets, so per-group conditions like COUNT(*) > 1 or SUM(amount) >= 1000 live there. Decision rule: can a single row answer the condition? If yes, WHERE (cheaper — rows removed early never waste grouping work); if it needs a per-group total, HAVING."
+  },
+  {
+    "front": "WHERE a = 1 OR a = 2 AND b = 3 — how does SQL parse this, and why is it a trap?",
+    "back": "As a = 1 OR (a = 2 AND b = 3), because AND binds tighter than OR — the way multiplication binds tighter than addition. Every row with a = 1 passes regardless of b, which is rarely what you meant. Habit: the moment a WHERE mixes AND with OR, wrap the OR part in parentheses. It costs nothing and prevents the most common silent-wrong-answer bug in SQL."
+  },
+  {
+    "front": "Is BETWEEN inclusive? What goes wrong with BETWEEN '2026-01-01' AND '2026-01-31' on a DATETIME column?",
+    "back": "BETWEEN is inclusive on both ends: x BETWEEN 5 AND 10 means x >= 5 AND x <= 10. But on a DATETIME column, '2026-01-31' parses as midnight starting that day, so a timestamp at 09:00 on Jan 31 is excluded. Prefer the half-open range: col >= '2026-01-01' AND col < '2026-02-01' — it captures every instant of the month and the same shape works for any period."
+  },
+  {
+    "front": "In LIKE patterns, what do % and _ match? Write the pattern for 'second letter is a'.",
+    "back": "% matches any run of characters, including none; _ matches exactly one character. So name LIKE '_a%' means: any single first character, then 'a', then anything — second letter is a. 'A%' means starts with A. When you need character classes, repetition, or anchors, escalate to REGEXP; LIKE is the 90% tool, REGEXP the escape hatch."
+  },
+  {
+    "front": "Why can't an index accelerate WHERE mail LIKE '%gmail.com'?",
+    "back": "An index stores values sorted from their first character, so it can seek only when the pattern has a fixed prefix. A leading % means 'any prefix', leaving the index no starting point — the engine falls back to a full scan. Fine for interview correctness, but 'a leading wildcard defeats the index' is the expected answer to the 'how would this scale?' follow-up. A fixed-prefix pattern like 'DIAB1%' can seek."
+  },
+  {
+    "front": "What does NULL = NULL evaluate to, and what does WHERE do with that result?",
+    "back": "UNKNOWN — not TRUE, not FALSE. NULL marks the absence of a value, and asking whether two unknowns are equal has no definite answer. WHERE keeps a row only when the condition is TRUE, so UNKNOWN rows are dropped the same as FALSE ones. That single rule explains nearly every NULL trap. To test for NULL, use IS NULL / IS NOT NULL — the only comparisons that return a definite answer on it."
+  },
+  {
+    "front": "LeetCode 584: why does WHERE referee_id <> 2 drop customers whose referee_id is NULL, and what is the fix?",
+    "back": "For a NULL referee_id, the comparison NULL <> 2 evaluates to UNKNOWN, and WHERE discards UNKNOWN rows — even though 'nobody referred them' satisfies 'not referred by 2' in plain English. Fix: WHERE referee_id <> 2 OR referee_id IS NULL. This is the canonical demonstration that SQL's three-valued logic and English disagree about NULL; expect a variant in nearly every SQL screen."
+  },
+  {
+    "front": "Why can x NOT IN (SELECT customer_id FROM Orders) return zero rows with no error or warning?",
+    "back": "NOT IN expands to a chain of inequalities: x <> v1 AND x <> v2 AND ... If the subquery returns even one NULL, the term x <> NULL is UNKNOWN, and TRUE AND UNKNOWN is UNKNOWN — the whole condition can never be TRUE, so every row silently fails. Fixes: exclude NULLs in the subquery (WHERE customer_id IS NOT NULL), or use NOT EXISTS, which never compares against the NULL values and is correct by construction."
+  },
+  {
+    "front": "When is NOT IN against a subquery actually safe?",
+    "back": "When the inner column can never be NULL — for example, a primary key. LeetCode 'Employees With Missing Information' uses NOT IN safely because employee_id is a PK. The mental check before shipping any NOT IN: can this subquery emit a NULL? If yes, one NULL poisons the AND-chain of <> comparisons and the whole query returns zero rows; switch to NOT EXISTS. Interviewers love this trap because the broken query looks correct at a glance."
+  },
+  {
+    "front": "COUNT(*) vs COUNT(col) vs COUNT(DISTINCT col): what does each count?",
+    "back": "COUNT(*) counts rows — every row; the * means 'the row itself', not 'all columns', so no NULL can affect it. COUNT(col) counts rows where col IS NOT NULL — the skipping is usable on purpose: COUNT(coupon_code) counts orders that used a coupon. COUNT(DISTINCT col) counts unique non-NULL values — 'how many different customers ordered?'. Reading a requirement and picking the right one is a genuine screening question."
+  },
+  {
+    "front": "Some bonus values are NULL. What does AVG(bonus) average over, and how do you force NULLs to count as zero?",
+    "back": "AVG — like SUM, MIN, MAX — skips NULLs: it divides by the count of non-NULL bonuses, giving 'average among people who have a bonus'. If the requirement is 'average across everyone, treating no-bonus as zero', write AVG(IFNULL(bonus, 0)) to force NULLs into the calculation. Saying which of the two averages a question wants is what separates a memorized answer from understanding."
+  },
+  {
+    "front": "A query's filter matches zero rows. What do COUNT(*) and SUM(amount) each return?",
+    "back": "COUNT returns 0, but SUM, AVG, MIN, and MAX return NULL on an empty set. That difference matters whenever a problem expects 0 for 'no data': guard with IFNULL(SUM(...), 0). Division involving that NULL stays NULL too, so shapes like IFNULL(ROUND(SUM(a)/SUM(b), 2), 0) are exactly what separate accepted from wrong-answer on several LeetCode Top-50 problems."
+  },
+  {
+    "front": "Second Highest Salary: why wrap the LIMIT 1 OFFSET 1 query in an outer SELECT?",
+    "back": "With fewer than two distinct salaries the inner query returns no rows, but the judge demands one row containing NULL. A scalar subquery that produces no row evaluates to NULL, so SELECT (inner query) AS SecondHighestSalary converts 'empty result' into 'one row holding NULL' for free. DISTINCT inside is also mandatory: with salaries 300, 300, 200, skipping one raw row lands on the duplicate 300 instead of 200."
+  },
+  {
+    "front": "IFNULL vs COALESCE — what does each do, and which should you default to?",
+    "back": "IFNULL(x, fallback) is MySQL-specific and takes exactly two arguments. COALESCE(a, b, c, ...) is standard SQL and returns the first non-NULL argument, so it also expresses fallback chains like COALESCE(nickname, full_name, 'anonymous'). Prefer COALESCE anywhere the query might run outside MySQL. Both are per-row functions in the SELECT phase — they rewrite the output, never the stored data."
+  },
+  {
+    "front": "In MySQL, what does AVG(order_date = customer_pref_date) compute, and what is the portable spelling?",
+    "back": "MySQL evaluates a boolean as 1 or 0, so AVG over the comparison is (rows where it holds) / (all rows) — the fraction of immediate orders, ready for * 100 and ROUND (LeetCode 1173) with no subquery or join. Likewise SUM(status = 'late') counts late rows. Portable form: AVG(CASE WHEN order_date = customer_pref_date THEN 1 ELSE 0 END). Knowing both forms, and why they are equal, is a strong interview signal."
+  },
+  {
+    "front": "Why does COUNT(CASE WHEN cond THEN 1 ELSE 0 END) count every row instead of the matching ones?",
+    "back": "COUNT counts non-NULL values, and 0 is not NULL — so the ELSE 0 rows are counted too. Two fixes: drop the ELSE so misses become NULL and are skipped (COUNT(CASE WHEN cond THEN 1 END)), or switch to SUM with ELSE 0, which adds the 1s and 0s. This mismatch between COUNT's and SUM's treatment of 0 is the classic conditional-aggregation bug."
+  },
+  {
+    "front": "What is conditional aggregation, and why can't WHERE do its job?",
+    "back": "Putting a condition inside an aggregate — SUM(CASE WHEN state = 'approved' THEN amount ELSE 0 END) — gives each output column its own private filter while the query still scans every row once. WHERE cannot: it removes rows for ALL aggregates at once, so total and approved-only figures could never sit side by side. This one idea powers the monthly-transactions, cancellation-rate, and acceptance-rate problem family in a single pass."
+  },
+  {
+    "front": "Does DISTINCT in SELECT DISTINCT customer_id, product_id deduplicate customer_id alone?",
+    "back": "No — DISTINCT deduplicates entire output rows, never one column. Each unique (customer_id, product_id) combination survives once, so a customer appears once per product bought. If you want one row per customer, that is GROUP BY customer_id plus an aggregate deciding which product to show. Also: DISTINCT treats all NULLs as one group, so a single NULL survives deduplication."
+  },
+  {
+    "front": "In MySQL, where do NULLs sort under ORDER BY col ASC vs DESC?",
+    "back": "First under ASC, last under DESC — a report sorted ascending on a nullable column leads with its empty values. Related guarantee worth stating in interviews: without an ORDER BY, row order is never guaranteed, ever. If the expected output is ordered, ORDER BY is mandatory, and ties need explicit tiebreaker keys or a grader can fail you nondeterministically."
+  },
+  {
+    "front": "ORDER BY salary, name DESC — which direction does salary sort, and why is this a trap?",
+    "back": "Ascending. Each sort key carries its own ASC/DESC, and salary got none, so it defaults to ASC — only name is DESC. Writing this when you meant 'salary high-to-low with name as tiebreaker' silently inverts the main sort; correct is ORDER BY salary DESC, name ASC. Multiple keys compare like dictionary order: the second key decides only when the first ties."
+  },
+  {
+    "front": "Why do huge OFFSETs get slow, and what makes LIMIT/OFFSET pagination stable?",
+    "back": "The engine cannot teleport to row 100001 — it must produce and walk every skipped row in sorted order before discarding it, so cost grows with the offset. And pagination is only stable under a total order: add a unique tiebreaker (price ASC, product_id ASC), or the database may legally return different rows per run, making items duplicate or vanish as a user flips pages. OFFSET = (page - 1) * page_size."
+  },
+  {
+    "front": "After GROUP BY department_id, why is a bare SELECT name an error under ONLY_FULL_GROUP_BY?",
+    "back": "Each output row represents a whole bucket of rows, and name has no fold: MySQL would have to pick one of fifty names arbitrarily — and the picked name need not come from the row people assume (e.g. the MAX-salary row). Modern MySQL rejects it; old MySQL returned an arbitrary value, which caused years of silent bugs. Legal SELECT items after grouping: grouping columns (constant per bucket) and aggregates."
+  },
+  {
+    "front": "'Each department's highest-paid employee' — why is GROUP BY plus a bare name wrong, and what is the correct pattern?",
+    "back": "MAX(salary) folds the bucket's salaries, but a bare name would be chosen arbitrarily and need not belong to the max-salary row. Correct: compute per-group maxima, then match rows against them — WHERE (departmentId, salary) IN (SELECT departmentId, MAX(salary) FROM Employee GROUP BY departmentId). The multi-column IN (a row constructor) prevents cross-department accidents, and ties at the top all match — usually exactly what the problem wants."
+  },
+  {
+    "front": "LeetCode 596: why HAVING COUNT(DISTINCT student) >= 5 rather than COUNT(*) >= 5 for 'classes with at least 5 students'?",
+    "back": "A duplicated (student, class) enrollment row inflates COUNT(*) and can push a 4-student class over the threshold; COUNT(DISTINCT student) measures unique students per bucket. The grouped-query recipe: grouping key from 'per class', aggregate from 'number of students', DISTINCT from asking 'can the same student appear twice?', threshold in HAVING because it tests the group. Every grouped interview question decomposes into those four decisions."
+  },
+  {
+    "front": "Duplicate Emails (LC 182): why must 'appears more than once' be tested in HAVING?",
+    "back": "Grouping by email puts all rows sharing an address in one bucket, so COUNT(*) per bucket IS the email's occurrence count — but that count only exists after GROUP BY runs. WHERE runs before grouping, when each row is alone and the fact is not computable. SELECT email FROM Person GROUP BY email HAVING COUNT(*) > 1 is the archetype of the whole 'find groups whose aggregate passes a threshold' family."
+  },
+  {
+    "front": "INNER JOIN vs LEFT JOIN: what happens to a left-table row that matches nothing on the right?",
+    "back": "INNER JOIN drops it silently; LEFT JOIN keeps it once, with every right-table column padded with NULL. Decision question: must rows WITHOUT a match still appear? If yes, LEFT JOIN with the must-keep table on the left (LeetCode 175: people without an address still need a row). Matches multiply under both joins — one left row matching three right rows produces three output rows — non-matches are where the two differ."
+  },
+  {
+    "front": "LEFT JOIN Orders o ... WHERE o.customerId IS NULL — what does this find, and why does it work?",
+    "back": "Exactly the left rows with no match — the anti-join, LeetCode 183 'Customers Who Never Order'. LEFT JOIN pads unmatched customers with NULL in every Orders column, and o.customerId can be NULL only in padded rows: in a genuine match it equals c.id, which is never NULL. Alternatives: NOT EXISTS (NULL-safe), or NOT IN only when the subquery cannot emit NULLs — comparing the three is a favorite follow-up."
+  },
+  {
+    "front": "With LEFT JOIN, why does a right-table filter in WHERE (o.amount > 100) destroy the LEFT-ness, and where does it belong?",
+    "back": "WHERE filters the combined rows after the join: NULL-padded customers have NULL amount, NULL > 100 is UNKNOWN, and WHERE drops UNKNOWN — no-match customers vanish, silently converting your LEFT JOIN into an INNER JOIN. Predicates that restrict which right rows MATCH belong in ON: ON c.id = o.customer_id AND o.amount > 100 lets small orders fail to match while the customer survives NULL-padded. ON decides matching; WHERE decides survival."
+  },
+  {
+    "front": "Counting orders per customer with LEFT JOIN + GROUP BY: why COUNT(o.order_id), never COUNT(*)?",
+    "back": "A zero-order customer still contributes one NULL-padded row to their bucket. COUNT(*) counts that row and reports 1; COUNT(o.order_id) skips the NULL and correctly reports 0. This LEFT JOIN + COUNT(right-column) pairing is the standard 'include the zeroes' aggregation pattern, and the COUNT(*) off-by-one inside it is among the most common wrong answers on join-plus-aggregate problems."
+  },
+  {
+    "front": "What is a self join, and what phrasing in a problem tells you to reach for one?",
+    "back": "An ordinary join where both sides are the same table under two mandatory aliases — pretend you photocopied the table, and name each alias for its role (e for employee, m for manager). Trigger: the question compares a row with ANOTHER ROW of the same table — an employee vs their manager (managerId holds another row's id), today vs yesterday's weather, two users sharing an email. LeetCode 181: ON e.managerId = m.id, then WHERE e.salary > m.salary."
+  },
+  {
+    "front": "Rising Temperature: why is ON today.id = yesterday.id + 1 wrong, and what is the correct join condition?",
+    "back": "Ids are not promised to follow date order or be gap-free, and naive '+1' date arithmetic breaks across month boundaries. The correct pairing is a date relationship: ON DATEDIFF(today.recordDate, yesterday.recordDate) = 1, matching each day with the actual previous calendar day. First days with no predecessor match nothing and are correctly excluded by the INNER JOIN — 'warmer than yesterday' is undefined for them."
+  },
+  {
+    "front": "Self join on p1.email = p2.email to find duplicate pairs: what two problems does adding p1.id < p2.id solve at once?",
+    "back": "Without it, each row pairs with itself (its email equals its own) and every real pair appears twice as (A,B) and (B,A). The strict < kills both: id < id is false, so no self-pairs, and only one ordering of each mirror survives. This '< on the key' trick is the standard way to enumerate unordered pairs — and flipping it powers LeetCode 196: DELETE p1 ... AND p1.id > p2.id deletes every row with a smaller-id twin, keeping the earliest per email."
+  },
+  {
+    "front": "The 'CROSS JOIN then LEFT JOIN' pipeline: what problem family does it solve, and why is each stage needed?",
+    "back": "Every 'show zero for missing combinations' problem — LeetCode 1280, Students and Examinations. CROSS JOIN builds the full (student, subject) grid, because you cannot count rows that were never generated: zeros need their cell to exist. LEFT JOIN attaches real exam rows on BOTH keys, leaving empty cells NULL-padded instead of dropped. GROUP BY per cell with COUNT(right-column) turns padding into 0. One INNER JOIN anywhere in the chain deletes the zero rows."
+  },
+  {
+    "front": "You LEFT JOIN B, then INNER JOIN C on a B column. What happens to rows that had no B match?",
+    "back": "They die one table later: their B columns are NULL, so C's ON condition evaluates UNKNOWN and the inner join discards them — un-doing your LEFT JOIN downstream. To preserve 'keep everything from the anchor table', keep LEFT JOINs LEFT all the way down the chain. Also audit row counts in multi-joins: joins landing on primary keys stay one-row-per-anchor; unexpected growth means some ON matched multiple rows."
+  },
+  {
+    "front": "Correlated vs non-correlated subquery: when and how often does the inner query run?",
+    "back": "A non-correlated subquery references nothing from the outer query: it runs once up front and its result acts like a constant. A correlated subquery references an outer column (WHERE e2.departmentId = e.departmentId), so it is logically re-evaluated per outer row — an inner loop inside an outer loop. The correlation is what shrinks an aggregate's scope from 'whole table' to 'this row's group'. The optimizer often rewrites it as a join, but reason about it as a per-row loop."
+  },
+  {
+    "front": "Why does IN often beat a plain JOIN for 'customers who placed at least one order'?",
+    "back": "A JOIN emits one row per matching order — a customer with 5 orders appears 5 times, forcing a DISTINCT to clean up. IN is a membership test: each customer is evaluated once against the subquery's list, so duplicates in Orders can never inflate the result. For pure existence questions, IN or EXISTS states the intent directly, and EXISTS additionally lets the engine stop scanning at the first matching row."
+  },
+  {
+    "front": "What does the SELECT 1 inside EXISTS (SELECT 1 FROM Orders o WHERE o.customerId = c.id) mean?",
+    "back": "Nothing about the data — it is a convention signaling that EXISTS asks only whether at least one row comes back, never what the row contains; the engine can stop at the first hit. NOT EXISTS is also the NULL-safe anti-join: a NULL customerId fails the equality o.customerId = c.id and is ignored, which is exactly why it replaces NOT IN when the inner column can hold NULLs."
+  },
+  {
+    "front": "Second Highest via MAX: how does SELECT MAX(salary) FROM Employee WHERE salary < (SELECT MAX(salary) FROM Employee) handle ties and absence?",
+    "back": "The strict < removes every row at the peak — including duplicates of the top salary — so the MAX of what remains is the second-highest DISTINCT value by definition; ties at the top cannot fool it. If only one distinct salary exists, the filtered set is empty, and MAX over an empty set returns NULL as a value — the required 'NULL if absent' with no wrapper. A bare LIMIT 1 OFFSET 1 would instead return zero rows and be marked wrong."
+  },
+  {
+    "front": "Chaining multiple CTEs: do you repeat the WITH keyword before each one?",
+    "back": "No — WITH appears once and additional CTEs are separated by commas: WITH a AS (...), b AS (...). Writing WITH twice is a syntax error. Each later CTE may reference earlier ones, which is what makes readable pipelines possible (raw payments to monthly totals to LAG comparison to growth). A CTE lives for one statement only, is not stored or indexed, and unlike a pasted subquery can be referenced several times in the final query."
+  },
+  {
+    "front": "Why can't you write WHERE ROW_NUMBER() OVER (...) = 1 directly, and what is the standard fix?",
+    "back": "Window functions are computed after WHERE in the logical order, so at filter time the rank does not exist yet — MySQL rejects it. Fix: compute the window inside a CTE or derived table, where it materializes into an ordinary column, then filter outside: WITH ranked AS (... ROW_NUMBER() OVER (PARTITION BY customerId ORDER BY orderDate DESC) AS rn ...) SELECT ... WHERE rn = 1. A large fraction of the LeetCode Top SQL 50 reduces to this exact shape."
+  },
+  {
+    "front": "Why does a recursive CTE need a WHERE in its recursive half, and what does the pattern generate?",
+    "back": "The recursive member re-runs against the previous round's rows; without a terminating guard (WHERE n < 10) it produces rows until MySQL's recursion depth limit aborts the query. Shape: WITH RECURSIVE seq AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM seq WHERE n < 10). It generates rows no table contains — number sequences, calendars — the key to 'report every day even when nothing happened': build the full range, then LEFT JOIN real events onto it."
+  },
+  {
+    "front": "Scores 100, 90, 90, 80: what do ROW_NUMBER, RANK, and DENSE_RANK assign?",
+    "back": "ROW_NUMBER: 1,2,3,4 — always unique, ties broken arbitrarily unless ORDER BY adds tiebreaker columns. RANK: 1,2,2,4 — ties share a rank and the next rank skips, Olympic-style (two silvers, no bronze). DENSE_RANK: 1,2,2,3 — ties share, nothing skipped. Choose by the tie wording: ROW_NUMBER for 'exactly one row per group', DENSE_RANK for 'top 3 distinct values, ties included'. The wrong pick is the most common way to fail top-N-per-group."
+  },
+  {
+    "front": "How does a window function differ from GROUP BY in what happens to the rows?",
+    "back": "GROUP BY collapses rows into one summary row per group; a window function ANNOTATES — every original row survives and gains a computed column. Syntax: fn() OVER (PARTITION BY ... ORDER BY ...), where PARTITION BY splits rows into independent groups without collapsing and ORDER BY defines the walk order inside each. That is why windows can answer 'show each row AND its position among its peers', which aggregation alone cannot."
+  },
+  {
+    "front": "Department Top Three Salaries (Hard): why DENSE_RANK, not ROW_NUMBER or RANK?",
+    "back": "The problem defines 'top three salaries' as the three highest DISTINCT values, everyone earning any of them included. Salaries 90,90,80,70,60 rank 1,1,2,3,4 under DENSE_RANK, so rk <= 3 keeps both 90s, the 80, and the 70 — five people, correct. ROW_NUMBER would cap output at three rows per department; RANK would rank 1,1,3,4 and cut the 70. Matching the function's tie behavior to the problem's wording is the entire skill being tested."
+  },
+  {
+    "front": "Why does DENSE_RANK beat LIMIT 1 OFFSET 1 for 'Nth highest salary' when duplicates exist?",
+    "back": "With salaries 300, 300, 200, OFFSET 1 skips one ROW and returns 300 again — wrong. DENSE_RANK increments once per distinct VALUE, so rk = 2 means 200, the second-highest distinct salary. Wrapping the filtered result in MAX() handles absence: no row with rk = N makes MAX return NULL as a value instead of an empty result, which is what the judge expects. (The LIMIT/OFFSET route needs SELECT DISTINCT salary first, plus a scalar-subquery wrapper.)"
+  },
+  {
+    "front": "In MySQL 8, why must an output alias named rank be quoted?",
+    "back": "rank became a reserved word in MySQL 8 — it is the RANK() window function — so a bare alias collides with the keyword and errors. Quote it ('rank') or pick another name. This dialect gotcha breaks otherwise-correct 'Rank Scores' submissions, and the general habit transfers: when a legal-looking alias mysteriously fails to parse, suspect a reserved-word collision first."
+  },
+  {
+    "front": "LAG(col, 2, 0) OVER (ORDER BY d): what do the three arguments mean, and what happens at the edge without the third?",
+    "back": "Fetch col from 2 rows earlier in the window's order; when that runs off the edge, return 0 instead. Without a default, out-of-range LAG/LEAD return NULL — often convenient: NULL fails comparisons like temperature > prev_temp, so boundary rows exclude themselves with no extra code. LEAD is the mirror looking forward. Mental model: after sorting, each row grows a periscope aimed backward or forward."
+  },
+  {
+    "front": "LAG fetches the previous ROW — why is that not 'yesterday', and how do consecutive-day problems compensate?",
+    "back": "Rows are not guaranteed to be consecutive days: after a gap in the data, the previous row may be a week old and must not count as yesterday. So lag the value AND lag the key, then validate the distance: LAG(temperature) and LAG(recordDate), filtered by temperature > prev_temp AND DATEDIFF(recordDate, prev_date) = 1. This 'lag both, then check the gap' pattern recurs in every consecutive-events problem."
+  },
+  {
+    "front": "SUM(x) OVER (ORDER BY d) with no frame clause: what frame do you get, and why can it corrupt running totals?",
+    "back": "The default is RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW, and RANGE treats rows tying on the ORDER BY key as one block — two orders on the same date each show a total INCLUDING the other, quietly inflating the running sum on both rows. Spell the frame out whenever ties are possible: ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW counts physical rows, which is almost always what 'running total' means."
+  },
+  {
+    "front": "What frame expresses a 7-day moving average, and what must be true of the rows before it works?",
+    "back": "ROWS BETWEEN 6 PRECEDING AND CURRENT ROW — this row plus the six before it. But the frame counts ROWS, so each row must first BE one day: collapse multiple records per day (GROUP BY visited_on in a CTE) before windowing, or the frame slides over customers instead of days. This daily-totals-then-window two-step is LeetCode 'Restaurant Growth'."
+  },
+  {
+    "front": "Restaurant Growth: the first six days have short windows. Why must the day_no >= 7 filter live OUTSIDE the CTE?",
+    "back": "The windows must be computed over all days first — day 7's frame needs days 1 through 6 present. Filtering inside the CTE would delete those rows before the window ran, corrupting every frame that reaches back. So compute ROW_NUMBER() OVER (ORDER BY visited_on) AS day_no alongside the windowed sums inside the CTE, then trim WHERE day_no >= 7 outside, keeping only complete 7-day windows — which is exactly what the problem demands."
+  },
+  {
+    "front": "The gaps-and-islands trick: why is id - ROW_NUMBER() constant within a consecutive run of kept rows?",
+    "back": "After filtering (say, to days with people >= 100), ROW_NUMBER increments by exactly 1 per kept row — and while the run is unbroken, id also increments by 1, so the difference holds still. At a gap, id jumps ahead but ROW_NUMBER does not, so the difference changes: a new island. GROUP BY that difference, HAVING COUNT(*) >= 3, and you have every streak of 3+ — the standard weapon for login streaks, attendance, sensor uptime (LeetCode 'Human Traffic of Stadium')."
+  },
+  {
+    "front": "Consecutive Numbers via LAG(num,1) and LAG(num,2): why is DISTINCT essential in the outer SELECT?",
+    "back": "A run of five equal values satisfies 'equals both previous rows' at three different positions, so the same num would be reported three times without DISTINCT. The core condition: a number appears 3+ times consecutively exactly when some row equals both LAG(num, 1) and LAG(num, 2) under ORDER BY id — the run-of-three collapses into two equalities on one row. The first two rows get NULLs from LAG and fail the equalities harmlessly."
+  },
+  {
+    "front": "Consecutive-rows problems: when does the self-join ON l2.id = l1.id + 1 work, and when must you use LAG instead?",
+    "back": "The id-arithmetic join works only when the table GUARANTEES consecutive, gap-free ids — each join then extends the chain by one physically-adjacent row (l2 one id after l1, l3 two after, all equal in num). When ids can jump (deleted rows), 'adjacent' must be defined by LAG over an ORDER BY instead. Both express the identical idea — reach k rows away and demand equality — and knowing both forms is the point."
+  },
+  {
+    "front": "A CASE with no ELSE and no matching WHEN returns what — and how does pivoting exploit that?",
+    "back": "NULL. Pivoting builds one CASE-aggregate per output column — SUM(CASE WHEN month = 'Jan' THEN revenue END) AS Jan_Revenue — and deliberately omits ELSE: other months yield NULL, aggregates ignore NULLs, so after GROUP BY id each column holds exactly its month's value, or NULL when the month never occurred. ELSE 0 would claim 'zero revenue' where the truth is 'no data'. MySQL has no PIVOT keyword; CASE-per-column plus GROUP BY IS how pivoting is done."
+  },
+  {
+    "front": "Swap Salary: why does one UPDATE with CASE succeed where two sequential UPDATEs corrupt the data?",
+    "back": "Two statements self-destruct: after UPDATE ... SET sex = 'f' WHERE sex = 'm', every row is 'f', so the second statement flips the whole table to 'm'. UPDATE Salary SET sex = CASE WHEN sex = 'm' THEN 'f' ELSE 'm' END works because the CASE is evaluated against each row's ORIGINAL value within one statement — no intermediate corrupted state exists. It also proves CASE is an expression, legal inside SET; this is the standard 'swap two values in place' answer."
+  },
+  {
+    "front": "CASE WHEN price < 20 ... WHEN price < 100 ... — why doesn't the second branch need AND price >= 20?",
+    "back": "CASE evaluates WHENs top to bottom and returns the THEN of the FIRST true condition; anything under 20 was captured by branch one and never reaches branch two. So order branches most-specific first. Watch NULLs: a NULL price fails every comparison and falls into ELSE silently — if NULLs deserve their own label, add WHEN price IS NULL as an explicit early branch. Top-down short-circuit is the core CASE mental model."
+  },
+  {
+    "front": "How do you decide between WHERE and CASE when a problem mentions a condition (e.g. Triangle Judgement)?",
+    "back": "Ask whether the task is to REMOVE rows or to LABEL them. WHERE filters — the 'No' rows would vanish. CASE is an expression producing a value per row, so it classifies while keeping every row: CASE WHEN x + y > z AND x + z > y AND y + z > x THEN 'Yes' ELSE 'No' END. Triangle Judgement wants a verdict on every row, so CASE; and the inequality must hold for all three pairings, joined with AND — testing one is the classic bug."
+  },
+  {
+    "front": "CONCAT(first_name, ' ', last_name) returns NULL for some users. Why, and what is the fix?",
+    "back": "CONCAT returns NULL if ANY argument is NULL — combining anything with NULL yields NULL, so one missing last_name swallows the whole result, not producing 'JOHN '. Fix: CONCAT_WS(' ', first_name, last_name) — the with-separator variant skips NULL arguments instead of propagating them, making it the safe choice for optional parts like middle names. Knowing WHY the NULL swallows the row is debugging skill, not trivia."
+  },
+  {
+    "front": "SUBSTRING(name, 1, 1) — why 1 and not 0? And what does SUBSTRING(name, 2) with no length return?",
+    "back": "SQL strings are 1-indexed: position 1 is the first character — the trap for everyone arriving from 0-indexed languages. SUBSTRING(name, 2) with length omitted means 'from position 2 to the end', and returns an empty string for one-letter names instead of erroring. The capitalize idiom from 'Fix Names in a Table': CONCAT(UPPER(SUBSTRING(name, 1, 1)), LOWER(SUBSTRING(name, 2))) — decompose, transform, reassemble."
+  },
+  {
+    "front": "CHAR_LENGTH vs LENGTH on 'café' — and which should you default to when measuring text?",
+    "back": "CHAR_LENGTH('café') = 4 (characters); LENGTH('café') = 5 (bytes — the é occupies two in UTF-8). They agree on ASCII and diverge on any multibyte text: accents, emoji. Human-facing limits like 'tweets longer than 15 characters' are defined in characters a person sees, so CHAR_LENGTH is the semantically correct choice — defaulting to it means never being burned when unicode appears in test data."
+  },
+  {
+    "front": "GROUP_CONCAT must list values alphabetically. Where does the ORDER BY go, and why doesn't the query's outer ORDER BY help?",
+    "back": "Inside the call: GROUP_CONCAT(DISTINCT product ORDER BY product SEPARATOR ','). The outer ORDER BY sorts result ROWS — it cannot reorder the inside of a string a group has already been folded into. Without the internal ORDER BY, values appear in scan order and tests fail intermittently, the worst kind to debug. DISTINCT inside keeps the list consistent with COUNT(DISTINCT product); SEPARATOR pins the delimiter the judge expects."
+  },
+  {
+    "front": "Why does REGEXP '@leetcode.com' accept '@leetcodeXcom', and why do email validators need ^ and $?",
+    "back": "An unescaped dot means 'any single character' — escape it (\\.) to demand a literal dot. Separately, REGEXP matches anywhere INSIDE the string by default, so without anchors 'xx!alice@leetcode.com' passes because a valid-looking chunk exists within it: ^ pins the start, $ the end, forcing the whole string to match. Anchor when you mean full-string, escape literal dots — these two habits prevent most regex bugs."
+  },
+  {
+    "front": "Patients With a Condition: why does LIKE '%DIAB1%' fail, and what two patterns fix it?",
+    "back": "The conditions column is a space-separated code list, and '%DIAB1%' matches DIAB1 anywhere — including mid-code, so 'SADIAB100' wrongly passes. DIAB1 must START a code, which happens in exactly two positions: start of string (LIKE 'DIAB1%') or right after a space (LIKE '% DIAB1%') — the leading space in the second pattern IS the word boundary. Transferable lesson: matching over delimited lists must respect the delimiter, not only the letters."
+  },
+  {
+    "front": "DATEDIFF('2026-01-02', '2026-01-01') returns what, and why does argument order matter so much?",
+    "back": "1 — DATEDIFF(a, b) is a minus b in whole days: later date first, like subtraction. Swapped arguments yield -1, and in Rising Temperature's join ON DATEDIFF(today.recordDate, yesterday.recordDate) = 1 that means an empty result — the most common wrong submission there. For shifting dates, use DATE_ADD/DATE_SUB with INTERVAL: they respect calendars (a month after Jan 31 lands on Feb 28/29), which handwritten day arithmetic gets wrong."
+  },
+  {
+    "front": "An inclusive 30-day window ending 2019-07-27: DATE_SUB by 30 or 29 days, and why?",
+    "back": "29. A window that INCLUDES its end date spans end minus 29 through end — count the fence posts: June 28 through July 27 is exactly 30 days, because the end date itself is day one. Subtracting 30 produces a 31-day window and overcounts. This off-by-one IS the test in 'User Activity for the Past 30 Days I'; pair it with COUNT(DISTINCT user_id) per day so a user with five sessions still counts once."
+  },
+  {
+    "front": "Why does WHERE DATE_FORMAT(orderDate, '%Y-%m') = '2026-01' defeat an index, and what is the index-friendly rewrite?",
+    "back": "Wrapping the COLUMN in a function means the index's sorted raw values no longer correspond to the compared value, so the engine must evaluate the function on every row — a full scan. Rewrite as a bare half-open range the index can seek: orderDate >= '2026-01-01' AND orderDate < '2026-02-01'. General rule: keep the column bare and move computation to the constant side of the comparison."
+  },
+  {
+    "front": "Grouping transactions by month: why DATE_FORMAT(trans_date, '%Y-%m') rather than MONTH(trans_date) alone?",
+    "back": "GROUP BY merges rows with equal keys, and '%Y-%m' projects every date in a month onto one shared label like '2019-12'. Using the month alone merges December 2019 with December 2020 — a bug invisible until the data spans years. Also group by the same expression you SELECT, which keeps the query valid under MySQL's ONLY_FULL_GROUP_BY mode — the mode LeetCode runs."
+  },
+  {
+    "front": "UNION vs UNION ALL: which deduplicates, and which should be your default?",
+    "back": "UNION deduplicates the merged rows, paying a sort/hash cost to do it; UNION ALL stacks everything untouched. Default to UNION ALL and upgrade only when duplicates are possible AND unwanted: stacking sales_2024 with sales_2025, identical-looking rows are two real sales, and UNION would silently merge them, corrupting totals. Saying that cost trade-off out loud in an interview signals you know what UNION actually does."
+  },
+  {
+    "front": "Where does an ORDER BY written after a UNION apply, and what must the two branches agree on?",
+    "back": "The trailing ORDER BY sorts the COMBINED result, not the last branch — sorting one branch alone requires wrapping it in parentheses, a nuance interviewers probe. Both branches must produce the same number of columns in compatible types, and output column names come from the FIRST select. A provenance tag ('2024' AS sales_year) must appear in both branches so the counts match."
+  },
+  {
+    "front": "MySQL has no FULL OUTER JOIN. How do you fake one?",
+    "back": "Stack complementary queries with UNION: a LEFT JOIN result plus the rows found only in the right table. For 'ids missing from either table' (Employees With Missing Information), union two one-sided orphan queries — ids in Employees but not Salaries, then ids in Salaries but not Employees. NOT IN is safe there only because employee_id is a primary key that cannot be NULL; were it nullable, NOT EXISTS would be mandatory."
+  },
+  {
+    "front": "Delete Duplicate Emails: what does DELETE p1 FROM Person p1 JOIN Person p2 ON p1.email = p2.email AND p1.id > p2.id do?",
+    "back": "The alias after DELETE names WHICH side of the join dies: every p1 row that has a same-email partner with a smaller id — precisely the rows that are not their email's minimum. The minimal row joins to nothing and survives, and the strict > guarantees the keeper can never sit on the deleted side. This multi-table DELETE syntax exists because MySQL rejects a plain DELETE whose WHERE subqueries the very table being modified."
+  },
+  {
+    "front": "Game Play Analysis IV (retention): why LEFT JOIN, not INNER, when probing for activity at first_date + 1 day?",
+    "back": "The denominator needs every player. Anchor each player's first login with MIN(event_date), then LEFT JOIN Activity ON same player AND event_date = DATE_ADD(first_date, INTERVAL 1 DAY). Players without a next-day login still yield a row with NULL a.player_id, and COUNT(a.player_id) skips NULLs — so the numerator counts only retained players while a COUNT(DISTINCT player_id) subquery counts everyone. This anchor-then-probe shape powers every retention question."
+  },
+  {
+    "front": "The interview playbook: what are the standard shapes for top-N per group, never-matched rows, and streaks of N+ consecutive ids?",
+    "back": "Top-N per group: window rank in a CTE, filter outside — pick ROW_NUMBER/RANK/DENSE_RANK from the tie wording. Never-matched rows: LEFT JOIN ... WHERE right-key IS NULL, or NOT EXISTS — never NOT IN when NULLs can lurk. Streaks: gaps and islands — group by id - ROW_NUMBER(), constant within a consecutive run, HAVING COUNT(*) >= N. Reading a new problem, your first move is classifying it into one of these shapes; that classification IS the interview skill."
+  }
+]

@@ -5,8 +5,12 @@ interface PythonHighlighterProps {
   activeLine?: number;
 }
 
-export const PythonHighlighter: React.FC<PythonHighlighterProps> = ({ code, activeLine }) => {
-  const highlightLine = (line: string): React.ReactNode[] => {
+/**
+ * Tokenise one line of Python into coloured spans. Module-level export so CodeEditor's
+ * live-highlight layer paints the exact same colours as this static view — one
+ * tokeniser, two surfaces, and they can never drift apart.
+ */
+export const highlightPythonLine = (line: string): React.ReactNode[] => {
     // Regex matching:
     // 1. Comments: (#.*)
     // 2. Strings: ("[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*')
@@ -75,8 +79,9 @@ export const PythonHighlighter: React.FC<PythonHighlighterProps> = ({ code, acti
     }
 
     return nodes;
-  };
+};
 
+export const PythonHighlighter: React.FC<PythonHighlighterProps> = ({ code, activeLine }) => {
   const lines = code.split('\n');
 
   return (
@@ -107,7 +112,7 @@ export const PythonHighlighter: React.FC<PythonHighlighterProps> = ({ code, acti
                 transition: 'all 0.2s ease'
               }}
             >
-              {highlightLine(line)}
+              {highlightPythonLine(line)}
             </div>
           );
         })}

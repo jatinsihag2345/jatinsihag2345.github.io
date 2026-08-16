@@ -1,9 +1,26 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Copy, Check, ExternalLink, Bookmark, CheckSquare, Square, Info } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ArrowLeft, ExternalLink, Bookmark, CheckSquare, Square, ChevronLeft, ChevronRight, Shuffle,
+  FileText, BookOpen, FlaskConical, History,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { Question } from '../data/dsaQuestions';
-import { PythonHighlighter } from './PythonHighlighter';
-import { DryRunSimulator } from './DryRunSimulator';
-import { readText, writeText } from '../utils/persistence';
+import { PythonPlayground } from './PythonPlayground';
+import { RecallRating } from './RecallRating';
+import { readHintsUsed } from './HintLadder';
+import { PrintButton } from './PrintButton';
+import { readText, writeText, STORAGE_KEYS } from '../utils/persistence';
+import { ResizeHandle, useSplitRatio } from './ResizeHandle';
+import { pushRecentQuestion } from '../utils/recentQuestions';
+import { ExplainBack } from './ExplainBack';
+import { Whiteboard } from './Whiteboard';
+import { PeerReviewComposer } from './PeerReviewComposer';
+import { SimilarProblems } from './SimilarProblems';
+import { NoteHistory, maybeSnapshotNote } from './NoteHistory';
+import { ProblemDescriptionTab } from './ProblemDescriptionTab';
+import { EditorialTab } from './EditorialTab';
+import { SolutionsTab } from './SolutionsTab';
+import { SubmissionsTab } from './SubmissionsTab';
 
 interface ProblemViewerProps {
   question: Question;
@@ -12,8 +29,38 @@ interface ProblemViewerProps {
   bookmarkedQuestionIds: string[];
   onToggleSolved: (id: string) => void;
   onToggleBookmark: (id: string) => void;
+  /** Topic-order navigation. All optional: the viewer renders one question and
+   *  works standalone (drill jumps, palette jumps) when App wires no neighbours. */
+  hasPrev?: boolean;
+  hasNext?: boolean;
+  onPrev?: () => void;
+  onNext?: () => void;
+  /** Jump to a random unsolved problem anywhere in the sheet. */
+  onRandom?: () => void;
+  /** Optional: lets the similar-problems card swap the open problem in place. */
+  onOpenQuestion?: (q: Question) => void;
 }
 
+type TabKey = 'description' | 'editorial' | 'solutions' | 'submissions';
+
+/** ≈ the 1fr / 1.2fr this split shipped with, now expressed as the left pane's share. */
+const DEFAULT_COLUMN_SPLIT = 0.45;
+
+const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
+  { key: 'description', label: 'Description', icon: FileText },
+  { key: 'editorial', label: 'Editorial', icon: BookOpen },
+  { key: 'solutions', label: 'Solutions', icon: FlaskConical },
+  { key: 'submissions', label: 'Submissions', icon: History },
+];
+
+/**
+ * A LeetCode-style split page: a tabbed left column (Description / Editorial /
+ * Solutions / Submissions) and a right column carrying the Code panel and its
+ * Testcase/Result panel (PythonPlayground — see its own file for the internal
+ * pp-code-pane / pp-test-pane split). Everything that doesn't fit either column
+ * — the whiteboard, peer review, edge cases, similar problems, notes — keeps
+ * scrolling below the split, same as the rest of this app's pages.
+ */
 export const ProblemViewer: React.FC<ProblemViewerProps> = ({
   question,
   onBack,
@@ -21,26 +68,59 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
   bookmarkedQuestionIds,
   onToggleSolved,
   onToggleBookmark,
+  hasPrev,
+  hasNext,
+  onPrev,
+  onNext,
+  onRandom,
+  onOpenQuestion,
 }) => {
-  const [copiedAppIdx, setCopiedAppIdx] = useState<number | null>(null);
   const [notes, setNotes] = useState<string>(() => readText(`notes-${question.id}`));
+  // Active-recall gate: sessionStorage (not localStorage) on purpose — the gate should
+  // greet you again on your NEXT visit, because re-deriving the plan is the exercise.
+  const [approachesRevealed, setApproachesRevealed] = useState<boolean>(
+    () =>
+      localStorage.getItem('gate-disabled') === '1' ||
+      sessionStorage.getItem(`revealed-${question.id}`) === '1',
+  );
+  const [plan, setPlan] = useState<string>(() => readText(`plan-${question.id}`));
+  // Lifted from HintLadder so RecallRating can caveat the rating with the hint count.
+  const [hintsUsed, setHintsUsed] = useState<number>(() => readHintsUsed(question.id));
+  const [activeTab, setActiveTab] = useState<TabKey>('description');
+  const splitRef = useRef<HTMLDivElement>(null);
+  const columnSplit = useSplitRatio(STORAGE_KEYS.viewerSplitRatio, DEFAULT_COLUMN_SPLIT);
 
   const isSolved = solvedQuestionIds.includes(question.id);
   const isBookmarked = bookmarkedQuestionIds.includes(question.id);
 
   useEffect(() => {
     setNotes(readText(`notes-${question.id}`));
-    setCopiedAppIdx(null);
+    setApproachesRevealed(
+      localStorage.getItem('gate-disabled') === '1' ||
+        sessionStorage.getItem(`revealed-${question.id}`) === '1',
+    );
+    setPlan(readText(`plan-${question.id}`));
+    setHintsUsed(readHintsUsed(question.id));
+    setActiveTab('description');
+    // Tell the focus timer (and anything else listening) which problem is on screen —
+    // and, on the way out, that no problem is. Without the close half, minutes keep
+    // banking against a problem the learner left an hour ago.
+    window.dispatchEvent(new CustomEvent('question-open', { detail: { id: question.id } }));
+    // Feed the Dashboard's "Continue where you left off" trail — opening IS the signal.
+    pushRecentQuestion(question.id);
+    return () => {
+      window.dispatchEvent(new CustomEvent('question-open', { detail: { id: null } }));
+    };
   }, [question.id]);
 
-  const handleCopyCode = async (codeText: string, idx: number) => {
-    try {
-      await navigator.clipboard.writeText(codeText);
-      setCopiedAppIdx(idx);
-      setTimeout(() => setCopiedAppIdx(null), 2000);
-    } catch {
-      setCopiedAppIdx(null);
-    }
+  const revealApproaches = () => {
+    sessionStorage.setItem(`revealed-${question.id}`, '1');
+    setApproachesRevealed(true);
+  };
+
+  const handlePlanChange = (next: string) => {
+    setPlan(next);
+    writeText(`plan-${question.id}`, next);
   };
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -49,18 +129,15 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
   };
 
   return (
-    <div 
-      style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        gap: '2.5rem', 
-        maxWidth: '900px', 
-        margin: '0 auto', 
-        paddingBottom: '5rem' 
-      }}
-    >
-      {/* Header bar */}
-      <div 
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', paddingBottom: '5rem' }}>
+      {/* Top toolbar — LeetCode's toolbar also carries a run/submit/notepad/AI
+          zone (center-right) and a login/premium zone (far right); this app has
+          no accounts to log into and Run/Check already lives in the Code
+          panel's own toolbar (see PythonPlayground.tsx), so both are simply
+          omitted rather than filled with dead buttons. What's left maps
+          directly: back + prev/next/shuffle on the left, this app's own real
+          per-problem actions on the right. */}
+      <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -71,26 +148,49 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
           paddingBottom: '1.25rem'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-          <button className="btn btn-secondary" style={{ padding: '0.6rem' }} onClick={onBack}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button className="btn btn-secondary" style={{ padding: '0.6rem' }} onClick={onBack} aria-label="Back to problem list" title="Problem List">
             <ArrowLeft size={18} />
           </button>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <h1 style={{ fontSize: '2rem', fontWeight: 800 }}>{question.title}</h1>
-              <span className={`badge badge-${question.difficulty.toLowerCase()}`}>
-                {question.difficulty}
-              </span>
+          {(onPrev || onNext) && (
+            <div style={{ display: 'flex', gap: '0.35rem' }}>
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '0.6rem' }}
+                aria-label="Previous problem in this topic"
+                title="Previous in topic"
+                disabled={!hasPrev}
+                onClick={onPrev}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '0.6rem' }}
+                aria-label="Next problem in this topic"
+                title="Next in topic"
+                disabled={!hasNext}
+                onClick={onNext}
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
-            <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))' }}>
-              Day {question.day} • {question.topic}
-            </span>
-          </div>
+          )}
+          {onRandom && (
+            <button
+              className="btn btn-secondary"
+              style={{ padding: '0.6rem' }}
+              aria-label="Open a random unsolved problem"
+              title="Random unsolved problem"
+              onClick={onRandom}
+            >
+              <Shuffle size={16} />
+            </button>
+          )}
         </div>
 
-        {/* Action Toggles */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button 
+          <button
             className="btn btn-secondary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}
             onClick={() => onToggleSolved(question.id)}
@@ -108,12 +208,12 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
             )}
           </button>
 
-          <button 
+          <button
             className="btn btn-secondary"
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
               fontSize: '0.9rem',
               color: isBookmarked ? 'hsl(var(--accent))' : 'hsl(var(--text-primary))'
             }}
@@ -123,9 +223,11 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
             <span>{isBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
           </button>
 
-          <a 
-            href={question.leetcodeLink} 
-            target="_blank" 
+          <PrintButton />
+
+          <a
+            href={question.leetcodeLink}
+            target="_blank"
             rel="noopener noreferrer"
             className="btn btn-primary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', padding: '0.65rem 1.25rem' }}
@@ -136,212 +238,129 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
         </div>
       </div>
 
-      {/* 1. Problem Description */}
-      <div className="glass" style={{ padding: '2rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, borderBottom: '1px solid hsl(var(--border-color))', paddingBottom: '0.5rem' }}>
-          Problem Statement
-        </h3>
-        <p style={{ lineHeight: '1.7', fontSize: '1rem', color: 'hsl(var(--text-secondary))' }}>
-          {question.problemStatement}
-        </p>
-
-        {/* Examples */}
-        {question.examples.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
-            <h4 style={{ fontWeight: 600, fontSize: '0.95rem' }}>Example Walkthrough</h4>
-            {question.examples.map((example, idx) => (
-              <div 
-                key={idx} 
-                style={{
-                  background: 'hsl(var(--bg-secondary) / 0.5)',
-                  border: '1px solid hsl(var(--border-color))',
-                  borderRadius: '8px',
-                  padding: '1rem'
-                }}
-              >
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', lineHeight: '1.5' }}>
-                  <div><strong>Input:</strong> {example.input}</div>
-                  <div><strong>Output:</strong> {example.output}</div>
-                  {example.explanation && (
-                    <div style={{ marginTop: '0.5rem', color: 'hsl(var(--text-muted))' }}>
-                      <strong>Explanation:</strong> {example.explanation}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Constraints */}
-        <div style={{ marginTop: '0.5rem' }}>
-          <h4 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '0.5rem' }}>Data Constraints</h4>
-          <ul style={{ paddingLeft: '1.2rem', fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-            {question.constraints.map((c, idx) => (
-              <li key={idx} style={{ fontFamily: 'var(--font-mono)' }}>{c}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      {/* 2. Prerequisites & What to Know */}
-      <div 
-        className="glass"
-        style={{
-          padding: '1.5rem 2rem',
-          borderRadius: '16px',
-          borderLeft: '4px solid hsl(var(--secondary))',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.5rem'
-        }}
+      {/* The split: Description/Editorial/Solutions/Submissions on the left,
+          Code + Testcase/Result on the right. .viewer-container / .viewer-pane /
+          .pane-header / .pane-body already existed in index.css for exactly
+          this shape (collapses to one column at <=1024px — see that file). */}
+      <div
+        className="viewer-container"
+        ref={splitRef}
+        style={{ ['--viewer-split' as string]: columnSplit.ratio }}
       >
-        <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'hsl(var(--secondary))', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Info size={16} /> Key Things to Know Before Solving
-        </h4>
-        {question.prerequisites && question.prerequisites.length > 0 ? (
-          <ul style={{ paddingLeft: '1.2rem', fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-            {question.prerequisites.map((p, idx) => (
-              <li key={idx}>{p}</li>
-            ))}
-          </ul>
-        ) : (
-          <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', lineHeight: '1.5' }}>
-            Make sure you understand how mutable references are handled in Python lists. Watch out for edge cases containing empty list elements, duplicate values, and potential integer overflow.
-          </p>
-        )}
-      </div>
-
-      {/* 3. Approaches (Brute Force to Optimal) */}
-      {question.approaches.length === 0 ? (
-        /* Personal Sandbox fallback if approaches not coded */
-        <div className="glass" style={{ padding: '3rem 2rem', borderRadius: '16px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
-          <div 
-            style={{
-              background: 'hsl(var(--primary-glow))',
-              padding: '1.25rem',
-              borderRadius: '50%',
-              border: '1px solid hsl(var(--primary))',
-              color: 'hsl(var(--secondary))',
-              width: '64px',
-              height: '64px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '1.5rem'
-            }}
-          >
-            🚀
-          </div>
-          <div>
-            <h3 style={{ fontSize: '1.35rem', marginBottom: '0.5rem' }}>Personal Challenge Sandbox</h3>
-            <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', maxWidth: '480px', margin: '0 auto', lineHeight: '1.6' }}>
-              We have not pre-coded optimal solutions for this problem yet. Open the link above to solve it on LeetCode, write your commented Python code, and record your logic in the notes editor at the bottom!
-            </p>
-          </div>
-          <a 
-            href={question.leetcodeLink} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="btn btn-primary"
-            style={{ fontSize: '0.9rem', padding: '0.65rem 1.75rem' }}
-          >
-            Start Coding on LeetCode
-          </a>
-        </div>
-      ) : (
-        /* Sequential approaches */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-          {question.approaches.map((app, appIdx) => (
-            <div 
-              key={app.name}
-              className="glass" 
-              style={{ 
-                borderRadius: '16px', 
-                overflow: 'hidden', 
-                border: app.name === 'Optimal' ? '1px solid hsl(var(--secondary) / 0.4)' : '1px solid hsl(var(--border-color))' 
-              }}
-            >
-              {/* Approach Title Bar */}
-              <div 
-                style={{
-                  padding: '1.25rem 2rem',
-                  background: 'hsl(var(--bg-secondary) / 0.5)',
-                  borderBottom: '1px solid hsl(var(--border-color))',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '0.5rem'
-                }}
+        <div className="viewer-pane glass">
+          {/* .tabs-container already carries the header look (border, background,
+              padding) this pane's header needs — no separate .pane-header. */}
+          <div className="tabs-container" role="tablist" aria-label="Problem sections">
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === key}
+                className={`tab${activeTab === key ? ' active' : ''}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                onClick={() => setActiveTab(key)}
               >
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: app.name === 'Optimal' ? 'hsl(var(--secondary))' : 'white' }}>
-                  {app.name === 'Optimal' ? '🔥 Optimal Python Approach' : 'Approach: ' + app.name}
-                </h3>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <span className="badge" style={{ background: 'hsl(var(--primary) / 0.15)', color: 'hsl(var(--primary))' }}>
-                    Time: {app.complexity.time}
-                  </span>
-                  <span className="badge" style={{ background: 'hsl(var(--secondary) / 0.15)', color: 'hsl(var(--secondary))' }}>
-                    Space: {app.complexity.space}
-                  </span>
-                </div>
-              </div>
-
-              {/* Approach Details */}
-              <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div>
-                  <h4 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '0.5rem' }}>Intuition & logic</h4>
-                  <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', lineHeight: '1.6' }}>
-                    {app.intuition}
-                  </p>
-                </div>
-
-                <div>
-                  <h4 style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '0.5rem' }}>Step-by-step trace</h4>
-                  <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
-                    {app.algorithm}
-                  </p>
-                </div>
-
-                {/* Code Container */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--text-muted))' }}>PYTHON IMPLEMENTATION</span>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                      onClick={() => handleCopyCode(app.code, appIdx)}
-                    >
-                      {copiedAppIdx === appIdx ? <Check size={12} color="hsl(var(--easy))" /> : <Copy size={12} />}
-                      <span>{copiedAppIdx === appIdx ? 'Copied' : 'Copy Code'}</span>
-                    </button>
-                  </div>
-
-                  <div className="code-container">
-                    <PythonHighlighter code={app.code} />
-                  </div>
-                </div>
-              </div>
+                <Icon size={14} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="pane-body">
+            {/* All four tabs stay MOUNTED (never conditionally unmount) — only CSS
+                visibility toggles which one shows. Two reasons: (1) print — the print
+                stylesheet forces every .tab-panel visible (see index.css), which only
+                works if the content actually exists in the DOM; unmounting inactive
+                tabs silently dropped Editorial/Solutions from a printed page even
+                though the learner had already revealed them. (2) it keeps each tab's
+                own internal state (HintLadder's unlock count, DryRunSimulator's step,
+                etc.) alive across tab switches instead of resetting on every visit. */}
+            <div className="tab-panel" style={{ display: activeTab === 'description' ? undefined : 'none' }}>
+              <ProblemDescriptionTab question={question} onOpenEditorial={() => setActiveTab('editorial')} />
             </div>
-          ))}
+            <div className="tab-panel" style={{ display: activeTab === 'editorial' ? undefined : 'none' }}>
+              <EditorialTab
+                question={question}
+                approachesRevealed={approachesRevealed}
+                onReveal={revealApproaches}
+                plan={plan}
+                onPlanChange={handlePlanChange}
+                onHintsUsed={setHintsUsed}
+              />
+            </div>
+            <div className="tab-panel" style={{ display: activeTab === 'solutions' ? undefined : 'none' }}>
+              <SolutionsTab
+                question={question}
+                approachesRevealed={approachesRevealed}
+                onReveal={revealApproaches}
+                plan={plan}
+                onPlanChange={handlePlanChange}
+              />
+            </div>
+            <div className="tab-panel" style={{ display: activeTab === 'submissions' ? undefined : 'none' }}>
+              <SubmissionsTab questionId={question.id} />
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* 4. Interactive Dry Run & Code Simulation Section */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Interactive Dry Run & Execution Simulation</h3>
-        <DryRunSimulator 
-          questionId={question.id} 
-          optimalCode={question.approaches.find(app => app.name === 'Optimal')?.code || (question.approaches[0]?.code || '')} 
-          trace={question.trace}
+        {/* The divider rides in the grid's own column gap (position:absolute, see
+            index.css) so the two panes keep the exact spacing they had, and so the
+            <=1024px single-column collapse has nothing to undo — the handle simply
+            hides there, since there are no columns left to split. */}
+        <ResizeHandle
+          orientation="vertical"
+          containerRef={splitRef}
+          split={columnSplit}
+          label="Problem and code panes"
         />
+
+        {/* Right column: dedicated ENTIRELY to the Code panel (top) and its
+            Testcase/Result panel (bottom), which live inside PythonPlayground
+            itself — see that file's pp-code-pane / pp-test-pane split. Real
+            LeetCode's right pane is code+testcase and nothing else; RecallRating
+            and ExplainBack used to share this fixed-height scrolling column with
+            the editor and crowded it into a strip of its own card — moved below
+            the whole split-pane instead (see the "Your Turn" reflection section
+            further down), same place Whiteboard/PeerReview/etc. already live. */}
+        <div className="viewer-pane glass no-print">
+          <div className="pane-header">
+            <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Code</h3>
+          </div>
+          <div className="pane-body" style={{ padding: 0 }}>
+            <PythonPlayground
+              questionId={question.id}
+              solutionCode={question.approaches.find(app => app.name === 'Optimal')?.code || question.approaches[0]?.code || ''}
+              tests={question.tests}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* 5. Edge Cases & Follow Ups */}
+      {/* "Your Turn" reflection — how did the attempt actually go, and can you say
+          why out loud. Used to live squeezed inside the code column's fixed-height
+          scroll; now full width like everything else below the split, with real
+          room to breathe. */}
+      <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <h3 data-tour="your-turn" style={{ fontSize: '1.25rem', fontWeight: 700 }}>Your Turn</h3>
+        <div data-tour="recall">
+          <RecallRating questionId={question.id} hintsUsed={hintsUsed} />
+        </div>
+        {/* Feynman box — unlocks when tests pass (event from the playground) or
+            the approaches are revealed; resurfaces inside RecallRating at
+            review time. */}
+        <ExplainBack questionId={question.id} revealed={approachesRevealed} />
+      </div>
+
+      {/* Below the split: pieces with no LeetCode-tab home of their own — this
+          app's own value-adds (whiteboard, peer review), plus edge cases,
+          similar problems and notes, same as the rest of this app's long
+          scrolling pages. */}
+      <Whiteboard questionId={question.id} />
+      <PeerReviewComposer questionId={question.id} questionTitle={question.title} />
+
       <div className="glass" style={{ padding: '2rem', borderRadius: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
         <div>
-          <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'hsl(var(--hard))', marginBottom: '0.75rem' }}>MAANG Interview Edge Cases</h4>
+          <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'hsl(var(--hard))', marginBottom: '0.75rem' }}>Edge Cases Interviewers Probe</h4>
           <ul style={{ paddingLeft: '1.2rem', fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             {question.edgeCases.map((e, idx) => (
               <li key={idx}>{e}</li>
@@ -349,7 +368,7 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
           </ul>
         </div>
         <div>
-          <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'hsl(var(--secondary))', marginBottom: '0.75rem' }}>MAANG Follow-up Questions</h4>
+          <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'hsl(var(--secondary))', marginBottom: '0.75rem' }}>Follow-up Questions</h4>
           <ul style={{ paddingLeft: '1.2rem', fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             {question.followUps.map((f, idx) => (
               <li key={idx}>{f}</li>
@@ -358,9 +377,20 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
         </div>
       </div>
 
-      {/* 6. Notes Scratchpad */}
-      <div className="glass" style={{ padding: '2rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <h4 style={{ fontWeight: 700, fontSize: '1.25rem' }}>My Notes & Complexity Trace</h4>
+      <SimilarProblems question={question} onOpenQuestion={onOpenQuestion} />
+
+      <div className="glass no-print" style={{ padding: '2rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+          <h4 style={{ fontWeight: 700, fontSize: '1.25rem' }}>My Notes & Complexity Trace</h4>
+          <NoteHistory
+            questionId={question.id}
+            currentText={notes}
+            onRestore={(text) => {
+              setNotes(text);
+              writeText(`notes-${question.id}`, text);
+            }}
+          />
+        </div>
         <textarea
           placeholder="Write down edge cases, your thoughts, or checklist items here..."
           style={{
@@ -369,7 +399,7 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
             background: 'hsl(var(--bg-secondary))',
             border: '1px solid hsl(var(--border-color))',
             borderRadius: '8px',
-            color: 'white',
+            color: 'hsl(var(--text-primary))',
             padding: '1rem',
             fontFamily: 'var(--font-sans)',
             fontSize: '0.9rem',
@@ -378,7 +408,10 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({
             lineHeight: '1.6'
           }}
           value={notes}
-          onChange={handleNotesChange}
+          onChange={(e) => {
+            maybeSnapshotNote(question.id, notes);
+            handleNotesChange(e);
+          }}
         />
       </div>
     </div>

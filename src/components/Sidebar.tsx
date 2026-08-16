@@ -1,8 +1,14 @@
 import React from 'react';
-import { LayoutDashboard, Code2, Database, Award, Sparkles } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
+import { SettingsPanel } from './SettingsPanel';
+import { InstallPrompt, type BeforeInstallPromptEvent } from './InstallPrompt';
+import { WhatsNew } from './WhatsNew';
+import { LayoutDashboard, Code2, Database, Sparkles, Timer, BarChart3, GraduationCap } from 'lucide-react';
 
 interface SidebarProps {
   currentTab: string;
+  /** Stashed beforeinstallprompt from App — null until the browser offers install. */
+  installPrompt?: BeforeInstallPromptEvent | null;
   setCurrentTab: (tab: string) => void;
   dsaProgress: number;
   sqlProgress: number;
@@ -10,20 +16,28 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
+  installPrompt,
   setCurrentTab,
   dsaProgress,
   sqlProgress,
 }) => {
+  // Each section owns a colour. Uniform white-on-dark icons were unreadable at
+  // rail size and gave no way to navigate by memory — colour is the fastest
+  // "which tab is that" cue there is, and it survives being 20px wide.
   const navItems = [
-    { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
-    { id: 'dsa', name: 'DSA SDE Sheet', icon: Code2, progress: dsaProgress },
-    { id: 'sql', name: 'SQL MAANG Prep', icon: Database, progress: sqlProgress },
+    { id: 'dashboard', name: 'Dashboard',     icon: LayoutDashboard, hue: '199 89% 60%' },  // sky
+    { id: 'dsa',       name: 'DSA SDE Sheet', icon: Code2,           hue: '84 81% 55%',  progress: dsaProgress },  // lime
+    { id: 'sql',       name: 'SQL Top 50',    icon: Database,        hue: '330 81% 65%', progress: sqlProgress },  // pink
+    { id: 'core',      name: 'Core CS',       icon: GraduationCap,   hue: '38 92% 58%'  },  // amber
+    { id: 'drill',     name: 'Mock Drill',    icon: Timer,           hue: '0 84% 65%'   },  // red
+    { id: 'stats',     name: 'Stats',         icon: BarChart3,       hue: '265 89% 70%' },  // violet
   ];
 
   return (
     <div className="sidebar">
       <div className="logo-container">
         <div 
+          className="fx-levitate"
           style={{
             background: 'linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--primary)) 100%)',
             padding: '0.5rem',
@@ -36,11 +50,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <Sparkles size={20} color="white" />
         </div>
-        <span className="logo-text gradient-text">MAANG.Prep</span>
+        <span className="logo-text gradient-text">Striver SDE</span>
+        {/* [discover] What's-new bell: dot on unseen releases, changelog on click */}
+        <WhatsNew />
       </div>
 
       <nav style={{ flex: 1 }}>
-        <ul className="nav-links">
+        {/* [discover] data-tour: the guided tour spotlights the whole rail (stop 1)
+            and single tabs (nav-drill / nav-stats) without knowing this markup. */}
+        <ul className="nav-links" data-tour="sidebar-tabs">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentTab === item.id;
@@ -51,9 +69,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className={`nav-item ${isActive ? 'active' : ''}`}
                   onClick={() => setCurrentTab(item.id)}
                   aria-current={isActive ? 'page' : undefined}
+                  data-tour={`nav-${item.id}`}
+                  aria-label={item.name}
+                  data-tip={item.progress !== undefined ? `${item.name} — ${Math.round(item.progress)}%` : item.name}
+                  style={{ ['--nav-hue' as string]: item.hue }}
                 >
-                  <Icon size={18} />
+                  <Icon size={20} strokeWidth={2.2} />
                   <span>{item.name}</span>
+                  {/* Rail mode shows progress as a hairline under the icon; the exact
+                      number lives in the hover tooltip. */}
+                  {item.progress !== undefined && (
+                    <span className="rail-progress" aria-hidden="true"
+                      style={{ width: `${Math.max(8, Math.round(item.progress))}%`, background: `hsl(${item.hue})` }} />
+                  )}
                   {item.progress !== undefined && (
                     <span 
                       style={{
@@ -77,27 +105,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       <div className="nav-footer">
-        <div 
-          className="glass"
-          style={{
-            padding: '1rem',
-            borderRadius: '12px',
-            fontSize: '0.8rem',
-            color: 'hsl(var(--text-secondary))',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: 'hsl(var(--text-primary))' }}>
-            <Award size={16} color="hsl(var(--secondary))" />
-            <span>Focused Prep Mode</span>
-          </div>
-          <span>Solve daily, review patterns, and build interview depth with guided theory, solutions, and traces.</span>
+        <div className="rail-hide">
+          <InstallPrompt deferred={installPrompt} />
         </div>
-        <div style={{ textAlign: 'center', fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>
-          v1.1.0 • MAANG Prep Hub
-        </div>
+        <SettingsPanel />
+        <ThemeToggle />
       </div>
     </div>
   );

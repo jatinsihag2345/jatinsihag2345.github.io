@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipForward, SkipBack, RotateCcw, Plus, Trash2, Save, Info, Check } from 'lucide-react';
 import { PythonHighlighter } from './PythonHighlighter';
+import { StepPrediction } from './StepPrediction';
+import { RecursionTree } from './RecursionTree';
 import { readJson, removeStoredValue, writeJson } from '../utils/persistence';
 
 interface DryRunSimulatorProps {
@@ -26,6 +28,9 @@ interface ManualTraceData {
 
 export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, optimalCode, trace }) => {
   const [activeTab, setActiveTab] = useState<'guided' | 'manual'>('guided');
+  // "Quiz me" swaps passive watching for prediction. Off by default — the first
+  // pass through a trace is for understanding; the quiz is for the second visit.
+  const [quizMode, setQuizMode] = useState<boolean>(false);
 
   // GUIDED DRY RUN STATE
   const [guidedStep, setGuidedStep] = useState<number>(0);
@@ -65,6 +70,7 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
     }
     setGuidedStep(0);
     setIsPlaying(false);
+    setQuizMode(false);
   }, [questionId]);
 
   // Clean interval on unmount
@@ -202,9 +208,15 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
   };
 
   // ---------- Generalized structure renderers for the guided player ----------
-  // Any trace step may carry visual state: matrix (2D grid), list (linked list),
-  // array (1D cells), pointers ({label: index|null}), links ({fromIdx: toIdx|null}),
-  // highlight (cells to emphasize), flags (cells to mark as dashed "marker" cells).
+  // Any trace step may carry visual state, and several can coexist in one step:
+  //   matrix  2D grid                     highlight/flags are [row, col] pairs
+  //   array   1D cells with index labels  highlight is [index]
+  //   list    linked list of circles      links {fromIdx: toIdx|null} draws → ← ×
+  //   tree    LEVEL-ORDER array, children of i at 2i+1 / 2i+2, null = absent node
+  //   stack   bottom-to-top column        stackLabel names it ("call stack", "queue")
+  //   pointers {label: index|null}        drawn as coloured chips above the cell
+  // `highlight` means "the algorithm is looking at this right now"; `flags` means
+  // "already processed / marked", so the two read differently at a glance.
   const POINTER_COLORS = [
     { bg: 'hsl(var(--primary))', fg: 'white' },
     { bg: 'hsl(var(--secondary))', fg: 'black' },
@@ -367,6 +379,146 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
     );
   };
 
+  // Trees arrive as a LeetCode-style LEVEL-ORDER array: index i has children at 2i+1 and 2i+2,
+  // and `null` marks an absent node. That keeps authoring identical to the matrix/array views
+  // (highlight/flags are plain index lists) while still drawing a real tree on screen.
+  const renderTreeView = (step: any) => {
+    const nodes: any[] = step.tree;
+    const highlight = new Set<string>((step.highlight || []).map(posKey));
+    const flags = new Set<string>((step.flags || []).map(posKey));
+
+    const present = nodes.map((v, i) => (v === null || v === undefined ? -1 : i)).filter(i => i >= 0);
+    if (present.length === 0) {
+      return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>Empty tree (None)</span>;
+    }
+
+    const depthOf = (i: number) => Math.floor(Math.log2(i + 1));
+    const maxDepth = Math.max(...present.map(depthOf));
+    // Lay every level out over the full width of its slot count so siblings never collide.
+    const slots = Math.pow(2, maxDepth);
+    const nodeSize = slots > 8 ? 30 : 38;
+    const gap = slots > 8 ? 8 : 14;
+    const width = slots * (nodeSize + gap);
+    const levelH = nodeSize + 34;
+    const height = (maxDepth + 1) * levelH - (levelH - nodeSize);
+
+    const centerOf = (i: number) => {
+      const d = depthOf(i);
+      const posInLevel = i - (Math.pow(2, d) - 1);
+      const span = width / Math.pow(2, d);
+      return { x: span * (posInLevel + 0.5), y: d * levelH + nodeSize / 2 };
+    };
+
+    return (
+      <div style={{ overflowX: 'auto', maxWidth: '100%', padding: '0.25rem 0' }}>
+        <div style={{ position: 'relative', width: `${width}px`, height: `${height}px`, margin: '0 auto' }}>
+          <svg width={width} height={height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            {present.map(i => {
+              const p = centerOf(i);
+              return [2 * i + 1, 2 * i + 2].map(childIdx => {
+                if (childIdx >= nodes.length) return null;
+                if (nodes[childIdx] === null || nodes[childIdx] === undefined) return null;
+                const c = centerOf(childIdx);
+                // An edge into the highlighted node is the one the walk just traversed.
+                const active = highlight.has(String(childIdx)) || highlight.has(String(i));
+                return (
+                  <line
+                    key={`${i}-${childIdx}`}
+                    x1={p.x} y1={p.y} x2={c.x} y2={c.y}
+                    stroke={active ? 'hsl(var(--primary))' : 'hsl(var(--border-color))'}
+                    strokeWidth={active ? 2.5 : 1.5}
+                  />
+                );
+              });
+            })}
+          </svg>
+          {present.map(i => {
+            const { x, y } = centerOf(i);
+            const isHi = highlight.has(String(i));
+            const isFlag = flags.has(String(i));
+            return (
+              <div
+                key={i}
+                style={{
+                  position: 'absolute',
+                  left: `${x - nodeSize / 2}px`,
+                  top: `${y - nodeSize / 2}px`,
+                  width: `${nodeSize}px`,
+                  height: `${nodeSize}px`,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  fontSize: slots > 8 ? '0.65rem' : '0.8rem',
+                  color: isHi ? 'hsl(var(--hard))' : 'white',
+                  background: isHi ? 'hsl(var(--hard) / 0.15)' : isFlag ? 'hsl(var(--primary-glow))' : 'hsl(var(--bg-tertiary))',
+                  border: isHi ? '2px solid hsl(var(--hard))' : isFlag ? '2px dashed hsl(var(--primary))' : '1px solid hsl(var(--border-color))',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {String(nodes[i])}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // A stack/queue grows and shrinks at one end, so it reads far better vertically (top of the
+  // stack on top) than as a flat row. `stack` is bottom-to-top; `label` names it (e.g. "call stack").
+  const renderStackView = (step: any) => {
+    const items: any[] = step.stack;
+    const label: string = step.stackLabel || 'stack';
+    const highlight = new Set<string>((step.highlight || []).map(posKey));
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
+        <span style={{ fontSize: '0.6rem', color: 'hsl(var(--text-muted))', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          {label} {items.length > 0 ? `· top = ${String(items[items.length - 1])}` : '· empty'}
+        </span>
+        <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: '0.25rem', minHeight: '34px' }}>
+          {items.length === 0 && (
+            <div style={{ fontSize: '0.7rem', color: 'hsl(var(--text-muted))', fontFamily: 'var(--font-mono)', padding: '0.4rem 1rem', border: '1px dashed hsl(var(--border-color))', borderRadius: '4px' }}>
+              (empty)
+            </div>
+          )}
+          {items.map((val: any, idx: number) => {
+            const isHi = highlight.has(String(idx));
+            const isTop = idx === items.length - 1;
+            return (
+              <div
+                key={idx}
+                style={{
+                  minWidth: '74px',
+                  padding: '0.3rem 0.6rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600,
+                  fontSize: '0.75rem',
+                  borderRadius: '4px',
+                  color: 'white',
+                  background: isHi ? 'hsl(var(--secondary-glow))' : 'hsl(var(--bg-tertiary))',
+                  border: isHi
+                    ? '2px solid hsl(var(--secondary))'
+                    : isTop
+                      ? '2px solid hsl(var(--primary))'
+                      : '1px solid hsl(var(--border-color))',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {String(val)}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderVarsView = (step: any) => {
     if (!step || !step.vars) {
       return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>No active state data</span>;
@@ -511,12 +663,17 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
     if (!step) {
       return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>No active state data</span>;
     }
-    const hasStructure = step.matrix || step.list || step.array;
+    const hasStructure = step.matrix || step.list || step.array || step.tree || step.stack;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+        {step.tree && renderTreeView(step)}
         {step.matrix && renderMatrixView(step)}
         {step.list && renderListView(step)}
         {step.array && renderArrayView(step)}
+        {step.stack && renderStackView(step)}
+        {/* Named scalars stay useful alongside a structure: they carry the answer being built
+            up (max_depth, count, result) that the drawing itself cannot show. */}
+        {hasStructure && step.vars && Object.keys(step.vars).length > 0 && renderVarsView(step)}
         {!hasStructure && renderVarsView(step)}
       </div>
     );
@@ -542,6 +699,19 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
             Interactive Dry Run Simulator
           </span>
         </div>
+
+        {/* "Quiz me" flips the guided player from watching to predicting — recognising
+            a state as it scrolls past is not the same as producing it first. */}
+        {activeTab === 'guided' && hasGuidedTrace && (
+          <button
+            className={`btn ${quizMode ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '0.35rem 1rem', fontSize: '0.75rem' }}
+            aria-pressed={quizMode}
+            onClick={() => setQuizMode(v => !v)}
+          >
+            Quiz me
+          </button>
+        )}
 
         <div style={{ display: 'flex', gap: '0.5rem', background: 'hsl(var(--bg-tertiary))', padding: '0.2rem', borderRadius: '6px' }}>
           <button 
@@ -587,6 +757,8 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
           </div>
         ) : (
           /* Guided Visualizer Player */
+          <>
+          {quizMode && <StepPrediction key={questionId} trace={steps} code={optimalCode} />}
           <div 
             style={{ 
               display: 'grid', 
@@ -596,7 +768,7 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
             className="guided-grid-split"
           >
             {/* Left Column: Code Highlighter with highlighted line */}
-            <div style={{ borderRight: '1px solid hsl(var(--border-color))', overflow: 'hidden' }}>
+            <div style={{ overflow: 'hidden' }}>
               <div 
                 style={{ 
                   background: 'hsl(var(--bg-secondary) / 0.3)', 
@@ -618,7 +790,7 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
             </div>
 
             {/* Right Column: Steps, Variable tables and visual structure */}
-            <div style={{ display: 'flex', flexDirection: 'column', height: '490px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '490px' }}>
               {/* Control Deck */}
               <div 
                 style={{ 
@@ -736,6 +908,8 @@ export const DryRunSimulator: React.FC<DryRunSimulatorProps> = ({ questionId, op
               </div>
             </div>
           </div>
+          <RecursionTree trace={steps} currentStep={guidedStep} />
+          </>
         )
       ) : (
         /* MANUAL DRY RUN TAB */
