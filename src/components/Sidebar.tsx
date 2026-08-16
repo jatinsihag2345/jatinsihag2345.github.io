@@ -2,8 +2,8 @@ import React from 'react';
 import { ThemeToggle } from './ThemeToggle';
 import { SettingsPanel } from './SettingsPanel';
 import { InstallPrompt, type BeforeInstallPromptEvent } from './InstallPrompt';
-import { WhatsNew } from './WhatsNew';
-import { LayoutDashboard, Code2, Database, Sparkles, Timer, BarChart3, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, Code2, Database, Sparkles, Timer, BarChart3, GraduationCap, Container } from 'lucide-react';
+import { ProfileButton } from './ProfileButton';
 
 interface SidebarProps {
   currentTab: string;
@@ -28,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard', name: 'Dashboard',     icon: LayoutDashboard, hue: '199 89% 60%' },  // sky
     { id: 'dsa',       name: 'DSA SDE Sheet', icon: Code2,           hue: '84 81% 55%',  progress: dsaProgress },  // lime
     { id: 'sql',       name: 'SQL Top 50',    icon: Database,        hue: '330 81% 65%', progress: sqlProgress },  // pink
+    { id: 'devops',    name: 'DevOps',        icon: Container,       hue: '174 72% 50%' },  // teal
     { id: 'core',      name: 'Core CS',       icon: GraduationCap,   hue: '38 92% 58%'  },  // amber
     { id: 'drill',     name: 'Mock Drill',    icon: Timer,           hue: '0 84% 65%'   },  // red
     { id: 'stats',     name: 'Stats',         icon: BarChart3,       hue: '265 89% 70%' },  // violet
@@ -51,8 +52,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Sparkles size={20} color="white" />
         </div>
         <span className="logo-text gradient-text">Striver SDE</span>
-        {/* [discover] What's-new bell: dot on unseen releases, changelog on click */}
-        <WhatsNew />
       </div>
 
       <nav style={{ flex: 1 }}>
@@ -105,6 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       <div className="nav-footer">
+        <ProfileButton />
         <div className="rail-hide">
           <InstallPrompt deferred={installPrompt} />
         </div>

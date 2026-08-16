@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { CommandPalette } from './components/CommandPalette';
@@ -12,6 +12,11 @@ import { ScrollProgressBar } from './components/MotionExtras';
 import { Stats } from './components/Stats';
 import { DSAHub } from './components/DSAHub';
 import { CoreHub } from './components/CoreHub';
+// Lazy, unlike every other tab: the DevOps JSONs are ~1.3 MB of prose, and a
+// statically imported hub would put all of it in the main bundle for everyone,
+// including the learner who only ever opens DSA. The dynamic import splits it
+// into a chunk that is fetched the first time the tab is actually opened.
+const DevOpsHub = lazy(() => import('./components/DevOpsHub').then(m => ({ default: m.DevOpsHub })));
 import { SQLHub } from './components/SQLHub';
 import { ProblemViewer } from './components/ProblemViewer';
 import { SQLViewer } from './components/SQLViewer';
@@ -44,7 +49,7 @@ function App() {
   // rendering an empty main pane.
   const [currentTab, setCurrentTab] = useState<string>(() => {
     const tab = new URLSearchParams(window.location.search).get('tab');
-    return tab && ['dashboard', 'dsa', 'sql', 'core', 'drill', 'stats'].includes(tab)
+    return tab && ['dashboard', 'dsa', 'sql', 'devops', 'core', 'drill', 'stats'].includes(tab)
       ? tab
       : 'dashboard';
   });
@@ -453,6 +458,20 @@ function App() {
             on leave means every visit re-reads the review schedule, so the flashcard
             deck rebuilds from whatever came due since the last look. */}
         {currentTab === 'core' && <CoreHub />}
+
+        {/* Same mount-on-visit behaviour as Core CS, wrapped in Suspense because the
+            hub and its content arrive as a separate chunk (see the lazy import). */}
+        {currentTab === 'devops' && (
+          <Suspense
+            fallback={
+              <div style={{ padding: '3rem 0', textAlign: 'center', color: 'hsl(var(--text-muted))', fontSize: '0.9rem' }}>
+                Loading the DevOps material…
+              </div>
+            }
+          >
+            <DevOpsHub />
+          </Suspense>
+        )}
 
         {/* Mock drill is hidden, not unmounted, when another tab is open: an in-flight
             drill's clock must keep running while the learner is on the problem page,

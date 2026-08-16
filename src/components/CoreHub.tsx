@@ -38,12 +38,21 @@ import { consumePendingTheoryOpen } from './CommandPalette';
  * fact you graded "shaky" comes back in 3 days exactly like a shaky DP problem does,
  * in the one review queue the learner already trusts.
  *
+ * Also the study-hub ENGINE: every prop below is optional and defaults to Core CS's
+ * own values, so `<CoreHub />` is byte-for-byte the screen it always was, while a
+ * sibling library (see DevOpsHub) gets the identical UI by passing its own subject
+ * list and id prefix. The prefix is what keeps the two review ladders apart in the
+ * one shared ledger — see the `idPrefix` note.
+ *
  * Lands at: src/components/CoreHub.tsx
  */
 
 /** Review-ladder id for a flashcard. Index-based, so content updates must APPEND
- *  cards, never reorder — see the CoreFlashcard interface note in coreSubjects.ts. */
-const cardId = (subjectId: string, index: number) => `core-${subjectId}-card-${index}`;
+ *  cards, never reorder — see the CoreFlashcard interface note in coreSubjects.ts.
+ *  The prefix is part of the persisted id, so it is identity too: 'core' must stay
+ *  'core' forever or every grade a learner has recorded orphans itself. */
+const cardId = (prefix: string, subjectId: string, index: number) =>
+  `${prefix}-${subjectId}-card-${index}`;
 
 /** New (never-graded) cards allowed into a session before the learner must opt in.
  *  20 is Anki's default for the same reason: unbounded "new" buries the due queue,
@@ -53,8 +62,8 @@ const NEW_PER_SESSION = 20;
 /** Due cards first (most overdue first — dueQuestionIds already sorts that way),
  *  then new cards up to the cap. Cards graded recently but not yet due are absent
  *  on purpose: showing them early is how intervals stop meaning anything. */
-const buildQueue = (subject: CoreSubject, state: ReviewState, newCap: number): string[] => {
-  const ids = subject.flashcards.map((_, i) => cardId(subject.id, i));
+const buildQueue = (prefix: string, subject: CoreSubject, state: ReviewState, newCap: number): string[] => {
+  const ids = subject.flashcards.map((_, i) => cardId(prefix, subject.id, i));
   const owned = new Set(ids);
   const due = dueQuestionIds(state).filter(id => owned.has(id));
   const fresh = ids.filter(id => !state[id]);
@@ -126,8 +135,31 @@ const StatChip: React.FC<{ value: number; label: string; hue: string }> = ({ val
   </span>
 );
 
-export const CoreHub: React.FC = () => {
-  const [subjectId, setSubjectId] = useState<string>(coreSubjects[0].id);
+/** Core CS's own page header, kept as constants so the defaults below render the
+ *  exact same DOM the hub hardcoded before it took props. */
+const CORE_HEADING = <>Core <span className="gradient-text">CS</span></>;
+const CORE_BLURB =
+  'OOP, OS, DBMS, Networks, LLD and System Design — chapters to read, questions to drill, and flashcards that come due exactly like your problems do.';
+
+export interface CoreHubProps {
+  /** The library to render. Any list of CoreSubjects works — the hub reads nothing
+   *  about them beyond the interface. */
+  subjects?: CoreSubject[];
+  /** Namespace for flashcard review ids (`<prefix>-<subjectId>-card-<index>`) and
+   *  the tour anchor. Two hubs sharing a prefix would share each other's grades,
+   *  so every library needs its own — and an existing one can never change it. */
+  idPrefix?: string;
+  heading?: React.ReactNode;
+  blurb?: React.ReactNode;
+}
+
+export const CoreHub: React.FC<CoreHubProps> = ({
+  subjects = coreSubjects,
+  idPrefix = 'core',
+  heading = CORE_HEADING,
+  blurb = CORE_BLURB,
+}) => {
+  const [subjectId, setSubjectId] = useState<string>(subjects[0].id);
   const [subTab, setSubTab] = useState<'chapters' | 'qa' | 'cards'>('chapters');
   const [openQA, setOpenQA] = useState<Set<number>>(new Set());
   const [reviews, setReviews] = useState<ReviewState>(() => readReviews());
@@ -142,12 +174,18 @@ export const CoreHub: React.FC = () => {
   // sessionStorage (consumePendingTheoryOpen) so a pick made BEFORE this hub
   // mounted still applies — mount consumes it, no event-timing luck involved.
   // The 'open-theory' event is just the "check now" ping for the mounted case.
+  //
+  // Core-only, deliberately: the palette's theory index is built from coreSubjects
+  // and dsaTheories, and consuming a request DELETES it. Another library reading
+  // 'core' mail would swallow requests it has no chapter for, and Core CS would
+  // never see them.
   const [theoryScrollIdx, setTheoryScrollIdx] = useState<number | null>(null);
   useEffect(() => {
+    if (idPrefix !== 'core') return;
     const applyPending = () => {
       const req = consumePendingTheoryOpen('core');
       if (!req) return;
-      if (!coreSubjects.some(s => s.id === req.subjectOrTopic)) return;
+      if (!subjects.some(s => s.id === req.subjectOrTopic)) return;
       setSubjectId(req.subjectOrTopic);
       setSubTab('chapters');
       setTheoryScrollIdx(req.sectionIndex);
@@ -155,7 +193,8 @@ export const CoreHub: React.FC = () => {
     applyPending();
     window.addEventListener('open-theory', applyPending);
     return () => window.removeEventListener('open-theory', applyPending);
-  }, []);
+    // Both deps are module-level constants in practice, so this still runs once.
+  }, [idPrefix, subjects]);
   useEffect(() => {
     if (theoryScrollIdx === null) return;
     // Two frames: one for the subject swap to commit, one for layout to settle.
@@ -169,14 +208,14 @@ export const CoreHub: React.FC = () => {
     return () => cancelAnimationFrame(raf);
   }, [theoryScrollIdx]);
 
-  const subject = coreSubjects.find(s => s.id === subjectId) ?? coreSubjects[0];
+  const subject = subjects.find(s => s.id === subjectId) ?? subjects[0];
 
   const resetDeck = (s: CoreSubject) => {
     // Re-read storage rather than trusting component state: grades recorded on the
     // problem side (RecallRating) share the same ledger and may have moved things.
     const state = readReviews();
     setReviews(state);
-    setQueue(buildQueue(s, state, NEW_PER_SESSION));
+    setQueue(buildQueue(idPrefix, s, state, NEW_PER_SESSION));
     setPos(0);
     setShowBack(false);
   };
@@ -185,7 +224,7 @@ export const CoreHub: React.FC = () => {
   // survives the swap — hopping OS→DBMS mid-flashcard-review should land on the
   // DBMS deck, not bounce back to Chapters.
   useEffect(() => {
-    const s = coreSubjects.find(x => x.id === subjectId) ?? coreSubjects[0];
+    const s = subjects.find(x => x.id === subjectId) ?? subjects[0];
     resetDeck(s);
     setOpenQA(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,20 +235,20 @@ export const CoreHub: React.FC = () => {
   const dueCounts = useMemo(() => {
     const today = todayISO();
     const counts: Record<string, number> = {};
-    coreSubjects.forEach(s => {
+    subjects.forEach(s => {
       counts[s.id] = s.flashcards.reduce((n, _, i) => {
-        const r = reviews[cardId(s.id, i)];
+        const r = reviews[cardId(idPrefix, s.id, i)];
         return n + (r && r.due <= today ? 1 : 0);
       }, 0);
     });
     return counts;
-  }, [reviews]);
+  }, [reviews, subjects, idPrefix]);
 
   const deckStats = useMemo(() => {
     const today = todayISO();
     let due = 0, fresh = 0, learning = 0, mature = 0;
     subject.flashcards.forEach((_, i) => {
-      const r = reviews[cardId(subject.id, i)];
+      const r = reviews[cardId(idPrefix, subject.id, i)];
       if (!r) { fresh += 1; return; }
       if (r.due <= today) due += 1;
       // step >= 3 mirrors reviewStats' "mature" cutoff so this screen and the Stats
@@ -217,17 +256,17 @@ export const CoreHub: React.FC = () => {
       if (r.step >= 3) mature += 1; else learning += 1;
     });
     return { due, fresh, learning, mature };
-  }, [subject, reviews]);
+  }, [subject, reviews, idPrefix]);
 
   /** Soonest a not-yet-due card in this deck comes back — for the all-clear panel. */
   const nextDueDays = useMemo(() => {
     let best: number | null = null;
     subject.flashcards.forEach((_, i) => {
-      const d = daysUntilDue(cardId(subject.id, i), reviews);
+      const d = daysUntilDue(cardId(idPrefix, subject.id, i), reviews);
       if (d !== null && d > 0 && (best === null || d < best)) best = d;
     });
     return best;
-  }, [subject, reviews]);
+  }, [subject, reviews, idPrefix]);
 
   const currentId = pos < queue.length ? queue[pos] : null;
   const currentCard = useMemo(() => {
@@ -248,16 +287,16 @@ export const CoreHub: React.FC = () => {
   const freshBeyondQueue = useMemo(() => {
     const inQueue = new Set(queue);
     return subject.flashcards
-      .map((_, i) => cardId(subject.id, i))
+      .map((_, i) => cardId(idPrefix, subject.id, i))
       .filter(id => !reviews[id] && !inQueue.has(id)).length;
-  }, [subject, queue, reviews]);
+  }, [subject, queue, reviews, idPrefix]);
 
   // "Keep going" EXTENDS the queue rather than rebuilding it, so the session's
   // position (and the "Card X of Y" count) stays honest.
   const keepGoing = () => {
     const inQueue = new Set(queue);
     const more = subject.flashcards
-      .map((_, i) => cardId(subject.id, i))
+      .map((_, i) => cardId(idPrefix, subject.id, i))
       .filter(id => !reviews[id] && !inQueue.has(id))
       .slice(0, NEW_PER_SESSION);
     setQueue(q => [...q, ...more]);
@@ -272,16 +311,17 @@ export const CoreHub: React.FC = () => {
   };
 
   return (
-    /* .core-screen scopes the "Print flashcards" page-swap CSS to this hub */
+    /* .core-screen scopes the "Print flashcards" page-swap CSS to this hub. Not
+       prefix-aware on purpose: it is a CSS hook, not an identity, and every hub
+       built on this engine wants the exact same print behaviour. */
     <div className="core-screen" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       {/* Page header */}
       <div>
         <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '0.25rem' }}>
-          Core <span className="gradient-text">CS</span>
+          {heading}
         </h1>
         <p style={{ color: 'hsl(var(--text-secondary))' }}>
-          OOP, OS, DBMS, Networks, LLD and System Design — chapters to read, questions to
-          drill, and flashcards that come due exactly like your problems do.
+          {blurb}
         </p>
       </div>
 
@@ -300,7 +340,7 @@ export const CoreHub: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', flex: 1, minWidth: 0 }}>
-        {coreSubjects.map(s => (
+        {subjects.map(s => (
           <button
             key={s.id}
             className={`tab ${subjectId === s.id ? 'active' : ''}`}
@@ -355,10 +395,12 @@ export const CoreHub: React.FC = () => {
         </div>
       )}
 
-      {/* Sub-tab switch — same pattern as DSAHub's Theory/Questions toggle */}
+      {/* Sub-tab switch — same pattern as DSAHub's Theory/Questions toggle.
+          The tour anchor is prefix-aware so two hubs can never answer to the same
+          one; GuidedTour asks for 'core-decks', which the default prefix produces. */}
       <div
         className="no-print"
-        data-tour="core-decks"
+        data-tour={`${idPrefix}-decks`}
         style={{
           display: 'flex', gap: '1rem', background: 'hsl(var(--bg-secondary) / 0.5)',
           padding: '0.25rem', borderRadius: '8px', width: 'fit-content',
@@ -414,6 +456,9 @@ export const CoreHub: React.FC = () => {
               {section.code && (
                 <RunnableCode code={section.code} />
               )}
+              {/* Deliberately NOT prefixed: subject ids are unique across every
+                  library, and prefixing now would detach every figure a Core CS
+                  learner has already drawn from the section it belongs to. */}
               <FigureBlock figKey={`${subject.id}:${section.title}:${idx}`} />
               {/* Structured board (box/arrow/label), not the DSA sheet's freehand
                   pad — an HLD chapter is architecture, not a pointer diagram. */}

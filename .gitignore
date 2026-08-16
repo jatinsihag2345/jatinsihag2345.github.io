@@ -27,3 +27,8 @@ dist-ssr
 # Python bytecode from scratch/ generator scripts
 __pycache__/
 *.pyc
+
+# Half-written content files from the DevOps authoring pipeline: the second stage
+# merges each _partial_ into its final <subject>.json and deletes it, so one only
+# exists mid-run and must never be committed.
+src/data/devops/_partial_*.json
